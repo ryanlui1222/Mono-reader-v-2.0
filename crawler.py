@@ -177,6 +177,81 @@ def fetch_webgenron():
         print(f"webゲンロン 抓取失敗: {e}")
     return articles
 
+def fetch_mit_reader():
+    """MIT Press Reader：解析首頁的 Billboard 頭條與 Featured Articles"""
+    url = "https://thereader.mitpress.mit.edu/"
+    articles = []
+    source_name = "MIT Press Reader"
+    
+    try:
+        # 🌟 加入強化偽裝，模擬真實瀏覽器，降低被阻擋的機率
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        res = scraper.get(url, headers=headers, timeout=15)
+        
+        # 🌟 防呆機制：如果不是 200 成功代碼，直接報錯，不再默默失敗
+        if res.status_code != 200:
+            print(f"MIT Press Reader 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
+            return articles
+
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. 抓取最上方的頭條 (Billboard)
+        billboard = soup.find('div', class_='billboard-main-wrap')
+        if billboard:
+            img_tag = billboard.find('img')
+            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            
+            title_tag = billboard.find('a', class_='billboard-main-title')
+            if title_tag:
+                title = title_tag.get_text(strip=True)
+                link = title_tag['href']
+                
+                author_tag = billboard.find('a', class_='billboard-main-authors')
+                author = author_tag.get_text(strip=True).replace('By:', '').strip() if author_tag else ""
+                
+                summary = f"**👤 著者：** {author}\n\n（點擊標題閱讀頭條原文）" if author else "（點擊標題閱讀頭條原文）"
+                
+                articles.append({
+                    "Source": source_name, "Title": title, "Link": link,
+                    "Published": "最新頭條", "Summary": summary, "Image": img_url
+                })
+
+        # 2. 抓取精選文章列表 (Featured Articles)
+        entries_posts = soup.find('div', class_='entries-posts')
+        if entries_posts:
+            for row in entries_posts.find_all('tr'):
+                img_tag = row.find('img')
+                img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+                
+                info_td = row.find('td', class_='post-info-td')
+                if not info_td: continue
+                
+                title_a = info_td.find('h2').find_parent('a') if info_td.find('h2') else None
+                if not title_a: continue
+                
+                title = title_a.find('h2').get_text(strip=True)
+                link = title_a['href']
+                
+                summary_p = title_a.find('p')
+                summary_text = summary_p.get_text(strip=True) if summary_p else ""
+                
+                author_tag = info_td.find('p', class_='post-author')
+                author = author_tag.find('a').get_text(strip=True) if author_tag and author_tag.find('a') else ""
+                
+                date_tag = info_td.find('time')
+                date = date_tag.get_text(strip=True) if date_tag else "最新"
+                
+                summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
+                
+                articles.append({
+                    "Source": source_name, "Title": title, "Link": link,
+                    "Published": date, "Summary": summary, "Image": img_url
+                })
+                
+    except Exception as e:
+        print(f"MIT Press Reader 抓取失敗: {e}")
+        
+    return articles
 
 def fetch_eflux():
     """e-flux Journal：抓取當期【所有】文章"""
@@ -261,8 +336,7 @@ def main():
         ("https://www.421.news/zh/rss", "421 News", 15, False),
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
-        ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
-        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
+        ("https://www.leapleapleap.com/feed/", "藝術界", 15, False)
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -272,7 +346,8 @@ def main():
         futures.extend([
             executor.submit(fetch_webgenron), 
             executor.submit(fetch_eflux),
-            executor.submit(fetch_funambulist) 
+            executor.submit(fetch_funambulist),
+            executor.submit(fetch_mit_reader)
         ])
         
         for future in concurrent.futures.as_completed(futures):
