@@ -17,12 +17,13 @@ scraper = cloudscraper.create_scraper(
 # ==========================================
 # 爬蟲模組區
 # ==========================================
-def fetch_rss(feed_url, source_name, limit=8, deep_fetch=False):
-    """萬用 RSS 抓取：保留深度抓取內文與隱藏圖片，及相對路徑修復"""
+def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
+    """萬用 RSS 抓取：上限提高至 20 篇（可由參數控制）"""
     articles = []
     try:
         res = scraper.get(feed_url, timeout=15)
         parsed = feedparser.parse(res.content)
+        # 🌟 修改點：根據傳入的 limit 決定抓取數量
         entries = parsed.entries[:limit] 
         
         def process_entry(entry):
@@ -33,7 +34,6 @@ def fetch_rss(feed_url, source_name, limit=8, deep_fetch=False):
             img = soup.find('img')
             img_url = img['src'] if img and 'src' in img.attrs else None
             
-            # 🌟 保留邏輯：遇到相對路徑的圖片自動補全為絕對網址
             if img_url:
                 img_url = urllib.parse.urljoin(entry.link, img_url)
             
@@ -80,7 +80,7 @@ def fetch_rss(feed_url, source_name, limit=8, deep_fetch=False):
 
 
 def fetch_funambulist():
-    """The Funambulist：保留 timeout=15 防護，並精準排除非正式文章連結"""
+    """The Funambulist：自動抓取最新一期的【所有】文章"""
     issues_url = "https://thefunambulist.net/magazine/issues"
     articles = []
     try:
@@ -130,7 +130,7 @@ def fetch_funambulist():
                     if title not in seen_titles:
                         valid_links.append(a_tag)
                         seen_titles.add(title)
-                if len(valid_links) >= 8: break
+                # 🌟 修改點：移除了 if len(valid_links) >= 8: break，讓它抓完這期所有文章
                 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             futures = [executor.submit(process_funambulist_link, a) for a in valid_links]
@@ -144,7 +144,7 @@ def fetch_funambulist():
 
 
 def fetch_webgenron():
-    """Webゲンロン：首頁 HTML 萃取"""
+    """Webゲンロン：抓取首頁最新發布的所有文章 (設安全上限15篇)"""
     url = "https://webgenron.com/"
     articles = []
     try:
@@ -171,14 +171,15 @@ def fetch_webgenron():
                     "Source": "webゲンロン", "Title": title, "Link": full_link,
                     "Published": "最新", "Summary": summary, "Image": None
                 })
-                if len(articles) >= 8: break
+                # 🌟 修改點：將上限從 8 提高到 15，確保能涵蓋首頁所有的近期更新，同時避免爬到無關的舊連結
+                if len(articles) >= 15: break
     except Exception as e:
         print(f"webゲンロン 抓取失敗: {e}")
     return articles
 
 
 def fetch_eflux():
-    """e-flux Journal：智慧目錄頁抓取 + 隱藏字串解碼與黑名單排除"""
+    """e-flux Journal：抓取當期【所有】文章"""
     url = "https://www.e-flux.com/journal/"
     articles = []
     try:
@@ -211,11 +212,9 @@ def fetch_eflux():
             author_tag = card.find('div', class_='preview-journalarticle__author')
             author = author_tag.get_text(strip=True) if author_tag else ""
             
-            # 🌟 保留邏輯：排除公關黑名單與嘗試正則擷取（若有 JS 加密字串）
             text_tag = card.find('div', class_='preview-journalarticle__text')
             if text_tag:
                 raw_html = str(text_tag)
-                # 使用正則暴力提取 p 標籤內容（應對隱藏字串）
                 extracted_p = re.findall(r'<p[^>]*>(.*?)</p>', raw_html)
                 if extracted_p:
                     summary_text = " ".join([BeautifulSoup(p, "html.parser").get_text() for p in extracted_p])
@@ -224,7 +223,6 @@ def fetch_eflux():
             else:
                 summary_text = "（請點擊標題閱讀原文）"
 
-            # 過濾公關字眼
             blacklisted_words = ["subscribe", "education announces", "newsletter"]
             if any(bad_word in summary_text.lower() for bad_word in blacklisted_words):
                 continue
@@ -246,8 +244,7 @@ def fetch_eflux():
                 "Image": img_url
             })
             
-            if len(articles) >= 8:
-                break
+            # 🌟 修改點：移除了 if len(articles) >= 8: break，讓它抓完該期雜誌的所有卡片
                 
     except Exception as e:
         print(f"e-flux 抓取失敗: {e}")
@@ -257,17 +254,19 @@ def main():
     print("🚀 開始執行資料抓取...")
     all_articles = []
     
+    # 🌟 修改點：將 RSS 的抓取數量提高至 15 或 20 篇
     rss_sources = [
-        ("https://aeon.co/feed.rss", "Aeon 思想誌", True),
-        ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", True),
-        ("https://www.421.news/zh/rss", "421 News", False),
-        ("https://www.linking.vision/feed/", "聯經思想空間", False),
-        ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", False),
-        ("https://www.leapleapleap.com/feed/", "藝術界", False)
+        ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
+        ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
+        ("https://www.421.news/zh/rss", "421 News", 15, False),
+        ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
+        ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
+        ("https://www.leapleapleap.com/feed/", "藝術界", 15, False)
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(fetch_rss, url, name, 8, deep) for url, name, deep in rss_sources]
+        # 注意這裡傳入了 limit 參數
+        futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
         
         futures.extend([
             executor.submit(fetch_webgenron), 
@@ -289,10 +288,8 @@ def main():
             
         df['SortDate'] = df['Published'].apply(parse_date)
         df = df.sort_values(by='SortDate', ascending=False).reset_index(drop=True)
-        # 移除 SortDate 欄位以利儲存為 JSON
         df = df.drop(columns=['SortDate'])
         
-        # 儲存成 JSON 供前端讀取
         df.to_json("data.json", orient="records", force_ascii=False, indent=4)
         print(f"✅ 成功抓取 {len(df)} 篇文章，已儲存至 data.json")
     else:
