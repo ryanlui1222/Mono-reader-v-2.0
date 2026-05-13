@@ -33,5 +33,5 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add data.json
-        # 如果資料有變動才進行 commit 與 push
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update data.json" && git push)
+        # 加上 git pull --rebase 避免版本衝突
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update data.json" && git pull --rebase origin main && git push)
