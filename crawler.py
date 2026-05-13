@@ -6,6 +6,7 @@ import cloudscraper
 import urllib.parse
 import re
 import json
+import requests
 
 # ==========================================
 # 全局網路引擎
@@ -178,81 +179,68 @@ def fetch_webgenron():
     return articles
 
 def fetch_mit_reader():
-    """MIT Press Reader：解析首頁的 Billboard 頭條與 Featured Articles"""
-    url = "https://thereader.mitpress.mit.edu/"
+    """MIT Press Reader：使用第三方 API (rss2json) 代理，完美繞過 GitHub IP 403 阻擋"""
+    # 透過 rss2json 服務幫我們去抓 MIT 的 RSS
+    api_url = "https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/"
     articles = []
     source_name = "MIT Press Reader"
     
     try:
-        # 🌟 加入強化偽裝，模擬真實瀏覽器，降低被阻擋的機率
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        res = scraper.get(url, headers=headers, timeout=15)
+        # 直接向 API 發送請求，不直接碰觸 MIT 伺服器
+        res = requests.get(api_url, timeout=15)
         
-        # 🌟 防呆機制：如果不是 200 成功代碼，直接報錯，不再默默失敗
         if res.status_code != 200:
-            print(f"MIT Press Reader 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
+            print(f"MIT Press API 代理失敗: HTTP 代碼 {res.status_code}")
             return articles
-
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 1. 抓取最上方的頭條 (Billboard)
-        billboard = soup.find('div', class_='billboard-main-wrap')
-        if billboard:
-            img_tag = billboard.find('img')
-            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             
-            title_tag = billboard.find('a', class_='billboard-main-title')
-            if title_tag:
-                title = title_tag.get_text(strip=True)
-                link = title_tag['href']
-                
-                author_tag = billboard.find('a', class_='billboard-main-authors')
-                author = author_tag.get_text(strip=True).replace('By:', '').strip() if author_tag else ""
-                
-                summary = f"**👤 著者：** {author}\n\n（點擊標題閱讀頭條原文）" if author else "（點擊標題閱讀頭條原文）"
-                
-                articles.append({
-                    "Source": source_name, "Title": title, "Link": link,
-                    "Published": "最新頭條", "Summary": summary, "Image": img_url
-                })
+        data = res.json()
+        if data.get('status') != 'ok':
+            print(f"MIT Press API 狀態異常")
+            return articles
+            
+        items = data.get('items', [])[:15] # 抓取最新的 15 篇
+        
+        for item in items:
+            title = item.get('title', '')
+            link = item.get('link', '')
+            author = item.get('author', '')
+            published = item.get('pubDate', '最新')
+            
+            # API 會自動幫我們萃取出縮圖
+            img_url = item.get('thumbnail', '') 
+            
+            # 處理摘要 (過濾掉 HTML 標籤)
+            raw_desc = item.get('description', '')
+            soup = BeautifulSoup(raw_desc, 'html.parser')
+            summary_text = soup.get_text(separator=" ", strip=True)
+            
+            # 摘要字數限制 (中英文長度判斷)
+            eng_count = sum(1 for c in summary_text[:50] if 'a' <= c.lower() <= 'z' or 'A' <= c.upper() <= 'Z')
+            max_len = 600 if eng_count > 25 else 200 
+            summary_text = summary_text[:max_len] + '...' if len(summary_text) > max_len else summary_text
 
-        # 2. 抓取精選文章列表 (Featured Articles)
-        entries_posts = soup.find('div', class_='entries-posts')
-        if entries_posts:
-            for row in entries_posts.find_all('tr'):
-                img_tag = row.find('img')
-                img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-                
-                info_td = row.find('td', class_='post-info-td')
-                if not info_td: continue
-                
-                title_a = info_td.find('h2').find_parent('a') if info_td.find('h2') else None
-                if not title_a: continue
-                
-                title = title_a.find('h2').get_text(strip=True)
-                link = title_a['href']
-                
-                summary_p = title_a.find('p')
-                summary_text = summary_p.get_text(strip=True) if summary_p else ""
-                
-                author_tag = info_td.find('p', class_='post-author')
-                author = author_tag.find('a').get_text(strip=True) if author_tag and author_tag.find('a') else ""
-                
-                date_tag = info_td.find('time')
-                date = date_tag.get_text(strip=True) if date_tag else "最新"
-                
-                summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
-                
-                articles.append({
-                    "Source": source_name, "Title": title, "Link": link,
-                    "Published": date, "Summary": summary, "Image": img_url
-                })
-                
+            summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
+            
+            # 防呆：如果 API 沒抓到縮圖，我們自己從內文找
+            if not img_url:
+                img_tag = soup.find('img')
+                if img_tag and 'src' in img_tag.attrs:
+                    img_url = img_tag['src']
+            
+            articles.append({
+                "Source": source_name, 
+                "Title": title, 
+                "Link": link,
+                "Published": published, 
+                "Summary": summary, 
+                "Image": img_url
+            })
+            
     except Exception as e:
         print(f"MIT Press Reader 抓取失敗: {e}")
         
     return articles
-
+    
 def fetch_eflux():
     """e-flux Journal：抓取當期【所有】文章"""
     url = "https://www.e-flux.com/journal/"
