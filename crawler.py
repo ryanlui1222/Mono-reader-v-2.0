@@ -262,7 +262,7 @@ def main():
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
-        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, True)
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
