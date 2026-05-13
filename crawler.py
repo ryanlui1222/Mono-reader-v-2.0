@@ -261,7 +261,7 @@ def main():
         ("https://www.421.news/zh/rss", "421 News", 15, False),
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
-        ("https://www.leapleapleap.com/feed/", "藝術界", 15, False)
+        ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
         ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, True)
     ]
 
