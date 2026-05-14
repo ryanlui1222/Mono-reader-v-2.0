@@ -79,6 +79,69 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
         print(f"{source_name} 抓取失敗: {e}")
     return articles
 
+def fetch_bijutsutecho():
+    """美術手帖 (Series)：抓取文章列表，並自動標示 PREMIUM 付費文章"""
+    url = "https://bijutsutecho.com/magazine/series"
+    articles = []
+    source_name = "美術手帖"
+    
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        res = scraper.get(url, headers=headers, timeout=15)
+        
+        if res.status_code != 200:
+            print(f"美術手帖 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
+            return articles
+
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 尋找所有的文章卡片
+        for article in soup.find_all('article', class_='MagazinePageListItem'):
+            # 1. 抓取標題與連結
+            title_tag = article.find('h2', class_='title')
+            if not title_tag or not title_tag.find('a'): 
+                continue
+                
+            a_tag = title_tag.find('a')
+            title = a_tag.get_text(strip=True)
+            href = a_tag['href']
+            # 美術手帖的連結是相對路徑，需要補全為主網址
+            full_link = urllib.parse.urljoin("https://bijutsutecho.com", href)
+            
+            # 2. 檢查是否為 PREMIUM 付費文章
+            premium_badge = article.find('div', class_='premium-label')
+            if premium_badge:
+                title = f"🔒 {title}"
+                
+            # 3. 抓取圖片
+            img_tag = article.find('img')
+            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            
+            # 4. 抓取摘要
+            lead_tag = article.find('p', class_='lead')
+            summary = lead_tag.get_text(separator=" ", strip=True) if lead_tag else "（點擊標題閱讀原文）"
+            
+            # 5. 抓取發布時間
+            time_tag = article.find('time')
+            date = time_tag['datetime'] if time_tag and 'datetime' in time_tag.attrs else "最新"
+            
+            articles.append({
+                "Source": source_name, 
+                "Title": title, 
+                "Link": full_link,
+                "Published": date, 
+                "Summary": summary, 
+                "Image": img_url
+            })
+            
+            # 抓取前 15 篇即可
+            if len(articles) >= 15:
+                break
+                
+    except Exception as e:
+        print(f"美術手帖 抓取失敗: {e}")
+        
+    return articles
 
 def fetch_funambulist():
     """The Funambulist：自動抓取最新一期的【所有】文章"""
@@ -412,7 +475,8 @@ def main():
             executor.submit(fetch_eflux),
             executor.submit(fetch_funambulist),
             executor.submit(fetch_mit_reader),
-            executor.submit(fetch_eurozine)
+            executor.submit(fetch_eurozine),
+            executor.submit(fetch_bijutsutecho)
         ])
         
         for future in concurrent.futures.as_completed(futures):
