@@ -41,14 +41,6 @@
     },
     {
         "Source":"New Yorker, Books and Culture",
-        "Title":"How Reading with My Dying Mother Revealed Her Life",
-        "Link":"https:\/\/www.newyorker.com\/culture\/the-weekend-essay\/how-reading-with-my-dying-mother-revealed-her-life",
-        "Published":"Sun, 10 May 2026 10:00:00 +0000",
-        "Summary":"I was eight, and through my bedroom wall I could hear my mother, Heidi, talking to herself as she prepared to go to sleep. Every night, in the living room, she positioned old magazines beneath the legs of a red convertible sofa, so as not to crease the rug it rested on. Then, with audible effort, she lifted the bed out of the couch, arranged layers of sheets, blankets, and quilts, and at last put her head down. “How am I going to make it through the month?” she would ask herself, though I’d come to believe that she was really asking me. The red couch had once been the warm center of family eve...",
-        "Image":"https:\/\/media.newyorker.com\/photos\/69fa24268e3947c9943d29c6\/16:9\/w_1280,c_limit\/PortraitTeacher_Saba_Final%20(1).jpg"
-    },
-    {
-        "Source":"New Yorker, Books and Culture",
         "Title":"Restaurant Review: Lysée",
         "Link":"https:\/\/www.newyorker.com\/culture\/the-food-scene\/a-ten-course-tasting-where-dessert-is-the-whole-point",
         "Published":"Sun, 10 May 2026 10:00:00 +0000",
@@ -57,11 +49,11 @@
     },
     {
         "Source":"New Yorker, Books and Culture",
-        "Title":"Spirit Airlines and the Death of Leisure for the Non-Leisure Class",
-        "Link":"https:\/\/www.newyorker.com\/culture\/critics-notebook\/spirit-airlines-and-the-death-of-leisure-for-the-non-leisure-class",
-        "Published":"Sat, 09 May 2026 10:00:00 +0000",
-        "Summary":"After Spirit Airlines ceased operations, in the middle of the night on May 2nd, a series of canary-yellow airplanes sat on the tarmac at Newark Airport, arranged neatly like children’s toys at day’s end. Travellers flying in or out of the hub ogled the spectacle, a display of sudden corporate collapse. Now that the airline is officially dead, following one failed government bailout and a couple of failed mergers, seventeen thousand workers are in need of employment, and thousands of customers await refunds. Meanwhile, Spirit’s jets are being ferried, one by one, to the desert—a storage field a...",
-        "Image":"https:\/\/media.newyorker.com\/photos\/69fe5304bdca0e19b16dd5d6\/16:9\/w_1280,c_limit\/spirit-airlines.jpg"
+        "Title":"How Reading with My Dying Mother Revealed Her Life",
+        "Link":"https:\/\/www.newyorker.com\/culture\/the-weekend-essay\/how-reading-with-my-dying-mother-revealed-her-life",
+        "Published":"Sun, 10 May 2026 10:00:00 +0000",
+        "Summary":"I was eight, and through my bedroom wall I could hear my mother, Heidi, talking to herself as she prepared to go to sleep. Every night, in the living room, she positioned old magazines beneath the legs of a red convertible sofa, so as not to crease the rug it rested on. Then, with audible effort, she lifted the bed out of the couch, arranged layers of sheets, blankets, and quilts, and at last put her head down. “How am I going to make it through the month?” she would ask herself, though I’d come to believe that she was really asking me. The red couch had once been the warm center of family eve...",
+        "Image":"https:\/\/media.newyorker.com\/photos\/69fa24268e3947c9943d29c6\/16:9\/w_1280,c_limit\/PortraitTeacher_Saba_Final%20(1).jpg"
     },
     {
         "Source":"New Yorker, Books and Culture",
@@ -70,6 +62,14 @@
         "Published":"Sat, 09 May 2026 10:00:00 +0000",
         "Summary":"Freddy the Detective solved his first mystery in 1927, a passing-of-the-deerstalker year in which Sir Arthur Conan Doyle published his last Sherlock Holmes story and Agatha Christie introduced Miss Jane Marple. The likeliest detectives—rich, idle Englishmen—had already begun yielding to slightly less likely ones—a rich, idle Belgian, say—but Marple, a gossipy old spinster from the little village of St. Mary Mead, was another thing altogether. And Freddy: Freddy was a pig. “Freddy the Detective,” written by Walter R. Brooks, who was also, very briefly, a writer at this magazine, concerned a mis...",
         "Image":"https:\/\/media.newyorker.com\/photos\/69fe0d6191a5064f6c7fa7c2\/16:9\/w_1280,c_limit\/LEPORE---THE-SHEEP-DETECTIVES-MCDSHDE_ZU016.jpg"
+    },
+    {
+        "Source":"New Yorker, Books and Culture",
+        "Title":"Spirit Airlines and the Death of Leisure for the Non-Leisure Class",
+        "Link":"https:\/\/www.newyorker.com\/culture\/critics-notebook\/spirit-airlines-and-the-death-of-leisure-for-the-non-leisure-class",
+        "Published":"Sat, 09 May 2026 10:00:00 +0000",
+        "Summary":"After Spirit Airlines ceased operations, in the middle of the night on May 2nd, a series of canary-yellow airplanes sat on the tarmac at Newark Airport, arranged neatly like children’s toys at day’s end. Travellers flying in or out of the hub ogled the spectacle, a display of sudden corporate collapse. Now that the airline is officially dead, following one failed government bailout and a couple of failed mergers, seventeen thousand workers are in need of employment, and thousands of customers await refunds. Meanwhile, Spirit’s jets are being ferried, one by one, to the desert—a storage field a...",
+        "Image":"https:\/\/media.newyorker.com\/photos\/69fe5304bdca0e19b16dd5d6\/16:9\/w_1280,c_limit\/spirit-airlines.jpg"
     },
     {
         "Source":"New Yorker, Books and Culture",
@@ -280,36 +280,68 @@
         "Image":"https:\/\/www.linking.vision\/s3\/2024\/06\/27190929\/AnyConv.com__b7cee759-d537-4e84-a561-f4472a850c83-1024x768.jpg"
     },
     {
-        "Source":"Eurozine",
-        "Title":"The British School of emotionalism and metamodernism",
-        "Link":"https:\/\/www.eurozine.com\/the-british-school-of-emotionalism-and-metamodernism\/",
-        "Published":"2026-04-14T08:31:23+00:00",
-        "Summary":"**👤 著者：** Marat Ingeldeev\n\nBoth emotional and uncanny, sincere yet ironic – contemporary British-based composers are pioneering a new aesthetic: musical metamodernism.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/40fe48b92138ef8a03db5c31fe1f4272.jpeg"
+        "Source":"美術手帖",
+        "Title":"🔒 ［ARTIST IN FOCUS］江康泉：古典と現代のコンテクストを接続し、アジア固有の想像力を取り戻す小さな革命",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s63\/32133",
+        "Published":"2026-03-20",
+        "Summary":"東洋の歴史や文化を参照し、現代都市、個人の記憶、テクノロジーなどを複層的に結びつけ、多様な領域を横断した創作活動を展開する江康泉（ゴンホンチュン）。金沢21世紀美術館での個展に際し、本展の担当学芸員が、本人との対話を経て、その作品世界を論じる。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32133\/main\/1772426669145_e2a08097fc3e724b09131dd115d89c2c.jpg?rect=0,0,4000,2250&v=35&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+    },
+    {
+        "Source":"美術手帖",
+        "Title":"🔒 ［ARTIST IN FOCUS］大小島真木：「私」と「あなた」の輪郭を描く　連綿と紡がれる他者とのコレスポンダンス",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s63\/32134",
+        "Published":"2026-03-15",
+        "Summary":"生命と死、個人と他者、自然と人間──そのあわいを探り続けてきた大小島真木。近年は、「胞衣」や「土」をテーマのひとつに据えながら、存在の輪郭を問い直す表現へと深化している。KAATでの個展から国際芸術祭「あいち2025」、そして絵本『ウオルド』まで、大小島真木が紡ぐ、生命を超えた存在のための芸術の現在を辿る。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32134\/main\/1772163002175_dcad9f9c10355bec83cd34c1c0593f2e.jpg?rect=0,0,4000,2250&v=42&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
         "Source":"Eurozine",
-        "Title":"Western alignment without looking East",
-        "Link":"https:\/\/www.eurozine.com\/western-alignment-without-looking-east\/",
-        "Published":"2026-04-17T10:05:26+00:00",
-        "Summary":"**👤 著者：** Daniel Cohn-Bendit、Claus Leggewie\n\nHabermas’s insistence on the need for negotiation with the Putin regime stemmed from a failure to comprehend the eastern European experience of totalitarianism. The argument that regime change is not a legitimate policy option for the West is not groundless. But it is historically wrong. [Norwegian version added]",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/08e8ec07b0702059bb3d58e7c7454b8c.jpg"
+        "Title":"Destitute on both sides of the Dniestr",
+        "Link":"https:\/\/www.eurozine.com\/destitute-on-both-sides-of-the-dniestr\/",
+        "Published":"2026-05-13T11:25:56+00:00",
+        "Summary":"**👤 著者：** Maksym Snihyr\n\nStarving ethnic Ukrainians and Moldovans, fleeing 1930s collectivisation, became controversial refugees in Romania – if, that is, they survived Soviet riverside gunfire. The international press and politicians expressed outrage – until the Nazi regime became a greater threat, leaving Holodomor sufferers overshadowed by distant enthusiasm for Stalin’s Five-Year Plan.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/437701e177467097f4cf6a26ec2966c4.jpg"
     },
     {
         "Source":"Eurozine",
-        "Title":"Social experiments without experimentalism",
-        "Link":"https:\/\/www.eurozine.com\/social-experiments-without-experimentalism\/",
-        "Published":"2026-04-20T13:05:00+00:00",
-        "Summary":"**👤 著者：** Karl Palmås\n\nModernism promised a bright future. But adventure soon became routine – the early Crystal Palace experiment since reflected in shopping malls and office blocks. Now ‘shit experiments’, rolled out by tech oligarchs and authoritarian governments, utilize neuroliberalism’s handle on malleable human behaviour. Can anything of social experimentation be salvaged for welfare and basic income needs?",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/14fb8f8ab8ab27b7d13177b97611d5c7.jpg"
+        "Title":"The meaning of Viktor Orbán",
+        "Link":"https:\/\/www.eurozine.com\/the-meaning-of-viktor-orban\/",
+        "Published":"2026-05-04T11:23:02+00:00",
+        "Summary":"**👤 著者：** Ferenc Laczó\n\nThe vilification of Orbán in Europe became politically counter-productive in Hungary itself. Péter Magyar’s success is founded on a realistic appraisal of the concerns of Hungarian society rather than a moralistic politics of blame.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/203362d44e529512536001c7c962b091.jpg"
     },
     {
         "Source":"Eurozine",
-        "Title":"Dialogue and silence",
-        "Link":"https:\/\/www.eurozine.com\/dialogue-and-silence\/",
-        "Published":"2026-04-09T11:14:12+00:00",
-        "Summary":"**👤 著者：** Omri Boehm\n\nHabermas understood that the possibility for German–Jewish dialogue after the Holocaust depends on commitment to universal law. But when the past demands silence about the present, that possibility is denied. On the contradictions in Habermas’s exemplary cosmopolitan project.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/62b56590ce6b8a062cab82f214e4d811.jpg"
+        "Title":"The rabbit eaters",
+        "Link":"https:\/\/www.eurozine.com\/the-rabbit-eaters\/",
+        "Published":"2026-05-11T12:05:25+00:00",
+        "Summary":"**👤 著者：** Kate Brown\n\nPutting food on tables throughout Estonia’s Soviet era into nascent capitalism relied heavily on self-provisioning. Collectivisation’s ideological petro-chemical drive made retro modernity a repeated necessity. A family-orientated culture of small-scale farming became the staple of migratory generations and national productivity.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/8813b5b7a99e41125f4007da6501cc09.jpg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"The great wokeism paradox",
+        "Link":"https:\/\/www.eurozine.com\/the-great-wokeism-paradox\/",
+        "Published":"2026-05-06T13:38:46+00:00",
+        "Summary":"**👤 著者：** Yves Plasseraud\n\nOriginally an expression of minority awareness, the term ‘woke’ has been forced into a cultural corner. The European far right’s instrumentalization of difference as a threat to national identity leaves immigrants, Romani, Muslims, LGBTQIA+ people in an increasingly vulnerable position. How could this entrenched culture war be infused with democratic vitality?",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/3b935d00a3949d74db8986140e5decae.jpg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Different kinds of incomplete",
+        "Link":"https:\/\/www.eurozine.com\/different-kinds-of-incomplete\/",
+        "Published":"2026-03-25T10:10:59+00:00",
+        "Summary":"**👤 著者：** Yasaman Nozari\n\nWhich Iranian artist in exile isn’t asked how their work relates to oppression, protest and war? How can creatives overcome colonial expectations of intelligibility? Opacity – questioning transparency’s supposed purity – becomes a technique of survival and a form of protection, as in the work of Chohreh Feyzdjou.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/56a4641228eb4723e79fdb8403498a46.png"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Hungary’s restart",
+        "Link":"https:\/\/www.eurozine.com\/hungarys-restart\/",
+        "Published":"2026-04-29T06:22:03+00:00",
+        "Summary":"**👤 著者：** Stefano Bottoni\n\nViktor Orbán’s Fidesz was defeated by a grassroots movement that faced down systematic intimidation in an extraordinary act of popular mobilization. The attempt to restart democracy in Hungary stands a better chance of success than at any time since 1989. Caveats apply, however.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/d09a5371c6c5143ee2f956a53b96d2bc.jpg"
     },
     {
         "Source":"Eurozine",
@@ -329,98 +361,170 @@
     },
     {
         "Source":"Eurozine",
-        "Title":"The great wokeism paradox",
-        "Link":"https:\/\/www.eurozine.com\/the-great-wokeism-paradox\/",
-        "Published":"2026-05-06T13:38:46+00:00",
-        "Summary":"**👤 著者：** Yves Plasseraud\n\nOriginally an expression of minority awareness, the term ‘woke’ has been forced into a cultural corner. The European far right’s instrumentalization of difference as a threat to national identity leaves immigrants, Romani, Muslims, LGBTQIA+ people in an increasingly vulnerable position. How could this entrenched culture war be infused with democratic vitality?",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/3b935d00a3949d74db8986140e5decae.jpg"
+        "Title":"Social experiments without experimentalism",
+        "Link":"https:\/\/www.eurozine.com\/social-experiments-without-experimentalism\/",
+        "Published":"2026-04-20T13:05:00+00:00",
+        "Summary":"**👤 著者：** Karl Palmås\n\nModernism promised a bright future. But adventure soon became routine – the early Crystal Palace experiment since reflected in shopping malls and office blocks. Now ‘shit experiments’, rolled out by tech oligarchs and authoritarian governments, utilize neuroliberalism’s handle on malleable human behaviour. Can anything of social experimentation be salvaged for welfare and basic income needs?",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/14fb8f8ab8ab27b7d13177b97611d5c7.jpg"
     },
     {
         "Source":"Eurozine",
-        "Title":"Hungary’s restart",
-        "Link":"https:\/\/www.eurozine.com\/hungarys-restart\/",
-        "Published":"2026-04-29T06:22:03+00:00",
-        "Summary":"**👤 著者：** Stefano Bottoni\n\nViktor Orbán’s Fidesz was defeated by a grassroots movement that faced down systematic intimidation in an extraordinary act of popular mobilization. The attempt to restart democracy in Hungary stands a better chance of success than at any time since 1989. Caveats apply, however.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/d09a5371c6c5143ee2f956a53b96d2bc.jpg"
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Sleep in Witness",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/sleep-in-witness",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"Standing on top of a moving train, feet pressed firmly on the roof of the carriage, arms apart like Christ on the cross, moving and thinking with the wind, the body bends its way through electricity and death, each moment holding feelings that look like rage, anger, sadness, and carelessness. Figures dance on moving trains holding feelings that behave like freedom, subjectivity, performance, and resistance. Chasing things. Chasing self. Staffriders, the institutionally outlawed living on the margins. Invisibility is a chronic condition. What choice do they have other than to cast spells on the...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"The Waters Between Us: Grounding Acts of Vanuatu Solidarity",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-waters-between-us-grounding-acts-of-vanuatu-solidarity",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"Ever since its independence from the French and British colonial condominium, Vanuatu has been central in the solidarity efforts with its fellow Melanesian peoples in struggle, in particular in Kanaky and West Papua. Anna Naupa retraces this history and the “spatial grammar” of this solidarity, far from being exclusively contained within state performance. At the edges of Vanuatu’s National Arts and Cultural Festival on Tanna Island in August 2025, away from the official programme of public performances, something significant unfolded. Elders from Erromango Island in southern Vanuatu and repre...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Excavating Amphibious Landscapes",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/excavating-amphibious-landscapes",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"We continue our series of contributions building on recent architecture theses. This one was elaborated by Sharvin Jangle at the School of Environment & Architecture, Mumbai in 2024. In it, he analyses the way through which fisherfolk (Koli) villages and neighborhoods in the city have adapted their practice and dwelling to land predation and climate change. He also reflects on the ways through which a speculative architecture project can anticipate these future evolutions and design family- and community-based dwellings and fishing spaces. Growing up in a Versova fishing village in Mumbai, I f...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Birth and Death on the Land: Ancestralization and Heretical Time",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/birth-and-death-on-the-land-ancestralization-and-heretical-time",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"Putting Johannesburg-based researchers uMbuso weNkosi and Zara Julius in conversation around umbilical relationships with the land was a key idea of this issue. Through ritual, sound, funerals, graves, and ancestralization, they explore time, resistance, relationality, and Black futurity amid ongoing settler colonial dispossession and catastrophe. [W]hen this child was born my hubby Elliott said ‘this boy is going to be great in life’ and named the boy Hastings…I jokingly said that like Lord Hastings the boy will go down in history… As a mother I searched for him until I found Hastings. How be...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Ocean Joy",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/ocean-joy",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"We were both born in the mid-1970s in Cape Town, surrounded by oceans. Despite all that liquid expanse that had brought our varied ancestors to port in a place alive with crossings of all kinds—some called it miscegenation—the port city and its peninsula of sandy shoreline could not withstand the hard lines of racism that were drawn with increasing ferocity on land. Twenty years before we were born, an Apartheid law declared that all public premises should be racially segregated, radically curtailing our childhoods and directing us into very different experiences of the sea. The 1953 Separate ...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"The Stadium Project: An Architectural Story of Bantustan Politics in Bophuthatswana",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-stadium-project-an-architectural-story-of-bantustan-politics-in-bophuthatswana",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"During his last visit in Johannesburg, Léopold Lambert was taken north of Pretoria, to the township of Mabopane by Mpho Moshe Matheolane to visit the Odi stadium—the remarkable architectural twin of the Mmabatho Stadium, in Mmabatho on the other side of what used to be Bophuthatswana between 1977 and 1994. Mpho and Neo Maditla, who both grew up in the Bantustan, initiated together this research on these twin stadiums in 2020, using their distinct quasi-identical architecture as a way to talk about past and present politics of the Tswana region. On 27 April 1994, the country we grew up in cease...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Pitfalls of Coloured Nationalism: Reimagining Coloured Identity in Post-1994 South Africa",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/pitfalls-of-coloured-nationalism-reimagining-coloured-identity-in-post-1994-south-africa",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"In South Africa’s Western and Northern Capes provinces, people racialized as “coloured” represent 42% of the population. This particular racial category engineered by settler colonial authorities to designate people of mixed heritage (in particular indigenous Khoi or San, as well as formerly enslaved people from the Indian Ocean) has been used before and during the apartheid following a divide-and-conquer strategy. Today, the Coloured identity is reclaimed by groups who want to maintain this clear distinction from Blackness and profit from it. Alex Hotz contextualizes this resurgence of colour...",
-        "Image":null
-    },
-    {
-        "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Surfacing Rural Deathscapes as Sites of Black Indigenities",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/surfacing-rural-deathscapes-as-sites-of-black-indigenities",
-        "Published":"Fifty Years After Soweto",
-        "Summary":"When thinking of the various historical and present forms of resistance against settler colonialism in South(ern) Africa, it is crucial to consider rurality as a place at least as important as its urban counterpart. In this conversation with Hugo ka Canham, we speak about the “riotous deathscapes” of Mpondoland and how our relationship with the dead can be one of dialogue and political accountability. LÉOPOLD LAMBERT: This issue begins with the 50th anniversary of the Soweto Uprising, a revolt which could hardly be more urban, and centered in the particular spatiality of the Johannesburg regio...",
-        "Image":null
+        "Title":"Iran and the complexity of the world",
+        "Link":"https:\/\/www.eurozine.com\/iran-and-the-complexity-of-the-world\/",
+        "Published":"2026-03-24T09:46:06+00:00",
+        "Summary":"**👤 著者：** Hamit Bozarslan\n\nEven if the Iranian regime manages to stay in power, it will no longer have the means to achieve its hegemonic ambitions. The current war has brought Israel closer to its goal of becoming the centre of gravity in the Middle East.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/c4c07d514d2812dab406f9cdfe9260db.png"
     },
     {
         "Source":"Eurozine",
-        "Title":"The meaning of Viktor Orbán",
-        "Link":"https:\/\/www.eurozine.com\/the-meaning-of-viktor-orban\/",
-        "Published":"2026-05-04T11:23:02+00:00",
-        "Summary":"**👤 著者：** Ferenc Laczó\n\nThe vilification of Orbán in Europe became politically counter-productive in Hungary itself. Péter Magyar’s success is founded on a realistic appraisal of the concerns of Hungarian society rather than a moralistic politics of blame.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/203362d44e529512536001c7c962b091.jpg"
+        "Title":"The British School of emotionalism and metamodernism",
+        "Link":"https:\/\/www.eurozine.com\/the-british-school-of-emotionalism-and-metamodernism\/",
+        "Published":"2026-04-14T08:31:23+00:00",
+        "Summary":"**👤 著者：** Marat Ingeldeev\n\nBoth emotional and uncanny, sincere yet ironic – contemporary British-based composers are pioneering a new aesthetic: musical metamodernism.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/40fe48b92138ef8a03db5c31fe1f4272.jpeg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Dialogue and silence",
+        "Link":"https:\/\/www.eurozine.com\/dialogue-and-silence\/",
+        "Published":"2026-04-09T11:14:12+00:00",
+        "Summary":"**👤 著者：** Omri Boehm\n\nHabermas understood that the possibility for German–Jewish dialogue after the Holocaust depends on commitment to universal law. But when the past demands silence about the present, that possibility is denied. On the contradictions in Habermas’s exemplary cosmopolitan project.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/62b56590ce6b8a062cab82f214e4d811.jpg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Hungary leads the far-right charge on free speech",
+        "Link":"https:\/\/www.eurozine.com\/hungary-leads-the-far-right-charge-on-free-speech\/",
+        "Published":"2026-04-01T21:30:41+00:00",
+        "Summary":"**👤 著者：** Martin  Bright\n\nHungary’s elections will be decisive for the future of the anti-EU pressure group MCC Brussels, the European arm of the Fidesz-associated Mathias Corvinus Collegium. How would an Orbán defeat impact on the illiberal international?",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/42ca26203f1d7b9895fe58d963cda837.jpg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Another November: Queer Slovakia after 1989",
+        "Link":"https:\/\/www.eurozine.com\/another-november-queer-slovakia-after-1989\/",
+        "Published":"2026-03-31T08:48:51+00:00",
+        "Summary":"**👤 著者：** Diana Burgerová\n\nStigmatized during socialism, LGBTQIA+ people in Slovakia continued to face political and social adversity in the following decades. Two veteran activists reflect on the campaign for equal rights after ’89 and why it remains as necessary as ever.",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/f0e59822ad7f4455e0eb3e65167e0a1e.jpg"
+    },
+    {
+        "Source":"Eurozine",
+        "Title":"Western alignment without looking East",
+        "Link":"https:\/\/www.eurozine.com\/western-alignment-without-looking-east\/",
+        "Published":"2026-04-17T10:05:26+00:00",
+        "Summary":"**👤 著者：** Daniel Cohn-Bendit、Claus Leggewie\n\nHabermas’s insistence on the need for negotiation with the Putin regime stemmed from a failure to comprehend the eastern European experience of totalitarianism. The argument that regime change is not a legitimate policy option for the West is not groundless. But it is historically wrong. [Norwegian version added]",
+        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/08e8ec07b0702059bb3d58e7c7454b8c.jpg"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"韩流粉圈是新自由主义的产物，但追星女孩也有批判性｜专访",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33025227",
+        "Published":"1天前",
+        "Summary":"**🏷️ 探討議題：** K-pop、粉丝文化、追星女孩、韩流\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1776846304968_FxQNWX_1776846305128.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"照护者之影：在场的缺席",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33101861",
+        "Published":"14分钟前",
+        "Summary":"**🏷️ 探討議題：** 照护者、失能、《10间敢死队》\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778060366200_pMs1cY_1778060366409.png"
+    },
+    {
+        "Source":"美術手帖",
+        "Title":"書評：戦後日本美術を根底から揺るがし、現代の世界と重ねる。『戦後初期日本のアートとエンゲージメント』",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s12\/32187",
+        "Published":"2026-03-22",
+        "Summary":"雑誌『美術手帖』の「BOOK」コーナーでは、新着のアート本を紹介。2026年1月号では、ジャスティン・ジェスティによる『戦後初期日本のアートとエンゲージメント』を取り上げる。日本の戦後初期における芸術と政治の関係を再検討する本書を、現代美術史研究家・筒井宏樹が評する。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32187\/main\/1772097847624_1194c12fe25e776e347b9a51ab6729d4.jpg?rect=0,0,4000,2250&v=17&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Serpents in the Garden",
+        "Link":"https:\/\/thepointmag.com\/criticism\/serpents-in-the-garden\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Marco Roth\n\nThere’s a brief classroom scene in Kenneth Lonergan’s filmMargaret(filmed in 2005, unreleased until 2011) that perfectly crystallizes a wounded adolescent masculine intelligence of a kind that has become increasingly prominent even among adult men in contemporary American cultural and political life, discontented by liberal arts pedagogy, and—by way of an emotive, illogical leap—with liberalism itself. A bunch of Upper West Side prep-school kids are asked by their well-meaning if rather uninspiring English teacher to gloss the Earl of Gloucester’s lines fromKing Lear, “As flies to wanton boys,...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/JohnBingleyGarland_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"The Left Case for Great Books",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/the-left-case-for-great-books\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Daniel Walden\n\nThe American left is a pretty cerebral lot: it contains a lot of grad students, underemployed humanities majors and hyper-literate autodidacts, and this educational glut is often grounds for criticism. We are, according to the usual line, too much in our own heads, too busy building castles in the air to relate to people on the ground. But despite our eggheaded reputation, the American left has failed to articulate a broad and unified vision for education. We are generally successful at toeing a line on issues of policy—robust funding for public education, opposition to charter schools, strong...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/WILDENBOER-Barbara_LOdyssee-dHomere_29x32x3cm_Livre-modifie_2024-HD_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Freedom of Intelligence",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/freedom-of-intelligence\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Annie Abrams\n\nBefore assigning Aldous Huxley’s dystopian novelBrave New Worldto high school students, I like to read Plato’s allegory of the cave with them in class. In the passage, Socrates asks Glaucon to imagine that prisoners in a cave accept shadows cast on the wall by anonymous puppeteers as reality. The lucky few who are freed find greater degrees of illumination, truer representations, but liberation is a painful and threatening struggle. Powerlessness is easier. Socrates contends that “in the realm of what can be known, the idea of the good is discovered last of all, and it is only perceived with g...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Jan_Pietersz_Saenredam_after_Cornelis_Cornelisz_van_Haarlem_Platos_Cave_1604_NGA_62542_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Clocked Out",
+        "Link":"https:\/\/thepointmag.com\/criticism\/clocked-out\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Martin Dolan\n\nTwo summers ago, I started my first full-time job. This came after a series of internships with no return offers, an unfunded master’s degree, haphazard attempts at freelance writing, a self-studied LSAT, and long shifts behind the counter at bakeries and bars. The job I ultimately accepted—at a legal nonprofit in the city where I grew up—wasn’t particularly prestigious or high paying, but it was at a good organization, and at least obliquely aligned with my politics and long-term career interests. More importantly, it represented stability. An end to my meandering adolescence. A paycheck that...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/EdaGecikmez2_web-e1769886204725.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Make Nothing that Isn’t Beautiful",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/make-nothing-that-isnt-beautiful\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** John Michael Colón\n\nThe poet said beauty is truth. Okay, sure—but I don’t think you’ve really understood Keats’s practical meaning until you’ve grappled with its inverse. I remember my childhood schools with their claustrophobic halls and nasty floors, boxes hardly penetrated by sunlight as we scurried about in our cages; the televisions blaring as you entered every room with a certain distinct tone of patronizing stupidity, their programs killing the time between the commercials that justified their existence; the way the sky would reliably turn gray no matter the weather north of about Exit 129 on the Garden St...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/David-Thorpe-Joyous-Underground_-1Bruno_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"A Space Apart",
+        "Link":"https:\/\/thepointmag.com\/dialogue\/a-space-apart\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Paul North\n\nI first encounteredCapitalin its entirety at the University of Chicago. Studying the text with the late Moishe Postone remains one of the most intellectually and ethically significant experiences of my life. Postone stressed the deep philosophical indebtedness of Marx to Hegel and that the force of the work is rational, the critique structural. I was therefore intrigued by the prospect of a new English translation of the text, co-edited by Paul North and Paul Reitter and published by Princeton University Press in 2024, which promised to bringCapital’s literary and rhetorical qualities to the f...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Marx_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Tragic Heritage",
+        "Link":"https:\/\/thepointmag.com\/correspondence\/tragic-heritage\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Megan Buskey\n\nIn April 2019, I boarded amarshrutka, a humble mass-transit minivan ubiquitous in the former Soviet Union, and watched the massive prefab apartment blocks on the outskirts of Kyiv give way to the hard, dry grass of the steppe. The trip to the village of Kmytiv from the capital was about an hour and half; my fellow passengers and I silently took in a vintage Matthew McConaughey caper being broadcast on a flat-screen TV mounted above the first row of seats. This was before COVID, when Ukrainians held fast to their skepticism of ventilation, so the van grew warm with our breathing. When we arrive...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Kmityv_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Listless Liberalism",
+        "Link":"https:\/\/thepointmag.com\/criticism\/listless-liberalism\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Becca Rothfeld\n\nEvery politics has its characteristic aesthetics. This is a truism so widely accepted in the case of fascism that it often tempts otherwise discerning critics to overstate the power of reactionary art. For every Leni Riefenstahl or Knut Hamsun, there is some long-forgotten purveyor of the most banal kitsch—some minor painter of gingerbready village scenes, some carver of half-timbered confections (to say nothing of the nameless mediocrity who directed the alpine romance flicks in which Riefenstahl starred before she took up directing). Still, the frisson that fascism’s best artifacts afford ha...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/2018_Christine_of_Arc_96.5x56_web.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"The Great Replacement",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/the-great-replacement\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Vikrant Dadawala\n\nI became a father last year, just as I started a new job teaching English literature at a university in Toronto. Things I had only experienced as abstractions acquired a frightening solidity in that hospital room—birth, death and sickness; probabilities and inevitabilities; duty and responsibility. About four hours before my son was born, the machines started to beep insistently and the room was suddenly full of people in scrubs, no longer smiling. By nightfall, I was holding a baby, as my wife drifted out of consciousness, fighting a sudden fever. They brought in two mops to clean up the bloo...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/RinaBanerjee2-e1769914186740.jpg"
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Quitting",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/quitting\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** John Phipps\n\nWhen I started smoking I was sixteen, and my life was very complicated. Large portions of each day were spent trying to disguise the fact that I had an erection. “You always get them just when you have to stand up,” people would complain, because the people I knew were also teenage boys. On weekends we would get together to make a big stink and talk about women. Once, we cycled forty minutes up a hill to buy beer. On the way down the extra momentum meant we didn’t even have to pedal. We laughed about our beer motorcycles the whole way home, and that night I had my first cigarette. When you fir...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/The-Fire-I-Need-Too_oil-on-linen_24.2×33.4cm_2025_web.jpg"
     },
     {
         "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"The Land Question",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-land-question",
+        "Title":"Fifty Years After Soweto: Introduction",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/fifty-years-after-soweto-introduction",
         "Published":"Fifty Years After Soweto",
-        "Summary":"The following excerpts are drawn from the essay of the same name, published in The Boston Review’s Fall 2025 issue, reproduced here with the generous authorization of the author and her editor. Panashe Chigumadzi argues that “apartheid” has become the dominant framework through which Southern Africa’s long racial history is read, obscuring the deeper and ongoing structure of settler colonialism that it merely codified. Against this liberal paradigm she traces a counter-tradition rooted in Black South African political thought—the Azanian Tradition of Pan-Africanism and Black Consciousness—that...",
+        "Summary":"Welcome to the 65th issue ofThe Funambulist. Over the last decade, we have honored a few key anniversaries, in particular the 150th anniversary of the 1871 Paris Commune, the 60th anniversary of 1962 Algerian Independence, and the 80th anniversary of the 1945 US nuclear bombings of Hiroshima and Nagasaki. The tribute this time goes to the 1976 Soweto Uprising and the half-century that now separates us from it. On June 16, 1976—28 years into the apartheid and, crucially, more than three centuries into European settler colonialism at the southern tip of the African continent—thousands of Black A...",
         "Image":null
     },
     {
@@ -433,67 +537,203 @@
     },
     {
         "Source":"The Funambulist (Fifty Years After Soweto)",
-        "Title":"Fifty Years After Soweto: Introduction",
-        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/fifty-years-after-soweto-introduction",
+        "Title":"The Land Question",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-land-question",
         "Published":"Fifty Years After Soweto",
-        "Summary":"Welcome to the 65th issue ofThe Funambulist. Over the last decade, we have honored a few key anniversaries, in particular the 150th anniversary of the 1871 Paris Commune, the 60th anniversary of 1962 Algerian Independence, and the 80th anniversary of the 1945 US nuclear bombings of Hiroshima and Nagasaki. The tribute this time goes to the 1976 Soweto Uprising and the half-century that now separates us from it. On June 16, 1976—28 years into the apartheid and, crucially, more than three centuries into European settler colonialism at the southern tip of the African continent—thousands of Black A...",
+        "Summary":"The following excerpts are drawn from the essay of the same name, published in The Boston Review’s Fall 2025 issue, reproduced here with the generous authorization of the author and her editor. Panashe Chigumadzi argues that “apartheid” has become the dominant framework through which Southern Africa’s long racial history is read, obscuring the deeper and ongoing structure of settler colonialism that it merely codified. Against this liberal paradigm she traces a counter-tradition rooted in Black South African political thought—the Azanian Tradition of Pan-Africanism and Black Consciousness—that...",
         "Image":null
     },
     {
-        "Source":"Eurozine",
-        "Title":"Destitute on both sides of the Dniestr",
-        "Link":"https:\/\/www.eurozine.com\/destitute-on-both-sides-of-the-dniestr\/",
-        "Published":"2026-05-13T11:25:56+00:00",
-        "Summary":"**👤 著者：** Maksym Snihyr\n\nStarving ethnic Ukrainians and Moldovans, fleeing 1930s collectivisation, became controversial refugees in Romania – if, that is, they survived Soviet riverside gunfire. The international press and politicians expressed outrage – until the Nazi regime became a greater threat, leaving Holodomor sufferers overshadowed by distant enthusiasm for Stalin’s Five-Year Plan.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/437701e177467097f4cf6a26ec2966c4.jpg"
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Surfacing Rural Deathscapes as Sites of Black Indigenities",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/surfacing-rural-deathscapes-as-sites-of-black-indigenities",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"When thinking of the various historical and present forms of resistance against settler colonialism in South(ern) Africa, it is crucial to consider rurality as a place at least as important as its urban counterpart. In this conversation with Hugo ka Canham, we speak about the “riotous deathscapes” of Mpondoland and how our relationship with the dead can be one of dialogue and political accountability. LÉOPOLD LAMBERT: This issue begins with the 50th anniversary of the Soweto Uprising, a revolt which could hardly be more urban, and centered in the particular spatiality of the Johannesburg regio...",
+        "Image":null
     },
     {
-        "Source":"Eurozine",
-        "Title":"The rabbit eaters",
-        "Link":"https:\/\/www.eurozine.com\/the-rabbit-eaters\/",
-        "Published":"2026-05-11T12:05:25+00:00",
-        "Summary":"**👤 著者：** Kate Brown\n\nPutting food on tables throughout Estonia’s Soviet era into nascent capitalism relied heavily on self-provisioning. Collectivisation’s ideological petro-chemical drive made retro modernity a repeated necessity. A family-orientated culture of small-scale farming became the staple of migratory generations and national productivity.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/05\/8813b5b7a99e41125f4007da6501cc09.jpg"
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Sleep in Witness",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/sleep-in-witness",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"Standing on top of a moving train, feet pressed firmly on the roof of the carriage, arms apart like Christ on the cross, moving and thinking with the wind, the body bends its way through electricity and death, each moment holding feelings that look like rage, anger, sadness, and carelessness. Figures dance on moving trains holding feelings that behave like freedom, subjectivity, performance, and resistance. Chasing things. Chasing self. Staffriders, the institutionally outlawed living on the margins. Invisibility is a chronic condition. What choice do they have other than to cast spells on the...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Pitfalls of Coloured Nationalism: Reimagining Coloured Identity in Post-1994 South Africa",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/pitfalls-of-coloured-nationalism-reimagining-coloured-identity-in-post-1994-south-africa",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"In South Africa’s Western and Northern Capes provinces, people racialized as “coloured” represent 42% of the population. This particular racial category engineered by settler colonial authorities to designate people of mixed heritage (in particular indigenous Khoi or San, as well as formerly enslaved people from the Indian Ocean) has been used before and during the apartheid following a divide-and-conquer strategy. Today, the Coloured identity is reclaimed by groups who want to maintain this clear distinction from Blackness and profit from it. Alex Hotz contextualizes this resurgence of colour...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"The Stadium Project: An Architectural Story of Bantustan Politics in Bophuthatswana",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-stadium-project-an-architectural-story-of-bantustan-politics-in-bophuthatswana",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"During his last visit in Johannesburg, Léopold Lambert was taken north of Pretoria, to the township of Mabopane by Mpho Moshe Matheolane to visit the Odi stadium—the remarkable architectural twin of the Mmabatho Stadium, in Mmabatho on the other side of what used to be Bophuthatswana between 1977 and 1994. Mpho and Neo Maditla, who both grew up in the Bantustan, initiated together this research on these twin stadiums in 2020, using their distinct quasi-identical architecture as a way to talk about past and present politics of the Tswana region. On 27 April 1994, the country we grew up in cease...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Ocean Joy",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/ocean-joy",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"We were both born in the mid-1970s in Cape Town, surrounded by oceans. Despite all that liquid expanse that had brought our varied ancestors to port in a place alive with crossings of all kinds—some called it miscegenation—the port city and its peninsula of sandy shoreline could not withstand the hard lines of racism that were drawn with increasing ferocity on land. Twenty years before we were born, an Apartheid law declared that all public premises should be racially segregated, radically curtailing our childhoods and directing us into very different experiences of the sea. The 1953 Separate ...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Birth and Death on the Land: Ancestralization and Heretical Time",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/birth-and-death-on-the-land-ancestralization-and-heretical-time",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"Putting Johannesburg-based researchers uMbuso weNkosi and Zara Julius in conversation around umbilical relationships with the land was a key idea of this issue. Through ritual, sound, funerals, graves, and ancestralization, they explore time, resistance, relationality, and Black futurity amid ongoing settler colonial dispossession and catastrophe. [W]hen this child was born my hubby Elliott said ‘this boy is going to be great in life’ and named the boy Hastings…I jokingly said that like Lord Hastings the boy will go down in history… As a mother I searched for him until I found Hastings. How be...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"Excavating Amphibious Landscapes",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/excavating-amphibious-landscapes",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"We continue our series of contributions building on recent architecture theses. This one was elaborated by Sharvin Jangle at the School of Environment & Architecture, Mumbai in 2024. In it, he analyses the way through which fisherfolk (Koli) villages and neighborhoods in the city have adapted their practice and dwelling to land predation and climate change. He also reflects on the ways through which a speculative architecture project can anticipate these future evolutions and design family- and community-based dwellings and fishing spaces. Growing up in a Versova fishing village in Mumbai, I f...",
+        "Image":null
+    },
+    {
+        "Source":"The Funambulist (Fifty Years After Soweto)",
+        "Title":"The Waters Between Us: Grounding Acts of Vanuatu Solidarity",
+        "Link":"https:\/\/thefunambulist.net\/magazine\/fifty-years-after-soweto\/the-waters-between-us-grounding-acts-of-vanuatu-solidarity",
+        "Published":"Fifty Years After Soweto",
+        "Summary":"Ever since its independence from the French and British colonial condominium, Vanuatu has been central in the solidarity efforts with its fellow Melanesian peoples in struggle, in particular in Kanaky and West Papua. Anna Naupa retraces this history and the “spatial grammar” of this solidarity, far from being exclusively contained within state performance. At the edges of Vanuatu’s National Arts and Cultural Festival on Tanna Island in August 2025, away from the official programme of public performances, something significant unfolded. Elders from Erromango Island in southern Vanuatu and repre...",
+        "Image":null
     },
     {
         "Source":"The Point (Issue 36)",
-        "Title":"Make Nothing that Isn’t Beautiful",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/make-nothing-that-isnt-beautiful\/",
+        "Title":"Radical Eudaimonism",
+        "Link":"https:\/\/thepointmag.com\/politics\/radical-eudaimonism\/",
         "Published":"Issue 36",
-        "Summary":"**👤 著者：** John Michael Colón\n\nThe poet said beauty is truth. Okay, sure—but I don’t think you’ve really understood Keats’s practical meaning until you’ve grappled with its inverse. I remember my childhood schools with their claustrophobic halls and nasty floors, boxes hardly penetrated by sunlight as we scurried about in our cages; the televisions blaring as you entered every room with a certain distinct tone of patronizing stupidity, their programs killing the time between the commercials that justified their existence; the way the sky would reliably turn gray no matter the weather north of about Exit 129 on the Garden St...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/David-Thorpe-Joyous-Underground_-1Bruno_web.jpg"
-    },
-    {
-        "Source":"Eurozine",
-        "Title":"Hungary leads the far-right charge on free speech",
-        "Link":"https:\/\/www.eurozine.com\/hungary-leads-the-far-right-charge-on-free-speech\/",
-        "Published":"2026-04-01T21:30:41+00:00",
-        "Summary":"**👤 著者：** Martin  Bright\n\nHungary’s elections will be decisive for the future of the anti-EU pressure group MCC Brussels, the European arm of the Fidesz-associated Mathias Corvinus Collegium. How would an Orbán defeat impact on the illiberal international?",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/04\/42ca26203f1d7b9895fe58d963cda837.jpg"
+        "Summary":"**👤 著者：** Jensen Suther\n\nThe growing anxiety on the left over our current ecological crisis has reignited an old debate over the significance of technological progress under capitalism. Should we accelerate past current impasses or pull the emergency brake? Should we, as the luxury communists and abundance liberals would have it, go all in on growth, or is it finally time, as degrowth communists insist, to burn it all down? While recent public conversation has been dominated by the abundance agenda, it is the degrowth perspective that dominates the discourse in intellectual and academic circles. The most visible conte...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Euclide1_web.jpg"
     },
     {
         "Source":"The Point (Issue 36)",
-        "Title":"A Space Apart",
-        "Link":"https:\/\/thepointmag.com\/dialogue\/a-space-apart\/",
+        "Title":"Live in Society!",
+        "Link":"https:\/\/thepointmag.com\/politics\/live-in-society\/",
         "Published":"Issue 36",
-        "Summary":"**👤 著者：** Paul North\n\nI first encounteredCapitalin its entirety at the University of Chicago. Studying the text with the late Moishe Postone remains one of the most intellectually and ethically significant experiences of my life. Postone stressed the deep philosophical indebtedness of Marx to Hegel and that the force of the work is rational, the critique structural. I was therefore intrigued by the prospect of a new English translation of the text, co-edited by Paul North and Paul Reitter and published by Princeton University Press in 2024, which promised to bringCapital’s literary and rhetorical qualities to the f...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Marx_web.jpg"
-    },
-    {
-        "Source":"Eurozine",
-        "Title":"Different kinds of incomplete",
-        "Link":"https:\/\/www.eurozine.com\/different-kinds-of-incomplete\/",
-        "Published":"2026-03-25T10:10:59+00:00",
-        "Summary":"**👤 著者：** Yasaman Nozari\n\nWhich Iranian artist in exile isn’t asked how their work relates to oppression, protest and war? How can creatives overcome colonial expectations of intelligibility? Opacity – questioning transparency’s supposed purity – becomes a technique of survival and a form of protection, as in the work of Chohreh Feyzdjou.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/56a4641228eb4723e79fdb8403498a46.png"
+        "Summary":"**👤 著者：** Rosemarie Ho\n\nEvery convenience I enjoy in life has been made possible by the immiseration of others. The oranges on the table, the winter coat I wear as I rush down the steps of my apartment building to the subway—all of it would not exist if someone elsewhere hadn’t toiled in an orchard, a factory, in the subterranean caverns of my city, hadn’t driven a van up and down the streets. In the subway I watch as a woman, most likely from a Central American country in which the United States has meddled, with a baby strapped to her back, paces up and down the car, offering passengers sticks of gum and shiny pack...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/gwenyip_busy-minds-in-silence_web-e1769803625370.jpg"
     },
     {
         "Source":"The Point (Issue 36)",
-        "Title":"Doomers in Love",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/doomers-in-love\/",
+        "Title":"Perfecting Democracy",
+        "Link":"https:\/\/thepointmag.com\/politics\/perfecting-democracy\/",
         "Published":"Issue 36",
-        "Summary":"**👤 著者：** Mana Afsari\n\nHeterosexuality has been deemed dangerous for as long as I can remember. In the 1990s, before I was born, an influential faction of feminists had already declared heterosexual sex and especially marriage to be marred by men’s structural advantage over women. By my teenage years, whether according to the revitalized legacies of MacKinnon and Dworkin or the dictates of #MenAreTrash feminism, to love a man was to be subject to his contempt and domination. (Figures like the disreputable Andrew Tate would agree.) By 2025, more than a decade since the term “toxic masculinity” entered cocktail-party ...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/ClairePartington_web-e1769961875539.jpg"
+        "Summary":"**👤 著者：** Paul Taylor\n\nI once found the spirit of democracy at a church that met in a movie theater. The church leaders were refugees from the corporate world, and true to their business roots, they had cleverly disrupted the Christian worship industry. They saved money on facilities (like pulpits, steeples and pipe organs) by renting underutilized commercial space, then reinvested the savings in the ministry (including the ministries of slick slide decks and stadium-quality audio equipment). Few things say America more efficiently than an ex-businessman concluding a sermon on the Gospel just before the Sunday matin...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/20230910_Sebastian_035_web.jpg"
+    },
+    {
+        "Source":"webゲンロン",
+        "Title":"モンキー・Ｄ・ルフィと反キリスト　惑星的なものにかんする覚書 第7回｜ユク・ホイ　訳＝伊勢康平",
+        "Link":"https:\/\/webgenron.com\/articles\/article20260507_01",
+        "Published":"最新",
+        "Summary":"webゲンロン 2026年5月7日配信★＝原注 ☆＝訳注 ［ ］＝著者補足 〔 〕＝訳者補足&nbsp;§１&nbsp; 2026年3月、パランティア〔Palantir〕の創業者であるピーター・ティールがローマを訪れ、ルネサンス期にオルシー",
+        "Image":null
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"王权幻象与制衡底色：特朗普为何对“党内叛离者”束手无策？",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33101936",
+        "Published":"2天前",
+        "Summary":"**🏷️ 探討議題：** 美国政治、特朗普、托马斯·马西\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778061776395_AzYkDj_1778061776668.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"李公明｜一周画记：五角大楼公布UFO相关文件；纪念弗洛伊德诞辰170周年",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33152323",
+        "Published":"3天前",
+        "Summary":"**🏷️ 探討議題：** 五角大楼、弗洛伊德\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778416731074_d7WwNm_1778416731194.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"澎湃思想周报｜亿万富翁与人之为人；震荡中的威尼斯双年展",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33151659",
+        "Published":"3天前",
+        "Summary":"**🏷️ 探討議題：** 亿万富翁、人之为人、参与、威尼斯双年展\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778413425937_KFbpBc_1778413426140.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"专访｜埃米莉·布特尔：刻意表演真实，反而更加虚伪",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33061853",
+        "Published":"4天前",
+        "Summary":"**🏷️ 探討議題：** 埃米莉·布特尔、真实性、明星文化\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1777277668898_Hsse4J_1777277669028.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"马驹桥的24小时",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33010484",
+        "Published":"4天前",
+        "Summary":"**🏷️ 探討議題：** 社会观察\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778319679514_Gmdxef_1778319679639.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"一部有“趣味”的怪物简史：评译著《打怪：电子游戏怪物的诞生与裂变》",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33102120",
+        "Published":"5天前",
+        "Summary":"**🏷️ 探討議題：** 《打怪：电子游戏怪物的诞生与裂变》、怪物、电子游戏\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778058157487_fZmjwa_1778058157704.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"在运动与生存中触及永恒：《孤山独影》中的痛觉模拟与行星尺度｜游戏论",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33105063",
+        "Published":"5天前",
+        "Summary":"**🏷️ 探討議題：** 孤山独影、痛觉模拟、行星尺度\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778120008863_7G4kMP_1778120009067.png"
+    },
+    {
+        "Source":"澎湃思想市場",
+        "Title":"不止有情有义：《给阿嬷的情书》中的文字、命运与身份认同",
+        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33121385",
+        "Published":"6天前",
+        "Summary":"**🏷️ 探討議題：** 《给阿嬷的情书》\n\n（點擊標題閱讀原文）",
+        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778219960028_DQPfXB_1778219960202.png"
+    },
+    {
+        "Source":"webゲンロン",
+        "Title":"水面から飛び出した魚（3）ヒュポムネーシスの現象学　飛び魚と毒薬（15）｜石田英敬",
+        "Link":"https:\/\/webgenron.com\/articles\/article20260513_01",
+        "Published":"最新",
+        "Summary":"webゲンロン 2026年5月13日配信第14回&nbsp; しばらく連載の掲載が途切れてしまったが、直近2回では、ベルナールの哲学が監獄の中でどのようにつくりだされていったのか、その過程を哲学の内側から復元する試みを開始していた。 前々回",
+        "Image":null
+    },
+    {
+        "Source":"webゲンロン",
+        "Title":"シラスざんまい2026GW",
+        "Link":"https:\/\/webgenron.com\/articles\/shirasuzanmai_2026gw",
+        "Published":"最新",
+        "Summary":"GW 人気番組再公開シラスざんまい！人気の10番組をゴールデンウィークにあわせて再公開します。見逃していたあの番組、もう一度観たかったあの番組を楽しめるチャンス。チャンネル会員は全番組見放題です。再公開期間は2026年5月2日-11日。連休",
+        "Image":null
+    },
+    {
+        "Source":"The Point (Issue 36)",
+        "Title":"Beyond Equality",
+        "Link":"https:\/\/thepointmag.com\/politics\/beyond-equality\/",
+        "Published":"Issue 36",
+        "Summary":"**👤 著者：** Jonny Thakkar\n\n“Thank you for bringing back the joy,” Tim Walz grinned at Kamala Harris during their first joint rally back in August 2024. It was a theme he returned to often in the weeks that followed. At the DNC it was the crowd themselves who needed to be thanked for “bringing the joy to the fight”; later we learned that while Trump had “tried to steal the joy from this country,” Harris was giving us “a politics of joy.” This didn’t turn out well, needless to say, and it was world-class cringe even at the time, partly because Walz was clearly trying to vaunt his own folksy jolliness but also because a mo...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/JANOVSKY_TRAFO_HOUPACKA_2023_web2.jpg"
+    },
+    {
+        "Source":"webゲンロン",
+        "Title":"【 #ゲンロン友の声｜041】友だちってほんとうに必要ですか？",
+        "Link":"https:\/\/webgenron.com\/articles\/voice20260501_01",
+        "Published":"最新",
+        "Summary":"webゲンロン 2026年5月1日配信友だちって大事ですか？ そして孤独は結構辛いんですけど、でもしょうがないのかな？みたいに思います。人間はみんな完璧じゃなくって、批判しようと思えばいくらでもできる。それは自分も含めてです。私は23歳です",
+        "Image":null
     },
     {
         "Source":"webゲンロン",
@@ -553,258 +793,138 @@
     },
     {
         "Source":"The Point (Issue 36)",
-        "Title":"Beyond Equality",
-        "Link":"https:\/\/thepointmag.com\/politics\/beyond-equality\/",
+        "Title":"Doomers in Love",
+        "Link":"https:\/\/thepointmag.com\/examined-life\/doomers-in-love\/",
         "Published":"Issue 36",
-        "Summary":"**👤 著者：** Jonny Thakkar\n\n“Thank you for bringing back the joy,” Tim Walz grinned at Kamala Harris during their first joint rally back in August 2024. It was a theme he returned to often in the weeks that followed. At the DNC it was the crowd themselves who needed to be thanked for “bringing the joy to the fight”; later we learned that while Trump had “tried to steal the joy from this country,” Harris was giving us “a politics of joy.” This didn’t turn out well, needless to say, and it was world-class cringe even at the time, partly because Walz was clearly trying to vaunt his own folksy jolliness but also because a mo...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/JANOVSKY_TRAFO_HOUPACKA_2023_web2.jpg"
-    },
-    {
-        "Source":"Eurozine",
-        "Title":"Iran and the complexity of the world",
-        "Link":"https:\/\/www.eurozine.com\/iran-and-the-complexity-of-the-world\/",
-        "Published":"2026-03-24T09:46:06+00:00",
-        "Summary":"**👤 著者：** Hamit Bozarslan\n\nEven if the Iranian regime manages to stay in power, it will no longer have the means to achieve its hegemonic ambitions. The current war has brought Israel closer to its goal of becoming the centre of gravity in the Middle East.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/c4c07d514d2812dab406f9cdfe9260db.png"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Perfecting Democracy",
-        "Link":"https:\/\/thepointmag.com\/politics\/perfecting-democracy\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Paul Taylor\n\nI once found the spirit of democracy at a church that met in a movie theater. The church leaders were refugees from the corporate world, and true to their business roots, they had cleverly disrupted the Christian worship industry. They saved money on facilities (like pulpits, steeples and pipe organs) by renting underutilized commercial space, then reinvested the savings in the ministry (including the ministries of slick slide decks and stadium-quality audio equipment). Few things say America more efficiently than an ex-businessman concluding a sermon on the Gospel just before the Sunday matin...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/20230910_Sebastian_035_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Live in Society!",
-        "Link":"https:\/\/thepointmag.com\/politics\/live-in-society\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Rosemarie Ho\n\nEvery convenience I enjoy in life has been made possible by the immiseration of others. The oranges on the table, the winter coat I wear as I rush down the steps of my apartment building to the subway—all of it would not exist if someone elsewhere hadn’t toiled in an orchard, a factory, in the subterranean caverns of my city, hadn’t driven a van up and down the streets. In the subway I watch as a woman, most likely from a Central American country in which the United States has meddled, with a baby strapped to her back, paces up and down the car, offering passengers sticks of gum and shiny pack...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/gwenyip_busy-minds-in-silence_web-e1769803625370.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Radical Eudaimonism",
-        "Link":"https:\/\/thepointmag.com\/politics\/radical-eudaimonism\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Jensen Suther\n\nThe growing anxiety on the left over our current ecological crisis has reignited an old debate over the significance of technological progress under capitalism. Should we accelerate past current impasses or pull the emergency brake? Should we, as the luxury communists and abundance liberals would have it, go all in on growth, or is it finally time, as degrowth communists insist, to burn it all down? While recent public conversation has been dominated by the abundance agenda, it is the degrowth perspective that dominates the discourse in intellectual and academic circles. The most visible conte...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Euclide1_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Serpents in the Garden",
-        "Link":"https:\/\/thepointmag.com\/criticism\/serpents-in-the-garden\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Marco Roth\n\nThere’s a brief classroom scene in Kenneth Lonergan’s filmMargaret(filmed in 2005, unreleased until 2011) that perfectly crystallizes a wounded adolescent masculine intelligence of a kind that has become increasingly prominent even among adult men in contemporary American cultural and political life, discontented by liberal arts pedagogy, and—by way of an emotive, illogical leap—with liberalism itself. A bunch of Upper West Side prep-school kids are asked by their well-meaning if rather uninspiring English teacher to gloss the Earl of Gloucester’s lines fromKing Lear, “As flies to wanton boys,...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/JohnBingleyGarland_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"The Left Case for Great Books",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/the-left-case-for-great-books\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Daniel Walden\n\nThe American left is a pretty cerebral lot: it contains a lot of grad students, underemployed humanities majors and hyper-literate autodidacts, and this educational glut is often grounds for criticism. We are, according to the usual line, too much in our own heads, too busy building castles in the air to relate to people on the ground. But despite our eggheaded reputation, the American left has failed to articulate a broad and unified vision for education. We are generally successful at toeing a line on issues of policy—robust funding for public education, opposition to charter schools, strong...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/WILDENBOER-Barbara_LOdyssee-dHomere_29x32x3cm_Livre-modifie_2024-HD_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Freedom of Intelligence",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/freedom-of-intelligence\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Annie Abrams\n\nBefore assigning Aldous Huxley’s dystopian novelBrave New Worldto high school students, I like to read Plato’s allegory of the cave with them in class. In the passage, Socrates asks Glaucon to imagine that prisoners in a cave accept shadows cast on the wall by anonymous puppeteers as reality. The lucky few who are freed find greater degrees of illumination, truer representations, but liberation is a painful and threatening struggle. Powerlessness is easier. Socrates contends that “in the realm of what can be known, the idea of the good is discovered last of all, and it is only perceived with g...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Jan_Pietersz_Saenredam_after_Cornelis_Cornelisz_van_Haarlem_Platos_Cave_1604_NGA_62542_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Clocked Out",
-        "Link":"https:\/\/thepointmag.com\/criticism\/clocked-out\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Martin Dolan\n\nTwo summers ago, I started my first full-time job. This came after a series of internships with no return offers, an unfunded master’s degree, haphazard attempts at freelance writing, a self-studied LSAT, and long shifts behind the counter at bakeries and bars. The job I ultimately accepted—at a legal nonprofit in the city where I grew up—wasn’t particularly prestigious or high paying, but it was at a good organization, and at least obliquely aligned with my politics and long-term career interests. More importantly, it represented stability. An end to my meandering adolescence. A paycheck that...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/EdaGecikmez2_web-e1769886204725.jpg"
-    },
-    {
-        "Source":"webゲンロン",
-        "Title":"【 #ゲンロン友の声｜041】友だちってほんとうに必要ですか？",
-        "Link":"https:\/\/webgenron.com\/articles\/voice20260501_01",
-        "Published":"最新",
-        "Summary":"webゲンロン 2026年5月1日配信友だちって大事ですか？ そして孤独は結構辛いんですけど、でもしょうがないのかな？みたいに思います。人間はみんな完璧じゃなくって、批判しようと思えばいくらでもできる。それは自分も含めてです。私は23歳です",
-        "Image":null
-    },
-    {
-        "Source":"webゲンロン",
-        "Title":"シラスざんまい2026GW",
-        "Link":"https:\/\/webgenron.com\/articles\/shirasuzanmai_2026gw",
-        "Published":"最新",
-        "Summary":"GW 人気番組再公開シラスざんまい！人気の10番組をゴールデンウィークにあわせて再公開します。見逃していたあの番組、もう一度観たかったあの番組を楽しめるチャンス。チャンネル会員は全番組見放題です。再公開期間は2026年5月2日-11日。連休",
-        "Image":null
-    },
-    {
-        "Source":"webゲンロン",
-        "Title":"モンキー・Ｄ・ルフィと反キリスト　惑星的なものにかんする覚書 第7回｜ユク・ホイ　訳＝伊勢康平",
-        "Link":"https:\/\/webgenron.com\/articles\/article20260507_01",
-        "Published":"最新",
-        "Summary":"webゲンロン 2026年5月7日配信★＝原注 ☆＝訳注 ［ ］＝著者補足 〔 〕＝訳者補足&nbsp;§１&nbsp; 2026年3月、パランティア〔Palantir〕の創業者であるピーター・ティールがローマを訪れ、ルネサンス期にオルシー",
-        "Image":null
-    },
-    {
-        "Source":"webゲンロン",
-        "Title":"水面から飛び出した魚（3）ヒュポムネーシスの現象学　飛び魚と毒薬（15）｜石田英敬",
-        "Link":"https:\/\/webgenron.com\/articles\/article20260513_01",
-        "Published":"最新",
-        "Summary":"webゲンロン 2026年5月13日配信第14回&nbsp; しばらく連載の掲載が途切れてしまったが、直近2回では、ベルナールの哲学が監獄の中でどのようにつくりだされていったのか、その過程を哲学の内側から復元する試みを開始していた。 前々回",
-        "Image":null
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"韩流粉圈是新自由主义的产物，但追星女孩也有批判性｜专访",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33025227",
-        "Published":"1天前",
-        "Summary":"**🏷️ 探討議題：** K-pop、粉丝文化、追星女孩、韩流\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1776846304968_FxQNWX_1776846305128.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"王权幻象与制衡底色：特朗普为何对“党内叛离者”束手无策？",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33101936",
-        "Published":"2天前",
-        "Summary":"**🏷️ 探討議題：** 美国政治、特朗普、托马斯·马西\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778061776395_AzYkDj_1778061776668.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"李公明｜一周画记：五角大楼公布UFO相关文件；纪念弗洛伊德诞辰170周年",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33152323",
-        "Published":"3天前",
-        "Summary":"**🏷️ 探討議題：** 五角大楼、弗洛伊德\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778416731074_d7WwNm_1778416731194.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"澎湃思想周报｜亿万富翁与人之为人；震荡中的威尼斯双年展",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33151659",
-        "Published":"3天前",
-        "Summary":"**🏷️ 探討議題：** 亿万富翁、人之为人、参与、威尼斯双年展\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778413425937_KFbpBc_1778413426140.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"专访｜埃米莉·布特尔：刻意表演真实，反而更加虚伪",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33061853",
-        "Published":"4天前",
-        "Summary":"**🏷️ 探討議題：** 埃米莉·布特尔、真实性、明星文化\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1777277668898_Hsse4J_1777277669028.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"马驹桥的24小时",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33010484",
-        "Published":"4天前",
-        "Summary":"**🏷️ 探討議題：** 社会观察\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778319679514_Gmdxef_1778319679639.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"一部有“趣味”的怪物简史：评译著《打怪：电子游戏怪物的诞生与裂变》",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33102120",
-        "Published":"5天前",
-        "Summary":"**🏷️ 探討議題：** 《打怪：电子游戏怪物的诞生与裂变》、怪物、电子游戏\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778058157487_fZmjwa_1778058157704.png"
+        "Summary":"**👤 著者：** Mana Afsari\n\nHeterosexuality has been deemed dangerous for as long as I can remember. In the 1990s, before I was born, an influential faction of feminists had already declared heterosexual sex and especially marriage to be marred by men’s structural advantage over women. By my teenage years, whether according to the revitalized legacies of MacKinnon and Dworkin or the dictates of #MenAreTrash feminism, to love a man was to be subject to his contempt and domination. (Figures like the disreputable Andrew Tate would agree.) By 2025, more than a decade since the term “toxic masculinity” entered cocktail-party ...",
+        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/ClairePartington_web-e1769961875539.jpg"
     },
     {
         "Source":"美術手帖",
-        "Title":"🔒 ［ARTIST IN FOCUS］大小島真木：「私」と「あなた」の輪郭を描く　連綿と紡がれる他者とのコレスポンダンス",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s63\/32134",
-        "Published":"2026-03-15",
-        "Summary":"生命と死、個人と他者、自然と人間──そのあわいを探り続けてきた大小島真木。近年は、「胞衣」や「土」をテーマのひとつに据えながら、存在の輪郭を問い直す表現へと深化している。KAATでの個展から国際芸術祭「あいち2025」、そして絵本『ウオルド』まで、大小島真木が紡ぐ、生命を超えた存在のための芸術の現在を辿る。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32134\/main\/1772163002175_dcad9f9c10355bec83cd34c1c0593f2e.jpg?rect=0,0,4000,2250&v=42&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Quitting",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/quitting\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** John Phipps\n\nWhen I started smoking I was sixteen, and my life was very complicated. Large portions of each day were spent trying to disguise the fact that I had an erection. “You always get them just when you have to stand up,” people would complain, because the people I knew were also teenage boys. On weekends we would get together to make a big stink and talk about women. Once, we cycled forty minutes up a hill to buy beer. On the way down the extra momentum meant we didn’t even have to pedal. We laughed about our beer motorcycles the whole way home, and that night I had my first cigarette. When you fir...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/The-Fire-I-Need-Too_oil-on-linen_24.2×33.4cm_2025_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"The Great Replacement",
-        "Link":"https:\/\/thepointmag.com\/examined-life\/the-great-replacement\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Vikrant Dadawala\n\nI became a father last year, just as I started a new job teaching English literature at a university in Toronto. Things I had only experienced as abstractions acquired a frightening solidity in that hospital room—birth, death and sickness; probabilities and inevitabilities; duty and responsibility. About four hours before my son was born, the machines started to beep insistently and the room was suddenly full of people in scrubs, no longer smiling. By nightfall, I was holding a baby, as my wife drifted out of consciousness, fighting a sudden fever. They brought in two mops to clean up the bloo...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/RinaBanerjee2-e1769914186740.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Listless Liberalism",
-        "Link":"https:\/\/thepointmag.com\/criticism\/listless-liberalism\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Becca Rothfeld\n\nEvery politics has its characteristic aesthetics. This is a truism so widely accepted in the case of fascism that it often tempts otherwise discerning critics to overstate the power of reactionary art. For every Leni Riefenstahl or Knut Hamsun, there is some long-forgotten purveyor of the most banal kitsch—some minor painter of gingerbready village scenes, some carver of half-timbered confections (to say nothing of the nameless mediocrity who directed the alpine romance flicks in which Riefenstahl starred before she took up directing). Still, the frisson that fascism’s best artifacts afford ha...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/2018_Christine_of_Arc_96.5x56_web.jpg"
-    },
-    {
-        "Source":"The Point (Issue 36)",
-        "Title":"Tragic Heritage",
-        "Link":"https:\/\/thepointmag.com\/correspondence\/tragic-heritage\/",
-        "Published":"Issue 36",
-        "Summary":"**👤 著者：** Megan Buskey\n\nIn April 2019, I boarded amarshrutka, a humble mass-transit minivan ubiquitous in the former Soviet Union, and watched the massive prefab apartment blocks on the outskirts of Kyiv give way to the hard, dry grass of the steppe. The trip to the village of Kmytiv from the capital was about an hour and half; my fellow passengers and I silently took in a vintage Matthew McConaughey caper being broadcast on a flat-screen TV mounted above the first row of seats. This was before COVID, when Ukrainians held fast to their skepticism of ventilation, so the van grew warm with our breathing. When we arrive...",
-        "Image":"https:\/\/thepointmag.com\/wp-content\/uploads\/2026\/01\/Kmityv_web.jpg"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"在运动与生存中触及永恒：《孤山独影》中的痛觉模拟与行星尺度｜游戏论",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33105063",
-        "Published":"5天前",
-        "Summary":"**🏷️ 探討議題：** 孤山独影、痛觉模拟、行星尺度\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778120008863_7G4kMP_1778120009067.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"不止有情有义：《给阿嬷的情书》中的文字、命运与身份认同",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33121385",
-        "Published":"6天前",
-        "Summary":"**🏷️ 探討議題：** 《给阿嬷的情书》\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778219960028_DQPfXB_1778219960202.png"
-    },
-    {
-        "Source":"澎湃思想市場",
-        "Title":"名字里的生死回响：《哈姆奈特》与生命中不可承受之重",
-        "Link":"https:\/\/www.thepaper.cn\/newsDetail_forward_33017653",
-        "Published":"2026\/05\/07",
-        "Summary":"**🏷️ 探討議題：** 奥斯卡奖\n\n（點擊標題閱讀原文）",
-        "Image":"https:\/\/imgpai.thepaper.cn\/newpai\/image\/1778056301838_yCFCKG_1778056301967.png"
-    },
-    {
-        "Source":"Eurozine",
-        "Title":"Another November: Queer Slovakia after 1989",
-        "Link":"https:\/\/www.eurozine.com\/another-november-queer-slovakia-after-1989\/",
-        "Published":"2026-03-31T08:48:51+00:00",
-        "Summary":"**👤 著者：** Diana Burgerová\n\nStigmatized during socialism, LGBTQIA+ people in Slovakia continued to face political and social adversity in the following decades. Two veteran activists reflect on the campaign for equal rights after ’89 and why it remains as necessary as ever.",
-        "Image":"https:\/\/www.eurozine.com\/wp-content\/uploads\/2026\/03\/f0e59822ad7f4455e0eb3e65167e0a1e.jpg"
+        "Title":"ドイツ写真の核心を現代に繋げるためには？　1997年3月号「ドイツ写真：ベッヒャー以後」",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s10\/32185",
+        "Published":"2026-03-21",
+        "Summary":"『美術手帖』創刊70周年を記念して始まった連載「プレイバック！美術手帖」。アーティストの原田裕規が美術手帖のバックナンバーを現在の視点からセレクトし、いまのアートシーンと照らしながら論じる。今回は、1997年3月号に掲載された「ドイツ写真：ベッヒャー以後」をお届けする。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32185\/main\/1773191765184_3cb1b30f2599860f1599bc9245cb8abb.jpg?rect=0,0,4000,2250&v=20&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
         "Source":"美術手帖",
-        "Title":"第92回：尾上弘「幾何学的な命の編み目」",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s6\/31990",
-        "Published":"2026-04-06",
-        "Summary":"ヤンキー文化や死刑囚による絵画など、美術の「正史」から外れた表現活動を取り上げる展覧会を扱ってきたアウトサイダー・キュレーター、櫛野展正。2016年4月にギャラリー兼イベントスペース「クシノテラス」を立ち上げ、「表現の根源に迫る」人間たちを紹介する活動を続けている。彼がアウトサイドな表現者たちに取材し、その内面に迫る連載。第92回は、定年後から創作活動をはじめ、「いのちを編む」をテーマに自らの探究...",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/31990\/main\/1768875751608_fe5fec3f43f648b7aa7875dbb43f5a1e.jpg?rect=0,279,2856,1606&v=58&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+        "Title":"「シビック・ファッション」とは何か。建築家・藤村龍至とCCBTの伊藤隆之と島田芽生が考えたアートにこそできること",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s90\/32332",
+        "Published":"2026-03-31",
+        "Summary":"東京都歴史文化財団が運営する「シビック・クリエイティブ・ベース東京［CCBT］」は、2026年度のアーティスト・フェロー募集活動テーマとして、市民の自発的なムーブメント（キビタス）による「まだない何か」をかたちづくる「シビック・ファッション」を掲げた。この取り組みが現代の都市とどのように共鳴していくのか。本鼎談では、建築家の藤村龍至を迎え、CCBTの伊藤隆之と島田芽生と「キビタス」や「シビック・フ...",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32332\/main\/1774925162237_f647983aa11eacb4204692a5885b7ba5.jpg?rect=0,312,3024,1701&v=30&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
         "Source":"美術手帖",
-        "Title":"🔒 ［ARTIST IN FOCUS］江康泉：古典と現代のコンテクストを接続し、アジア固有の想像力を取り戻す小さな革命",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s63\/32133",
-        "Published":"2026-03-20",
-        "Summary":"東洋の歴史や文化を参照し、現代都市、個人の記憶、テクノロジーなどを複層的に結びつけ、多様な領域を横断した創作活動を展開する江康泉（ゴンホンチュン）。金沢21世紀美術館での個展に際し、本展の担当学芸員が、本人との対話を経て、その作品世界を論じる。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32133\/main\/1772426669145_e2a08097fc3e724b09131dd115d89c2c.jpg?rect=0,0,4000,2250&v=35&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+        "Title":"アートと気候危機のいま vol.9　地球のいまを映す「泥」の物語──リッケ・ルター、気候危機を“翻訳”する",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s46\/32150",
+        "Published":"2026-03-24",
+        "Summary":"NPO法人アーツイニシアティヴトウキョウ［AIT／エイト］設立メンバーのひとりであり、AITのグリーン・チーム リーダーでもあるロジャー・マクドナルドによる、気候危機とアートについて「いま」をわかりやすく紹介する連載。第9回は、デンマークのアーティスト、リッケ・ルターにインタビューから気候危機の時代におけるアーティストの実践をお届けする。＊The English version is below ...",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32150\/main\/1771564241901_8d093814332b854ff3e5095cedabdb0f.jpg?rect=0,5,4724,2657&v=52&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Soma: Existential Horror at the Bottom of the Ocean",
+        "Link":"https:\/\/www.421.news\/en\/soma-videojuegos-terror-oceano-en\/",
+        "Published":"Wed, 06 May 2026 11:00:49 GMT",
+        "Summary":"Frictional Games was part of a revolution in the horror video game genre with Amnesia: The Dark Descent . It was part of a wave of games that flooded the market by enabling quick and viral content generation in the Let’s Play scene on YouTube . These are first-person horror games where you can't defend yourself , only flee and hide from the night creatures that not only try to kill you but also inflict mental damage and affect your perception. However, it didn't go viral because of its original plot, but rather due to its ability to foster a fan community . Contrary to the atmospheric narrativ...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/somaenemy02-1024x576.jpg"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"The Day Francisco Went to a Psychologist",
+        "Link":"https:\/\/www.421.news\/en\/papa-francisco-psicoanalisis-argentina-en\/",
+        "Published":"Mon, 04 May 2026 11:00:32 GMT",
+        "Summary":"I consulted a Jewish psychoanalyst. For six months, I went to her house once a week to clarify some things. She was both a doctor and a psychoanalyst, and she always maintained her position. Then one day, when she was about to die, she called me. Not to receive the sacraments, since she was Jewish, but to have a spiritual dialogue. She was a very good person. For six months, she helped me a lot when I was 42 years old. Pope Francis. Habemus Papam (2011) is an Italian dramedy in which a cardinal is elected Pope against his deepest wishes. The College of Cardinals calls in a psychiatrist\/psychoa...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/francisco-1.webp"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Argentine Video Games: Rebel Engine Shatters the Oppressors' Chains with a Nonstop Combo",
+        "Link":"https:\/\/www.421.news\/en\/videogames-argentina-rebel-engine\/",
+        "Published":"Sun, 03 May 2026 11:00:39 GMT",
+        "Summary":"Working can always be humiliating, no matter the universe or timelines we inhabit. The asymmetrical power dynamics at every job may have shifted, we may have become our own bosses , alienation may take on a different hue , but the motto remains the same: to live, one must work. Or its subtle inversion: to work, one must live. At some similar crossroads, we'll find Asimov , the protagonist of the video game Rebel Engine, developed by Seven Leaf Clover and published by Wandering Wizard in 2025. It turns out a robot is doomed to fight eternally in a sort of cybernetic Roman coliseum, while the ci...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/Rebel-Engine-Review-421--3-.jpg"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Interview with Kristian from “Stay Free”: The History of Download Blogs in Argentina",
+        "Link":"https:\/\/www.421.news\/en\/stay-free-blogs-descarga-argentina-en\/",
+        "Published":"Sat, 02 May 2026 11:00:11 GMT",
+        "Summary":"Breaking through the confines of what comes by default served as a formative experience for those of us trying to dig beneath the surface of mainstream music in the early 2000s . I understand that for the previous generation, it was intriguing to learn (let's say) from a Spanish magazine like Rockdelux that one of Kurt Cobain's favorite bands was an obscure Scottish group called The Vaselines. But how could one access that material in the mid- nineties without a privileged environment? The emergence of mp3 download blogs quenched the curiosity about everything happening (and that had happened)...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/STAY-FREE---KIM-2.jpg"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Human Consciousness: A Tragic Mistake of Evolution?",
+        "Link":"https:\/\/www.421.news\/en\/human-consciousness-ragic-mistake-evolution-en\/",
+        "Published":"Fri, 01 May 2026 11:00:03 GMT",
+        "Summary":"\"The world was and will be a mess, I know it, in 506 and in 2000 too,\" was the phrase with which Enrique Santos Discépolo opened Cambalache in 1934, an Argentine´s tango . In those lines, there might have been less prophecy than acknowledgment: the truth of the human species and the hidden truth of what we have done with our societies. While there are genuine moments of calm, it's hard for a reader of 421 not to accept a somewhat sad idea: we are trapped in a madhouse. Accounting for the \"specificity\" of the madhouse we live in is not the task of this note. Others have done it with great preci...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/Gemini_Generated_Image_9ftpyi9ftpyi9ftp-2-1.png"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Palantir: How to Debunk the Rhetoric of Surveillance",
+        "Link":"https:\/\/www.421.news\/en\/palantir-surveillance-thiel-argentina-en\/",
+        "Published":"Thu, 30 Apr 2026 11:00:59 GMT",
+        "Summary":"During the week of April 21, Peter Thiel arrived in Buenos Aires. The co-founder of Palantir Technologies met with officials from the Milei government , attended the Superclásico, and was celebrated in media and networks aligned with the ruling party. Rumors circulated about potential contracts for Palantir to manage information from Argentine public agencies, although the actual terms of the negotiations are, of course, not public. The exact reasons for his visit are also unclear. Thiel might be evaluating business opportunities in sectors like agriculture or energy, closely observing the \"li...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/Gemini_Generated_Image_wu1rlhwu1rlhwu1r-1.png"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Are video games an art form? A look at the Argentine indie scene",
+        "Link":"https:\/\/www.421.news\/en\/videogames-argentina-arcade-art-en\/",
+        "Published":"Wed, 29 Apr 2026 11:00:40 GMT",
+        "Summary":"Perhaps one of the greatest agreements regarding the definitive quality of art can be found in Kant's ruling on the autonomy of art. Neither religion, nor morality, nor politics: a work of art exists as long as it is created for and by itself, without utilitarian value or the capacity for possession. While there are plenty of debates that challenge this 18th-century stance (it's not a bad standard in terms of theory), we tend to think that things dedicated to exploring the potentials of genius, the pursuit of beauty or the sublime, and the overflow of sensory excitement tend to stand in opposi...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/NAVE-lugares1-2-1.jpg"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Can Cooperative Gaming Save Us from Loneliness?",
+        "Link":"https:\/\/www.421.news\/en\/cooperative-gaming-loneliness-en\/",
+        "Published":"Tue, 28 Apr 2026 11:00:07 GMT",
+        "Summary":"Every Wednesday since 2020, I log on at ten o'clock at night to play with friends. We've been making memes, uploading videos, creating songs with AI, and generating very specific content for many days now. It's a level of enthusiasm that's quite atypical for something experienced in the privacy of home, with six computers connected from afar. We are people who have known each other for many years, but in a different environment: the virtual one. We come together exclusively to play cooperative video games. That's how we live our Wednesday Masses. It's involuntary; the eye naturally gravitates ...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/valheimgang-2.webp"
     },
     {
         "Source":"Verso Blog",
-        "Title":"Make your next read a John Berger classic",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/make-john-berger-your-next-read",
-        "Published":"2026-04-16T10:02:03-04:00",
-        "Summary":"Storyteller, novelist, essayist, screenwriter, dramatist, and critic John Berger was one of the most internationally influential writers of the last fifty years. As we approach the centenary of his birth, Verso is publishing an essential collection of John Berger classics – from well known essays on art, to political essays, and groundbreaking dramatic works. John Berger Essentials [book-strip index=\"1\"]",
+        "Title":"Video: Kevin B. Anderson on The Late Marx’s Revolutionary Roads",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/video-kevin-b-anderson-on-the-late-marx-s-revolutionary-roads",
+        "Published":"2026-05-07T03:47:30-04:00",
+        "Summary":"Author Kevin B. Anderson sat down with Benjamin Crais to discuss The Late Marx's Revolutionary Roads – now available from Verso Books. This interview was recorded at the Verso office in London during the Historical Materialism Conference, 2025. [book-strip index=\"1\"] In The Late Marx's Revolutionary Roads , Kevin Anderson carries out a systematic analysis of Marx’s Ethnological Notebooks and related texts on Russia, India, Ireland, Algeria, Latin America, and ancient Rome. These texts, some of them only now being published, provide evidence for a change of perspective, away from Eurocentric wo...",
+        "Image":null
+    },
+    {
+        "Source":"Verso Blog",
+        "Title":"Art has nothing to do with the UN: Internationalism as rhetoric at the Venice Biennale",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/art-has-nothing-to-do-with-the-un-internationalism-as-rhetoric-at-the-venice-biennale",
+        "Published":"2026-05-05T05:11:46-04:00",
+        "Summary":"The rhetoric of the Venice Biennale as the ‘UN of art’ is the argument most frequently invoked by the cultural institution to assert its independence from politics. By constructing an ecumenical narrative of identity, the Biennale has, over time, produced an institutional mythopoesis that has transformed it into a state of exception in the Agambian sense. But this assumption is yet another insidious legacy of the Italian fascist regime that has slipped into the democratic mainstream. The first time the Biennale’s myth-making machine coined the metaphor of the ‘Geneva of the arts’ was in 1931. ...",
+        "Image":null
+    },
+    {
+        "Source":"Verso Blog",
+        "Title":"Video: Is a General Strike possible today? | Callum Cant and Matthew Lee",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/video-is-a-general-strike-possible-today-callum-cant-and-matthew-lee",
+        "Published":"2026-05-04T18:18:07-04:00",
+        "Summary":"The Future in Our Past tells the story of the 1926 General Strike on its centenary. In the book, Callum Cant and Matthew Lee take us on a journey through a Britain living on its nerves, from the London docklands to the South Wales coalfields and the railways and warehouses of middle England. 100 years later, they visited the communities where the struggle burned brightest, uncovering the lessons the General Strike holds for labour movements today. [book-strip index=\"1\"]",
+        "Image":null
+    },
+    {
+        "Source":"Verso Blog",
+        "Title":"Karl Marx: a Verso Reading List",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/may-5th-is-karl-marxs-birthday-verso-red-may-sale",
+        "Published":"2026-05-04T08:34:00-04:00",
+        "Summary":"May 5th, 1818, marks the birth of Karl Marx. From Marx's own writings to contemporary interpretations and adaptations of his ideas, this reading list offers a comprehensive exploration of the principles that have inspired generations of activists and intellectuals. As part of our Red May sale , we're offering: 20% off all titles in our catalog 30% off if you buy 3 40% off if you buy 4 or more Discount will be applied in cart. Separate orders can't be combined. [book-strip index=\"1\"]",
+        "Image":null
+    },
+    {
+        "Source":"Verso Blog",
+        "Title":"Mutual Aid in 2026: How Minneapolis Fights Back",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/mutual-aid-in-2026-how-minneapolis-fights-back",
+        "Published":"2026-05-03T12:26:00-04:00",
+        "Summary":"On May 11th at 6pm (EST), Verso will be joined by Dean Spade, Autumn Brown, and R. Jessica Rosenberg to celebrate the new edition of Mutual Aid , discuss how mutual aid efforts have changed between 2019 and 2026, the repression of Stop Cop City activists, and transitioning between acute and ongoing crises. RSVP here! -- Dean Spade has been working in movements for queer and trans liberation, anti-militarism, and police and prison abolition for the past 25 years. He is the author of Normal Life , Mutual Aid , and Love in a Fucked Up World . Autumn Brown is a mother, movement leader, and musicia...",
         "Image":null
     },
     {
@@ -864,6 +984,22 @@
         "Image":null
     },
     {
+        "Source":"421 News (EN)",
+        "Title":"One Battle After Another: When Social Criticism Becomes Pure Entertainment",
+        "Link":"https:\/\/www.421.news\/en\/una-batalla-tras-otra-critica-social-entretenimiento-en\/",
+        "Published":"Tue, 05 May 2026 11:00:05 GMT",
+        "Summary":"Paraphrasing Mark Fisher , the Oscar for Best Picture awarded to One battle after another is a symptomatically interesting fact. Paul Thomas Anderson's film seems to test the machines of irony and their ability to function as a model of social critique. The operation would be as follows: to display on screen atrophied traits of the recent history of the United States in such a way that they seem strange to us, and then we are compelled to think about them, from scratch, once again. But this type of procedure has its limits, as David Foster Wallace perceived back in 1993: “Sarcasm, parody, absu...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/one-battle-after-another-is-visually-stunning-v0-qiocy582tzcf1.jpg"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Proxies: How to Play Magic Against Your Friends—Not Your Wallet",
+        "Link":"https:\/\/www.421.news\/en\/proxies-magic-cards-game-en\/",
+        "Published":"Thu, 07 May 2026 11:00:44 GMT",
+        "Summary":"Magic: The Gathering was the game that laid the groundwork for everything: formats, rotation, editions, metagame … All that jargon that any enthusiast recognizes right away. But let's be honest, it's also a game that historically demands more than just enthusiasm and brains: it asks for a hefty amount of cash. And that's where things start to get tricky. Because sure, learning to play, understanding how the stack works, knowing when to cast a removal spell or when to hold onto that counter like it's gold is one thing. But being able to build a competitive deck without having to sell a kidney o...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/no-proxiaras-una-carta-de-magic-1.png"
+    },
+    {
         "Source":"Verso Blog",
         "Title":"Fredric Jameson | April 14, 1934 - September 22, 2024",
         "Link":"https:\/\/www.versobooks.com\/blogs\/news\/fredric-jameson",
@@ -872,100 +1008,12 @@
         "Image":null
     },
     {
-        "Source":"Verso Blog",
-        "Title":"Karl Marx: a Verso Reading List",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/may-5th-is-karl-marxs-birthday-verso-red-may-sale",
-        "Published":"2026-05-04T08:34:00-04:00",
-        "Summary":"May 5th, 1818, marks the birth of Karl Marx. From Marx's own writings to contemporary interpretations and adaptations of his ideas, this reading list offers a comprehensive exploration of the principles that have inspired generations of activists and intellectuals. As part of our Red May sale , we're offering: 20% off all titles in our catalog 30% off if you buy 3 40% off if you buy 4 or more Discount will be applied in cart. Separate orders can't be combined. [book-strip index=\"1\"]",
-        "Image":null
-    },
-    {
-        "Source":"Verso Blog",
-        "Title":"Letter from Cyprus:  Geopolitics, Intimacy, and the Public Sphere in the Age of Monsters",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/the-age-of-monsters-notes-from-the-eastern-mediterranean",
-        "Published":"2026-04-10T05:00:06-04:00",
-        "Summary":"In February and March, the island of Cyprus, otherwise white, dry, and bushy, tucked in the corner of the eastern Mediterranean, becomes green. The unexpected torrential rains beat down on the sandy and rocky soil and force out a stubborn, almost indecent yellow and green, the colour of something insisting on being alive against all odds. The orange trees bloom and the smell is pervasive, it follows you in the car, into the house, like it has nowhere else to go. With one side in the EU, it is geographically in the middle of perpetual conflict. With empty mosques and their minarets obstructed b...",
-        "Image":null
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"The Forgotten Communications Devices of the French Revolution",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-forgotten-communications-devices-of-the-french-revolution\/",
-        "Published":"2026-05-11 09:55:00",
-        "Summary":"**👤 著者：** Richard Taws\n\nIn a period when confusion could be deadly, inventors devised ingenious contraptions to help carry the nation’s boldest voices.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/french-telegraph.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"The Trouble With Narrative History",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-trouble-with-narrative-history\/",
-        "Published":"2026-05-07 09:55:00",
-        "Summary":"**👤 著者：** Alex Rosenberg\n\nTo understand human history, we must resist attributing meaning and motive to it.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/alex-cover.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"America Is a Deadly Maze for Black Mothers-to-Be",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/america-is-a-deadly-maze-for-black-mothers-to-be\/",
-        "Published":"2026-05-04 09:55:00",
-        "Summary":"**👤 著者：** Khiara M. Bridges\n\nEven the most privileged among them face needless harm in a healthcare system riddled with racial bias.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/Expecting-Inequity-Final-cover.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"The Whistleblower Who Uncovered the NSA’s ‘Big Brother Machine’",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-whistleblower-who-uncovered-the-nsas-big-brother-machine\/",
-        "Published":"2026-04-30 09:55:00",
-        "Summary":"**👤 著者：** Cindy Cohn\n\nAn unexpected visitor gave my team the evidence we needed to prove that the government was secretly wiretapping Americans.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/641-cover-copy.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"What Is Authorship When Machines Can Write?",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/what-is-authorship-when-machines-can-write\/",
-        "Published":"2026-04-27 09:55:00",
-        "Summary":"**👤 著者：** W. Patrick McCray\n\nWriters and machines have been in a quiet standoff for decades. ChatGPT has just made it impossible to ignore.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/mccray-lead.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"Biological Babel: Why DNA Is Humanity’s Infinite Atlas",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/biological-babel-why-dna-is-humanitys-infinite-atlas\/",
-        "Published":"2026-04-23 09:55:00",
-        "Summary":"**👤 著者：** Adrian Woolfson\n\nFrom evolution’s first mutations to the rise of synthetic genomics, we are charting life the way Magellan once mapped Earth.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/dna.jpg"
-    },
-    {
-        "Source":"Verso Blog",
-        "Title":"Mutual Aid in 2026: How Minneapolis Fights Back",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/mutual-aid-in-2026-how-minneapolis-fights-back",
-        "Published":"2026-05-03T12:26:00-04:00",
-        "Summary":"On May 11th at 6pm (EST), Verso will be joined by Dean Spade, Autumn Brown, and R. Jessica Rosenberg to celebrate the new edition of Mutual Aid , discuss how mutual aid efforts have changed between 2019 and 2026, the repression of Stop Cop City activists, and transitioning between acute and ongoing crises. RSVP here! -- Dean Spade has been working in movements for queer and trans liberation, anti-militarism, and police and prison abolition for the past 25 years. He is the author of Normal Life , Mutual Aid , and Love in a Fucked Up World . Autumn Brown is a mother, movement leader, and musicia...",
-        "Image":null
-    },
-    {
-        "Source":"Verso Blog",
-        "Title":"Video: Is a General Strike possible today? | Callum Cant and Matthew Lee",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/video-is-a-general-strike-possible-today-callum-cant-and-matthew-lee",
-        "Published":"2026-05-04T18:18:07-04:00",
-        "Summary":"The Future in Our Past tells the story of the 1926 General Strike on its centenary. In the book, Callum Cant and Matthew Lee take us on a journey through a Britain living on its nerves, from the London docklands to the South Wales coalfields and the railways and warehouses of middle England. 100 years later, they visited the communities where the struggle burned brightest, uncovering the lessons the General Strike holds for labour movements today. [book-strip index=\"1\"]",
-        "Image":null
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"The 1960s Art School Experiment That Redefined Creativity",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-1960s-art-school-experiment-that-redefined-creativity\/",
-        "Published":"2026-04-20 09:50:00",
-        "Summary":"**👤 著者：** Keith Sawyer\n\nA groundbreaking study revealed that the most compelling artists seek to find problems, not solve them.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/creativity.jpg"
-    },
-    {
-        "Source":"Aeon 思想誌",
-        "Title":"Sarnevesht (Daughter)",
-        "Link":"https:\/\/aeon.co\/videos\/a-teen-girl-hits-a-crossroads-in-this-stirring-portrait-of-rural-iran",
-        "Published":"Wed, 06 May 2026 10:01:00 GMT",
-        "Summary":"In rural Iran, Sahar faces a stark choice: stay at home to look after her father, or go to the city to pursue her education - by Aeon Video Watch on Aeon",
-        "Image":"https:\/\/images.aeonmedia.co\/images\/36527e34-6f56-4a6f-a6a9-b73296d090fd\/sarnevesht-daughter-landscape-1.jpg?width=1200&quality=75&format=auto"
+        "Source":"421 News (EN)",
+        "Title":"How Science Outpaced the Chip: Optical and Neuromorphic Computing",
+        "Link":"https:\/\/www.421.news\/en\/computacion-neuromorfica-celulas-doom-en\/",
+        "Published":"Fri, 08 May 2026 11:00:54 GMT",
+        "Summary":"Have you ever stopped to think about what a computer is ? I'm not talking about the collection of hardware components that we commonly refer to as a PC. I'm pointing to the very concept of computing as the ability to process an input to produce an output following a set of programmable instructions. I'm asking what characteristics a machine should have to be considered a computer. Surely, when we try to get close to a definition, the word electronic or more precisely the idea of electric circuits transmitting information will quickly come to mind, but could there be computers made of something...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/data-src-image-484df6ff-7069-45a8-a85e-c37eb8e9bc9c-1-1.png"
     },
     {
         "Source":"Aeon 思想誌",
@@ -1025,19 +1073,19 @@
     },
     {
         "Source":"Aeon 思想誌",
+        "Title":"Sarnevesht (Daughter)",
+        "Link":"https:\/\/aeon.co\/videos\/a-teen-girl-hits-a-crossroads-in-this-stirring-portrait-of-rural-iran",
+        "Published":"Wed, 06 May 2026 10:01:00 GMT",
+        "Summary":"In rural Iran, Sahar faces a stark choice: stay at home to look after her father, or go to the city to pursue her education - by Aeon Video Watch on Aeon",
+        "Image":"https:\/\/images.aeonmedia.co\/images\/36527e34-6f56-4a6f-a6a9-b73296d090fd\/sarnevesht-daughter-landscape-1.jpg?width=1200&quality=75&format=auto"
+    },
+    {
+        "Source":"Aeon 思想誌",
         "Title":"Embrace the edge!",
         "Link":"https:\/\/aeon.co\/essays\/why-creativity-shines-out-on-the-edge-of-things",
         "Published":"Tue, 05 May 2026 10:00:00 GMT",
         "Summary":"Brilliance and kindness shine brightest when far from the comfortable centre. Even nature is more generative there too - by Charles Foster Read on Aeon",
         "Image":"https:\/\/images.aeonmedia.co\/images\/987089b2-00f6-456b-b997-3be46734ca44\/essay-panos_00385800.jpg?width=1200&quality=75&format=auto"
-    },
-    {
-        "Source":"Verso Blog",
-        "Title":"Art has nothing to do with the UN: Internationalism as rhetoric at the Venice Biennale",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/art-has-nothing-to-do-with-the-un-internationalism-as-rhetoric-at-the-venice-biennale",
-        "Published":"2026-05-05T05:11:46-04:00",
-        "Summary":"The rhetoric of the Venice Biennale as the ‘UN of art’ is the argument most frequently invoked by the cultural institution to assert its independence from politics. By constructing an ecumenical narrative of identity, the Biennale has, over time, produced an institutional mythopoesis that has transformed it into a state of exception in the Agambian sense. But this assumption is yet another insidious legacy of the Italian fascist regime that has slipped into the democratic mainstream. The first time the Biennale’s myth-making machine coined the metaphor of the ‘Geneva of the arts’ was in 1931. ...",
-        "Image":null
     },
     {
         "Source":"Aeon 思想誌",
@@ -1088,44 +1136,116 @@
         "Image":"https:\/\/images.aeonmedia.co\/images\/c08757a9-939f-46b0-9bd3-49fd7b7fb24f\/1000-years-of-japanese-swords-landscape-1.jpg?width=1200&quality=75&format=auto"
     },
     {
+        "Source":"421 News (EN)",
+        "Title":"From Perito Moreno to the Neighborhood: The Impact of Scouting in Argentina",
+        "Link":"https:\/\/www.421.news\/en\/boy-scouts-argentina-en\/",
+        "Published":"Wed, 13 May 2026 11:00:56 GMT",
+        "Summary":"Surely you've seen them around your neighborhood, in churches or parks building structures with logs and knots, making gestures of solidarity for the community, or simply lending a hand. They wear scarves in various colors, each with its own meaning. They are not a cult and they don't sell cookies, despite what pop culture has unsuccessfully tried to suggest. Scouts are the largest youth movement in the world. Baden Powell is the founder of the scout movement, also known as BP. He was a soldier and a writer. He participated in military campaigns in Africa, such as when he defended during the s...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/05\/DSCN5058--1--1.JPG"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"Shadow of the Colossus: The Cult Classic Video Game That Has Players Obsessed with Its Secrets",
+        "Link":"https:\/\/www.421.news\/en\/shadow-colossus-videogames-cult-en\/",
+        "Published":"Tue, 12 May 2026 11:00:35 GMT",
+        "Summary":"Shadow of the Colossus is a video game from 2005 originally made for the PlayStation 2 , a spiritual successor to Ico and part of an unofficial trilogy with The Last Guardian (from the same development team). In Shadow of the Colossus, you play as Wander, a young man who arrives in forbidden lands with the body of a girl (Is she his partner? His sister? A queen? All we know is that she was sacrificed) and makes a pact with a supernatural entity to revive her. In exchange, Wander must search a vast and empty world for sixteen colossi, enormous creatures that are part animal, part ruin, their bo...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/XZawvxfCvZ6niFbYveZBgL-1280-80.jpg.webp"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"A Guide to Understanding Accelerationism, the Ideology of the Apocalypse",
+        "Link":"https:\/\/www.421.news\/en\/guide-acceleracionism-ideology-apocalipsis-en\/",
+        "Published":"Mon, 11 May 2026 11:00:06 GMT",
+        "Summary":"Twelve years ago, when I first heard the term, \"accelerationism\" was a secret name, a forbidden word. Five years ago, it was already being criticized by pop philosophers like Zizek or Byung Chul-han , and Grabois was advocating for it. Last year, Tenembaum used it disparagingly in an interview. Next Sunday, your uncle is going to ask you what it means at the family asado . Are you going to know how to answer him? Accelerationism is a philosophical current, a political ideology, and a meme. All three at once. As a philosophical current, it is a synthesis of a series of ideas developed from the ...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/Gemini_Generated_Image_f34307f34307f343-1.png"
+    },
+    {
+        "Source":"421 News (EN)",
+        "Title":"The Legend of Zelda: Ocarina of Time. The best video game of all time?",
+        "Link":"https:\/\/www.421.news\/en\/legend-zelda-ocarina-time-videogame-en\/",
+        "Published":"Sat, 09 May 2026 11:00:32 GMT",
+        "Summary":"The Legend of Zelda: Ocarina of Time (1998) needs no introduction. Many call it “the greatest game of all time ”, followed by “the best Zelda of all time”, and sometimes “the most influential action-adventure game of all time”. It holds the title of the highest-rated video game in Metacritic history; it was the first game to achieve a 10\/10 on IGN ; named the best of all time by magazines like Edge and Game Informer , and the list of accolades could go on and on. There’s no denying it, there’s an overwhelmingly broad consensus. In this article, I’m going to gather some of the reasons why it ha...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/04\/Portada-_421-1.png"
+    },
+    {
         "Source":"Verso Blog",
-        "Title":"Video: Kevin B. Anderson on The Late Marx’s Revolutionary Roads",
-        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/video-kevin-b-anderson-on-the-late-marx-s-revolutionary-roads",
-        "Published":"2026-05-07T03:47:30-04:00",
-        "Summary":"Author Kevin B. Anderson sat down with Benjamin Crais to discuss The Late Marx's Revolutionary Roads – now available from Verso Books. This interview was recorded at the Verso office in London during the Historical Materialism Conference, 2025. [book-strip index=\"1\"] In The Late Marx's Revolutionary Roads , Kevin Anderson carries out a systematic analysis of Marx’s Ethnological Notebooks and related texts on Russia, India, Ireland, Algeria, Latin America, and ancient Rome. These texts, some of them only now being published, provide evidence for a change of perspective, away from Eurocentric wo...",
+        "Title":"Make your next read a John Berger classic",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/make-john-berger-your-next-read",
+        "Published":"2026-04-16T10:02:03-04:00",
+        "Summary":"Storyteller, novelist, essayist, screenwriter, dramatist, and critic John Berger was one of the most internationally influential writers of the last fifty years. As we approach the centenary of his birth, Verso is publishing an essential collection of John Berger classics – from well known essays on art, to political essays, and groundbreaking dramatic works. John Berger Essentials [book-strip index=\"1\"]",
         "Image":null
     },
     {
-        "Source":"MIT Press Reader",
-        "Title":"What the Crabapples Are Telling Us",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/what-the-crabapples-are-telling-us\/",
-        "Published":"2026-04-20 09:55:00",
-        "Summary":"**👤 著者：** Theresa Crimmins\n\nIn Ohio, a familiar spring ritual is arriving earlier — and with it, quiet signs of a changing climate.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/Crabapples.jpg"
-    },
-    {
-        "Source":"MIT Press Reader",
-        "Title":"Pigs Could End the Transplant Waiting List",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/pigs-could-end-the-transplant-waiting-list\/",
-        "Published":"2026-04-16 09:55:00",
-        "Summary":"**👤 著者：** Joshua D. Mezrich\n\nAnimal-to-human organ transplants promise a future where survival no longer depends on another person’s death.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/Organ.jpg"
+        "Source":"Verso Blog",
+        "Title":"Letter from Cyprus:  Geopolitics, Intimacy, and the Public Sphere in the Age of Monsters",
+        "Link":"https:\/\/www.versobooks.com\/blogs\/news\/the-age-of-monsters-notes-from-the-eastern-mediterranean",
+        "Published":"2026-04-10T05:00:06-04:00",
+        "Summary":"In February and March, the island of Cyprus, otherwise white, dry, and bushy, tucked in the corner of the eastern Mediterranean, becomes green. The unexpected torrential rains beat down on the sandy and rocky soil and force out a stubborn, almost indecent yellow and green, the colour of something insisting on being alive against all odds. The orange trees bloom and the smell is pervasive, it follows you in the car, into the house, like it has nowhere else to go. With one side in the EU, it is geographically in the middle of perpetual conflict. With empty mosques and their minarets obstructed b...",
+        "Image":null
     },
     {
         "Source":"美術手帖",
-        "Title":"ドイツ写真の核心を現代に繋げるためには？　1997年3月号「ドイツ写真：ベッヒャー以後」",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s10\/32185",
-        "Published":"2026-03-21",
-        "Summary":"『美術手帖』創刊70周年を記念して始まった連載「プレイバック！美術手帖」。アーティストの原田裕規が美術手帖のバックナンバーを現在の視点からセレクトし、いまのアートシーンと照らしながら論じる。今回は、1997年3月号に掲載された「ドイツ写真：ベッヒャー以後」をお届けする。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32185\/main\/1773191765184_3cb1b30f2599860f1599bc9245cb8abb.jpg?rect=0,0,4000,2250&v=20&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+        "Title":"書評：過去のアクティビズムの実践を現在につなぐために。『アクティビズムのアート／アートのアクティビズム「抵抗する表現」の軌跡と行方』",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s12\/32188",
+        "Published":"2026-03-28",
+        "Summary":"雑誌『美術手帖』の「BOOK」コーナーでは、新着のアート本を紹介。2026年1月号では、グレゴリー・ショレットによる『アクティビズムのアート／アートのアクティビズム「抵抗する表現」の軌跡と行方』を取り上げる。アート・アクティビズムの入門書にもなりうる本書について、美術批評家・中島美緒が評する。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32188\/main\/1772097800125_44c4026b1c0dc606239ad60a86421fd7.jpg?rect=0,0,4000,2250&v=18&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
-        "Source":"美術手帖",
-        "Title":"🔒 これは買いたい！ 編集部が選ぶベストミュージアムグッズ（長野県立美術館）",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s83\/32486",
-        "Published":"2026-05-10",
-        "Summary":"日本全国にあるミュージアムが販売するオリジナルのミュージアムグッズ。編集部がとくに気になるものを館ごとにピックアップしてご紹介する。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32486\/main\/1778295744742_a505e4162b8786d3178e750d598795f4.jpg?rect=0,378,4032,2268&v=12&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+        "Source":"MIT Press Reader",
+        "Title":"The 1960s Art School Experiment That Redefined Creativity",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-1960s-art-school-experiment-that-redefined-creativity\/",
+        "Published":"2026-04-20 09:50:00",
+        "Summary":"**👤 著者：** Keith Sawyer\n\nA groundbreaking study revealed that the most compelling artists seek to find problems, not solve them.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/creativity.jpg"
+    },
+    {
+        "Source":"MIT Press Reader",
+        "Title":"A Southern Waterway Scarred With Secrets",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/a-southern-waterway-scarred-with-secrets\/",
+        "Published":"2026-04-13 09:55:00",
+        "Summary":"**👤 著者：** The Editors\n\nBeneath the beauty of the Inner Passage lies a hidden history of enslaved labor.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/Innner-Passage-Cover-copy-1.jpg"
+    },
+    {
+        "Source":"e-flux Journal (Issue 163)",
+        "Title":"Speculating on an Unasked Question",
+        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776889\/speculating-on-an-unasked-question",
+        "Published":"Issue 163",
+        "Summary":"**👤 著者：** Denise Ferreira da Silva\n\nFor decades the public intellectual was called to serve as moral consciousness, to speak truth to power, to fight on ideological fronts, or in a more sophisticated rendering of the role, to act as an agent of truth. This figure, the only one for whom such preoccupations make sense on their own terms, played in the ethical corner of the post-Enlightenment political field. In that field, discourse was the favorite toy, and the best playground was not those spaces where mere academics typically shine (the lecture hall or the classroom), but what is now called legacy media.",
+        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/f142e3c5-34c1-4542-9eb8-f63dc511be06.jpg?&modified=2026-05-01T14:38:00.000Z"
+    },
+    {
+        "Source":"e-flux Journal (Issue 163)",
+        "Title":"The Public Intellectual in History",
+        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776877\/the-public-intellectual-in-history",
+        "Published":"Issue 163",
+        "Summary":"**👤 著者：** Tithi Bhattacharya\n\nIntellectuals, or at least highly educated people, were often at the helm of decolonization struggles in Asia and Africa. Many were educated in the West, where they encountered the hypocrisies of empire firsthand. Their student years in European cities exposed them to how ideals such as equality, the universal franchise, and liberty—none of which had any place in the colony—were flaunted as the guiding political philosophies of metropolitan governments.",
+        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/ee3e4e26-a572-466f-9bce-161b0869f3aa.png?&modified=2026-05-11T20:30:02.000Z"
+    },
+    {
+        "Source":"e-flux Journal (Issue 163)",
+        "Title":"In Darkness and Secrecy: On Conspiratorial Intellectualism",
+        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776885\/in-darkness-and-secrecy-on-conspiratorial-intellectualism",
+        "Published":"Issue 163",
+        "Summary":"**👤 著者：** Bogna Konior\n\nCommunity and conspiracy each have their strengths. Each nurtures a different kind of intellectual. What sort of intellectual belongs to communities? As Edward Said writes, “The intellectual is an individual endowed with a faculty for representing, embodying, articulating a message, a view, an attitude, philosophy or opinion to, as well as for, a public.” We can imagine such an intellectual as a visible messenger, ambassador, or translator of community interests. A conspiratorial intellectual works otherwise. She has already lost something—a country, a safe space, an open field of debate—and o...",
+        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/26bec519-d15f-46ca-84f0-02e670caf834.gif?&modified=2026-05-13T23:50:39.000Z"
+    },
+    {
+        "Source":"e-flux Journal (Issue 163)",
+        "Title":"A Toast to Femmunism",
+        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776893\/a-toast-to-femmunism",
+        "Published":"Issue 163",
+        "Summary":"**👤 著者：** McKenzie Wark\n\nThe figure of the intellectual stands in opposition to the “man of action,” of praxis. It’s a figure that has its leftist incarnations too. There’s maybe something masculinist in this figure. The intellectual is positioned as too feminine. Soft hands, dressed for the salon or the café. The communist man of action was supposed to scorn all that. The communist woman of action: his ascetic double. For the action people, the intellectual fellow traveler was a useful tool, but not an equal.",
+        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/f6d921d9-688b-4b14-ac34-5f6c1f1d8d78.jpg?&modified=2026-05-11T20:16:35.000Z"
+    },
+    {
+        "Source":"e-flux Journal (Issue 163)",
+        "Title":"The Algorithm and the Intellectual",
+        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776881\/the-algorithm-and-the-intellectual",
+        "Published":"Issue 163",
+        "Summary":"**👤 著者：** Amber Musser\n\nThe dangers of the visual are also about what is at stake in keeping the account anonymous. I read this choice as a deliberate decision to sidestep the traditional pressures of fame that might accompany being called an “intellectual,” especially for the problematic extraction of emotional and cognitive labor that happens frequently with Black femmes. And here’s the rub: For those who have traditionally been excluded from the category of the intellectual, inclusion might not even be desirable at all.",
+        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/0985e847-8298-4139-9cf4-52058eaa413a.png?&modified=2026-04-30T16:02:54.000Z"
     },
     {
         "Source":"e-flux Journal (Issue 163)",
@@ -1185,6 +1305,14 @@
     },
     {
         "Source":"美術手帖",
+        "Title":"🔒 これは買いたい！ 編集部が選ぶベストミュージアムグッズ（長野県立美術館）",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s83\/32486",
+        "Published":"2026-05-10",
+        "Summary":"日本全国にあるミュージアムが販売するオリジナルのミュージアムグッズ。編集部がとくに気になるものを館ごとにピックアップしてご紹介する。",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/32486\/main\/1778295744742_a505e4162b8786d3178e750d598795f4.jpg?rect=0,378,4032,2268&v=12&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
+    },
+    {
+        "Source":"美術手帖",
         "Title":"🔒 これは買いたい！ 編集部が選ぶベストミュージアムグッズ（水戸芸術館 現代美術ギャラリー）",
         "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s83\/32480",
         "Published":"2026-05-08",
@@ -1192,12 +1320,12 @@
         "Image":"https:\/\/bt.imgix.net\/magazine\/32480\/main\/1778143331691_2d2947268ec95cdc0785e18546bf6be7.jpg?rect=0,378,4032,2268&v=18&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
-        "Source":"e-flux Journal (Issue 163)",
-        "Title":"A Toast to Femmunism",
-        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776893\/a-toast-to-femmunism",
-        "Published":"Issue 163",
-        "Summary":"**👤 著者：** McKenzie Wark\n\nThe figure of the intellectual stands in opposition to the “man of action,” of praxis. It’s a figure that has its leftist incarnations too. There’s maybe something masculinist in this figure. The intellectual is positioned as too feminine. Soft hands, dressed for the salon or the café. The communist man of action was supposed to scorn all that. The communist woman of action: his ascetic double. For the action people, the intellectual fellow traveler was a useful tool, but not an equal.",
-        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/f6d921d9-688b-4b14-ac34-5f6c1f1d8d78.jpg?&modified=2026-05-11T20:16:35.000Z"
+        "Source":"美術手帖",
+        "Title":"第92回：尾上弘「幾何学的な命の編み目」",
+        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s6\/31990",
+        "Published":"2026-04-06",
+        "Summary":"ヤンキー文化や死刑囚による絵画など、美術の「正史」から外れた表現活動を取り上げる展覧会を扱ってきたアウトサイダー・キュレーター、櫛野展正。2016年4月にギャラリー兼イベントスペース「クシノテラス」を立ち上げ、「表現の根源に迫る」人間たちを紹介する活動を続けている。彼がアウトサイドな表現者たちに取材し、その内面に迫る連載。第92回は、定年後から創作活動をはじめ、「いのちを編む」をテーマに自らの探究...",
+        "Image":"https:\/\/bt.imgix.net\/magazine\/31990\/main\/1768875751608_fe5fec3f43f648b7aa7875dbb43f5a1e.jpg?rect=0,279,2856,1606&v=58&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
         "Source":"美術手帖",
@@ -1206,14 +1334,6 @@
         "Published":"2026-04-05",
         "Summary":"一般の人々が日常の暮らしのなかで生み出し、使い続けてきた「民具」。一見ただの古い道具に見えるかもしれませんが、様々な切り口から観察してみることで、ユニークな造形や意外な機能性といった「デザインの工夫」に気がつくことができます。第15回目は「イヌ好きの民具」。これなーんだ？",
         "Image":"https:\/\/bt.imgix.net\/magazine\/32330\/main\/1774918072348_b58bec0cab0730194f3776130b632816.jpg?rect=0,378,4032,2268&v=11&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
-    },
-    {
-        "Source":"美術手帖",
-        "Title":"「シビック・ファッション」とは何か。建築家・藤村龍至とCCBTの伊藤隆之と島田芽生が考えたアートにこそできること",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s90\/32332",
-        "Published":"2026-03-31",
-        "Summary":"東京都歴史文化財団が運営する「シビック・クリエイティブ・ベース東京［CCBT］」は、2026年度のアーティスト・フェロー募集活動テーマとして、市民の自発的なムーブメント（キビタス）による「まだない何か」をかたちづくる「シビック・ファッション」を掲げた。この取り組みが現代の都市とどのように共鳴していくのか。本鼎談では、建築家の藤村龍至を迎え、CCBTの伊藤隆之と島田芽生と「キビタス」や「シビック・フ...",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32332\/main\/1774925162237_f647983aa11eacb4204692a5885b7ba5.jpg?rect=0,312,3024,1701&v=30&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
         "Source":"美術手帖",
@@ -1232,63 +1352,23 @@
         "Image":"https:\/\/bt.imgix.net\/magazine\/32272\/main\/1774335804647_3de03737f5b0cf68be5e7caa120f7594.jpg?rect=0,378,4032,2268&v=25&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
     },
     {
-        "Source":"美術手帖",
-        "Title":"書評：過去のアクティビズムの実践を現在につなぐために。『アクティビズムのアート／アートのアクティビズム「抵抗する表現」の軌跡と行方』",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s12\/32188",
-        "Published":"2026-03-28",
-        "Summary":"雑誌『美術手帖』の「BOOK」コーナーでは、新着のアート本を紹介。2026年1月号では、グレゴリー・ショレットによる『アクティビズムのアート／アートのアクティビズム「抵抗する表現」の軌跡と行方』を取り上げる。アート・アクティビズムの入門書にもなりうる本書について、美術批評家・中島美緒が評する。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32188\/main\/1772097800125_44c4026b1c0dc606239ad60a86421fd7.jpg?rect=0,0,4000,2250&v=18&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
-    },
-    {
-        "Source":"美術手帖",
-        "Title":"アートと気候危機のいま vol.9　地球のいまを映す「泥」の物語──リッケ・ルター、気候危機を“翻訳”する",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s46\/32150",
-        "Published":"2026-03-24",
-        "Summary":"NPO法人アーツイニシアティヴトウキョウ［AIT／エイト］設立メンバーのひとりであり、AITのグリーン・チーム リーダーでもあるロジャー・マクドナルドによる、気候危機とアートについて「いま」をわかりやすく紹介する連載。第9回は、デンマークのアーティスト、リッケ・ルターにインタビューから気候危機の時代におけるアーティストの実践をお届けする。＊The English version is below ...",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32150\/main\/1771564241901_8d093814332b854ff3e5095cedabdb0f.jpg?rect=0,5,4724,2657&v=52&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
-    },
-    {
-        "Source":"美術手帖",
-        "Title":"書評：戦後日本美術を根底から揺るがし、現代の世界と重ねる。『戦後初期日本のアートとエンゲージメント』",
-        "Link":"https:\/\/bijutsutecho.com\/magazine\/series\/s12\/32187",
-        "Published":"2026-03-22",
-        "Summary":"雑誌『美術手帖』の「BOOK」コーナーでは、新着のアート本を紹介。2026年1月号では、ジャスティン・ジェスティによる『戦後初期日本のアートとエンゲージメント』を取り上げる。日本の戦後初期における芸術と政治の関係を再検討する本書を、現代美術史研究家・筒井宏樹が評する。",
-        "Image":"https:\/\/bt.imgix.net\/magazine\/32187\/main\/1772097847624_1194c12fe25e776e347b9a51ab6729d4.jpg?rect=0,0,4000,2250&v=17&auto=format,compress&cs=origin&q=90&crop=faces,edges&w=352&h=198&fit=crop"
-    },
-    {
-        "Source":"e-flux Journal (Issue 163)",
-        "Title":"The Algorithm and the Intellectual",
-        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776881\/the-algorithm-and-the-intellectual",
-        "Published":"Issue 163",
-        "Summary":"**👤 著者：** Amber Musser\n\nThe dangers of the visual are also about what is at stake in keeping the account anonymous. I read this choice as a deliberate decision to sidestep the traditional pressures of fame that might accompany being called an “intellectual,” especially for the problematic extraction of emotional and cognitive labor that happens frequently with Black femmes. And here’s the rub: For those who have traditionally been excluded from the category of the intellectual, inclusion might not even be desirable at all.",
-        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/0985e847-8298-4139-9cf4-52058eaa413a.png?&modified=2026-04-30T16:02:54.000Z"
-    },
-    {
-        "Source":"e-flux Journal (Issue 163)",
-        "Title":"In Darkness and Secrecy: On Conspiratorial Intellectualism",
-        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776885\/in-darkness-and-secrecy-on-conspiratorial-intellectualism",
-        "Published":"Issue 163",
-        "Summary":"**👤 著者：** Bogna Konior\n\nCommunity and conspiracy each have their strengths. Each nurtures a different kind of intellectual. What sort of intellectual belongs to communities? As Edward Said writes, “The intellectual is an individual endowed with a faculty for representing, embodying, articulating a message, a view, an attitude, philosophy or opinion to, as well as for, a public.” We can imagine such an intellectual as a visible messenger, ambassador, or translator of community interests. A conspiratorial intellectual works otherwise. She has already lost something—a country, a safe space, an open field of debate—and o...",
-        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/26bec519-d15f-46ca-84f0-02e670caf834.gif?&modified=2026-05-13T23:50:39.000Z"
+        "Source":"MIT Press Reader",
+        "Title":"Pigs Could End the Transplant Waiting List",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/pigs-could-end-the-transplant-waiting-list\/",
+        "Published":"2026-04-16 09:55:00",
+        "Summary":"**👤 著者：** Joshua D. Mezrich\n\nAnimal-to-human organ transplants promise a future where survival no longer depends on another person’s death.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/Organ.jpg"
     },
     {
         "Source":"MIT Press Reader",
-        "Title":"A Southern Waterway Scarred With Secrets",
-        "Link":"https:\/\/thereader.mitpress.mit.edu\/a-southern-waterway-scarred-with-secrets\/",
-        "Published":"2026-04-13 09:55:00",
-        "Summary":"**👤 著者：** The Editors\n\nBeneath the beauty of the Inner Passage lies a hidden history of enslaved labor.",
-        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/Innner-Passage-Cover-copy-1.jpg"
+        "Title":"What the Crabapples Are Telling Us",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/what-the-crabapples-are-telling-us\/",
+        "Published":"2026-04-20 09:55:00",
+        "Summary":"**👤 著者：** Theresa Crimmins\n\nIn Ohio, a familiar spring ritual is arriving earlier — and with it, quiet signs of a changing climate.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/Crabapples.jpg"
     },
     {
-        "Source":"421 News",
-        "Title":"制作和测试你自己的桌游指南",
-        "Link":"https:\/\/www.421.news\/zh\/como-hacer-un-juego-de-mesa-3\/",
-        "Published":"Thu, 22 Jan 2026 11:00:22 GMT",
-        "Summary":"做 ，最后的边界。 做 是一个引擎，一种热情和刺激。在我的情况下，这是让我保持理智和继续前进的事情之一。 做 可以是有特定目标的有计划的活动，也可以是一个爱好。当我还是个小孩时，我收到了一本《辛普森一家》的书，叫做 雨天游戏书 ，这个指南\/教程在某种程度上就是那种风格。我们已经 一起做过一个自制杂志 ，我们已经 用Bitsy做过一个小游戏 。那么，为什么不结合独立出版物的DIY精神和游戏的娱乐性呢...",
-        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/421-prototipo-juegos.jpeg"
-    },
-    {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Claude Code：软件终结的开始",
         "Link":"https:\/\/www.421.news\/zh\/claude-code-el-fin-del-software-como-lo-conocemos-3\/",
         "Published":"Fri, 27 Feb 2026 14:30:00 GMT",
@@ -1296,7 +1376,15 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/03\/claude_code_hansel-1.png"
     },
     {
-        "Source":"421 News",
+        "Source":"MIT Press Reader",
+        "Title":"Biological Babel: Why DNA Is Humanity’s Infinite Atlas",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/biological-babel-why-dna-is-humanitys-infinite-atlas\/",
+        "Published":"2026-04-23 09:55:00",
+        "Summary":"**👤 著者：** Adrian Woolfson\n\nFrom evolution’s first mutations to the rise of synthetic genomics, we are charting life the way Magellan once mapped Earth.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/dna.jpg"
+    },
+    {
+        "Source":"421 News (ZH)",
         "Title":"人工智能如何塑造我们：McLuhan与LLM的语法",
         "Link":"https:\/\/www.421.news\/zh\/mcluhan-ia-llm-3\/",
         "Published":"Thu, 12 Feb 2026 11:00:51 GMT",
@@ -1304,7 +1392,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/IA-y-poes--a-en-421-b.png"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Selfhosting：自建家庭云存储的艺术",
         "Link":"https:\/\/www.421.news\/zh\/selfhosting-alojar-nube-hogarena-3\/",
         "Published":"Wed, 11 Feb 2026 11:00:31 GMT",
@@ -1312,7 +1400,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/infra-cyberciruja.jpeg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"爱泼斯坦与4chan",
         "Link":"https:\/\/www.421.news\/zh\/epstein-4chan-reddit-7\/",
         "Published":"Sat, 07 Feb 2026 14:20:33 GMT",
@@ -1320,7 +1408,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/02\/pandemonium_painting.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Grant Morrison：解构、超级英雄与争议",
         "Link":"https:\/\/www.421.news\/zh\/grant-morrison-3\/",
         "Published":"Wed, 04 Feb 2026 11:00:47 GMT",
@@ -1328,7 +1416,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/grant-morrison.png.webp"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Argentum Online：中世纪奇幻、社区与边缘的活力",
         "Link":"https:\/\/www.421.news\/zh\/argentum-online-3\/",
         "Published":"Tue, 03 Feb 2026 11:00:14 GMT",
@@ -1336,7 +1424,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/Posrtada-AO.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"从奢侈到大众仪式：阿根廷冰淇淋的英雄之旅",
         "Link":"https:\/\/www.421.news\/zh\/helado-heladerias-argentinas-4\/",
         "Published":"Thu, 29 Jan 2026 11:00:47 GMT",
@@ -1344,7 +1432,15 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/DDL-Turbina-1.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
+        "Title":"制作和测试你自己的桌游指南",
+        "Link":"https:\/\/www.421.news\/zh\/como-hacer-un-juego-de-mesa-3\/",
+        "Published":"Thu, 22 Jan 2026 11:00:22 GMT",
+        "Summary":"做 ，最后的边界。 做 是一个引擎，一种热情和刺激。在我的情况下，这是让我保持理智和继续前进的事情之一。 做 可以是有特定目标的有计划的活动，也可以是一个爱好。当我还是个小孩时，我收到了一本《辛普森一家》的书，叫做 雨天游戏书 ，这个指南\/教程在某种程度上就是那种风格。我们已经 一起做过一个自制杂志 ，我们已经 用Bitsy做过一个小游戏 。那么，为什么不结合独立出版物的DIY精神和游戏的娱乐性呢...",
+        "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/421-prototipo-juegos.jpeg"
+    },
+    {
+        "Source":"421 News (ZH)",
         "Title":"我们从哪里来？阿根廷之前的阿根廷特性",
         "Link":"https:\/\/www.421.news\/zh\/de-donde-venimos-los-argentinos-3\/",
         "Published":"Wed, 21 Jan 2026 11:00:01 GMT",
@@ -1352,15 +1448,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/meme-original.jpeg"
     },
     {
-        "Source":"e-flux Journal (Issue 163)",
-        "Title":"The Public Intellectual in History",
-        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776877\/the-public-intellectual-in-history",
-        "Published":"Issue 163",
-        "Summary":"**👤 著者：** Tithi Bhattacharya\n\nIntellectuals, or at least highly educated people, were often at the helm of decolonization struggles in Asia and Africa. Many were educated in the West, where they encountered the hypocrisies of empire firsthand. Their student years in European cities exposed them to how ideals such as equality, the universal franchise, and liberty—none of which had any place in the colony—were flaunted as the guiding political philosophies of metropolitan governments.",
-        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/ee3e4e26-a572-466f-9bce-161b0869f3aa.png?&modified=2026-05-11T20:30:02.000Z"
-    },
-    {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"数字废墟：互联网的幽灵角落",
         "Link":"https:\/\/www.421.news\/zh\/hauntologia-internet-ruinas-digitales-4\/",
         "Published":"Mon, 19 Jan 2026 11:00:46 GMT",
@@ -1368,7 +1456,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/hauntologia-ruinas-digitales-viejo-internet-1.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Gojira ゴジラ (1954)",
         "Link":"https:\/\/www.421.news\/zh\/gojira-1954-godzilla-5\/",
         "Published":"Sun, 18 Jan 2026 12:00:39 GMT",
@@ -1376,7 +1464,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/godzilla-1954-social-featured.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"Alan Moore：漫画、魔法与无政府主义",
         "Link":"https:\/\/www.421.news\/zh\/alan-moore-comic-magia-anarquia-5\/",
         "Published":"Sat, 17 Jan 2026 11:00:14 GMT",
@@ -1384,7 +1472,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2026\/01\/Alan-Moore-in-his-living-room--foto-por-Gavin-Wallace-.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"心惊胆战：阿根廷-巴拉圭边境纪实",
         "Link":"https:\/\/www.421.news\/zh\/frontera-argentina-paraguay-3\/",
         "Published":"Thu, 15 Jan 2026 11:00:16 GMT",
@@ -1392,7 +1480,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2025\/12\/Foto-de-portada.jpg"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"盖尔·杜瓦尔：通往新型手机生态系统的道路",
         "Link":"https:\/\/www.421.news\/zh\/gael-duval-nuevo-ecosistema-mobile-7\/",
         "Published":"Fri, 02 Jan 2026 11:00:13 GMT",
@@ -1400,7 +1488,7 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2025\/12\/Gael-Duval-en-421.png"
     },
     {
-        "Source":"421 News",
+        "Source":"421 News (ZH)",
         "Title":"精神病患者 vs 精神分裂患者，无声的战争",
         "Link":"https:\/\/www.421.news\/zh\/psicopatas-vs-esquizos-guerra-silenciosa-4\/",
         "Published":"Mon, 29 Dec 2025 11:00:29 GMT",
@@ -1408,12 +1496,44 @@
         "Image":"https:\/\/storage.ghost.io\/c\/2b\/7f\/2b7f69fc-a243-4d2f-ae8e-db8312c6653a\/content\/images\/2025\/12\/Psychos-vs-esquizos.jpg"
     },
     {
-        "Source":"e-flux Journal (Issue 163)",
-        "Title":"Speculating on an Unasked Question",
-        "Link":"https:\/\/www.e-flux.com\/journal\/163\/6776889\/speculating-on-an-unasked-question",
-        "Published":"Issue 163",
-        "Summary":"**👤 著者：** Denise Ferreira da Silva\n\nFor decades the public intellectual was called to serve as moral consciousness, to speak truth to power, to fight on ideological fronts, or in a more sophisticated rendering of the role, to act as an agent of truth. This figure, the only one for whom such preoccupations make sense on their own terms, played in the ethical corner of the post-Enlightenment political field. In that field, discourse was the favorite toy, and the best playground was not those spaces where mere academics typically shine (the lecture hall or the classroom), but what is now called legacy media.",
-        "Image":"https:\/\/images-eflux.b-cdn.net\/assets\/f142e3c5-34c1-4542-9eb8-f63dc511be06.jpg?&modified=2026-05-01T14:38:00.000Z"
+        "Source":"MIT Press Reader",
+        "Title":"The Forgotten Communications Devices of the French Revolution",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-forgotten-communications-devices-of-the-french-revolution\/",
+        "Published":"2026-05-11 09:55:00",
+        "Summary":"**👤 著者：** Richard Taws\n\nIn a period when confusion could be deadly, inventors devised ingenious contraptions to help carry the nation’s boldest voices.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/french-telegraph.jpg"
+    },
+    {
+        "Source":"MIT Press Reader",
+        "Title":"The Trouble With Narrative History",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-trouble-with-narrative-history\/",
+        "Published":"2026-05-07 09:55:00",
+        "Summary":"**👤 著者：** Alex Rosenberg\n\nTo understand human history, we must resist attributing meaning and motive to it.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/alex-cover.jpg"
+    },
+    {
+        "Source":"MIT Press Reader",
+        "Title":"America Is a Deadly Maze for Black Mothers-to-Be",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/america-is-a-deadly-maze-for-black-mothers-to-be\/",
+        "Published":"2026-05-04 09:55:00",
+        "Summary":"**👤 著者：** Khiara M. Bridges\n\nEven the most privileged among them face needless harm in a healthcare system riddled with racial bias.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/Expecting-Inequity-Final-cover.jpg"
+    },
+    {
+        "Source":"MIT Press Reader",
+        "Title":"The Whistleblower Who Uncovered the NSA’s ‘Big Brother Machine’",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/the-whistleblower-who-uncovered-the-nsas-big-brother-machine\/",
+        "Published":"2026-04-30 09:55:00",
+        "Summary":"**👤 著者：** Cindy Cohn\n\nAn unexpected visitor gave my team the evidence we needed to prove that the government was secretly wiretapping Americans.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/04\/641-cover-copy.jpg"
+    },
+    {
+        "Source":"MIT Press Reader",
+        "Title":"What Is Authorship When Machines Can Write?",
+        "Link":"https:\/\/thereader.mitpress.mit.edu\/what-is-authorship-when-machines-can-write\/",
+        "Published":"2026-04-27 09:55:00",
+        "Summary":"**👤 著者：** W. Patrick McCray\n\nWriters and machines have been in a quiet standoff for decades. ChatGPT has just made it impossible to ignore.",
+        "Image":"https:\/\/thereader.mitpress.mit.edu\/wp-content\/uploads\/2026\/03\/mccray-lead.jpg"
     },
     {
         "Source":"The Funambulist (Fifty Years After Soweto)",
