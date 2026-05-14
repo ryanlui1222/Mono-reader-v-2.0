@@ -9,613 +9,291 @@ import json
 import requests
 
 # ==========================================
-# 全局網路引擎
+# 全局網路引擎 & 基礎設定
 # ==========================================
-scraper = cloudscraper.create_scraper(
-    browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
-)
+scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+TIMEOUT = 15
 
 # ==========================================
-# 爬蟲模組區
+# 🛠️ 輔助函數 (Helpers) - 大幅減少重複程式碼
+# ==========================================
+def get_soup(url, custom_headers=HEADERS):
+    """通用的 HTML 獲取與解析器"""
+    try:
+        res = scraper.get(url, headers=custom_headers, timeout=TIMEOUT)
+        return BeautifulSoup(res.text, 'html.parser') if res.status_code == 200 else None
+    except:
+        return None
+
+def format_summary(text, author="", max_len=None):
+    """通用的摘要清洗、字數計算與作者排版器"""
+    if not text: return "（無提供文字摘要）"
+    text = " ".join(text.split()) # 清除多餘空白與換行
+    
+    # 計算英文比例決定截斷長度 (若無強制指定 max_len)
+    if not max_len:
+        eng_count = sum(1 for c in text[:50] if c.isalpha() and c.isascii())
+        max_len = 600 if eng_count > 25 else 200 
+        
+    summary = text[:max_len] + '...' if len(text) > max_len else text
+    return f"**👤 著者：** {author}\n\n{summary}" if author else summary
+
+# ==========================================
+# 🕷️ 各平台專屬爬蟲模組
 # ==========================================
 def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
-    """萬用 RSS 抓取：上限提高至 20 篇（可由參數控制）"""
     articles = []
     try:
-        res = scraper.get(feed_url, timeout=15)
-        parsed = feedparser.parse(res.content)
-        # 🌟 修改點：根據傳入的 limit 決定抓取數量
-        entries = parsed.entries[:limit] 
+        parsed = feedparser.parse(scraper.get(feed_url, timeout=TIMEOUT).content)
         
         def process_entry(entry):
             raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
             soup = BeautifulSoup(raw_text, 'html.parser')
+            img_tag = soup.find('img')
+            img_url = urllib.parse.urljoin(entry.link, img_tag['src']) if img_tag and 'src' in img_tag.attrs else None
             text = soup.get_text(separator=" ", strip=True)
             
-            img = soup.find('img')
-            img_url = img['src'] if img and 'src' in img.attrs else None
-            
-            if img_url:
-                img_url = urllib.parse.urljoin(entry.link, img_url)
-            
             if deep_fetch:
-                try:
-                    art_res = scraper.get(entry.link, timeout=10)
-                    art_soup = BeautifulSoup(art_res.text, 'html.parser')
-                    
+                art_soup = get_soup(entry.link)
+                if art_soup:
                     if not img_url:
                         og_img = art_soup.find('meta', attrs={'property': 'og:image'})
-                        if og_img and og_img.get('content'):
-                            img_url = og_img['content']
-                            
-                    paragraphs = [p.get_text(separator=" ", strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
-                    if paragraphs:
-                        clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up", "cookie"])]
-                        if clean_p:
-                            text = " ".join(clean_p[:3])
-                except:
-                    pass 
-            
-            eng_count = sum(1 for c in text[:50] if 'a' <= c.lower() <= 'z' or 'A' <= c.upper() <= 'Z')
-            max_len = 600 if eng_count > 25 else 200 
-            display_text = text[:max_len] + '...' if len(text) > max_len else text
+                        img_url = og_img['content'] if og_img else None
+                    
+                    paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
+                    clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
+                    if clean_p: text = " ".join(clean_p[:3])
             
             return {
-                "Source": source_name,
-                "Title": entry.title,
-                "Link": entry.link,
+                "Source": source_name, "Title": entry.title, "Link": entry.link,
                 "Published": entry.get('published', '最新'),
-                "Summary": display_text,
-                "Image": img_url
+                "Summary": format_summary(text), "Image": img_url
             }
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(process_entry, entry) for entry in entries]
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result: articles.append(result)
-                
-    except Exception as e:
-        print(f"{source_name} 抓取失敗: {e}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            articles = [res for res in ex.map(process_entry, parsed.entries[:limit]) if res]
+    except Exception as e: print(f"{source_name} 錯誤: {e}")
     return articles
 
 def fetch_thepoint():
-    """The Point Magazine: 自動抓取最新一期目錄，並進入每篇文章深度擷取內文與圖片"""
-    url = "https://thepointmag.com/magazine/"
     articles = []
-    source_name = "The Point"
-    
     try:
-        # 加入 headers 模擬真實瀏覽器
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        res = scraper.get(url, headers=headers, timeout=15)
+        soup = get_soup("https://thepointmag.com/magazine/")
+        if not soup: return articles
         
-        if res.status_code != 200:
-            print(f"The Point 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
-            return articles
-
-        soup = BeautifulSoup(res.text, 'html.parser')
+        # 🌟 核心優化：精準鎖定「最新一期」的專屬區塊
+        latest_section = soup.find('div', class_='section-top')
+        if not latest_section: return articles
         
-        # 1. 抓取最新期號 (例如從首頁抓取 "Issue 36")
-        issue_tag = soup.find(lambda tag: tag.name in ['h1', 'h2'] and 'Issue' in tag.get_text())
-        issue_title = issue_tag.get_text(strip=True) if issue_tag else "最新刊"
-        source_name = f"The Point ({issue_title})"
+        # 從最新一期區塊中抓取期號 (例如 Issue 36)
+        issue_tag = latest_section.find('h1')
+        issue_num = issue_tag.get_text(strip=True) if issue_tag else "最新刊"
+        source_name = f"The Point ({issue_num})"
         
-        # 2. 蒐集當期所有文章連結 (使用正則表達式精準過濾)
-        valid_links = set()
-        # The Point 的文章通常在這些分類目錄下
-        article_pattern = re.compile(r'https://thepointmag\.com/(examined|politics|criticism|dialogue|letter)/([^/]+)/?$')
+        # 涵蓋 HTML 裡出現的所有分類 (加入了 examined-life, correspondence 等)
+        pattern = re.compile(r'https://thepointmag\.com/(examined-life|politics|criticism|dialogue|letter|correspondence)/([^/]+)/?$')
         
-        for a in soup.find_all('a', href=True):
+        # 🌟 僅在「最新一期」的區塊內尋找連結，並維持順序
+        links = []
+        for a in latest_section.find_all('a', href=True):
             href = a['href']
-            if article_pattern.match(href):
-                valid_links.add(href)
-                
-        valid_links = list(valid_links)
-        if not valid_links:
-            return articles
+            if pattern.match(href) and href not in links:
+                links.append(href)
+        
+        def process_link(url):
+            art_soup = get_soup(url)
+            if not art_soup: return None
+            
+            og_title = art_soup.find('meta', property='og:title')
+            title = og_title['content'].split('|')[0].strip() if og_title else art_soup.find('h1').get_text(strip=True)
+            
+            author_a = art_soup.find('a', href=re.compile(r'/author/'))
+            author = author_a.get_text(strip=True) if author_a else ""
+            
+            og_img = art_soup.find('meta', property='og:image')
+            text = " ".join([p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80])
+            
+            return {"Source": source_name, "Title": title, "Link": url, "Published": issue_num, 
+                    "Summary": format_summary(text, author), "Image": og_img['content'] if og_img else None}
 
-        # 3. 定義單篇文章的深度抓取邏輯
-        def process_thepoint_article(article_url):
-            try:
-                art_res = scraper.get(article_url, headers=headers, timeout=15)
-                art_soup = BeautifulSoup(art_res.text, 'html.parser')
-                
-                # 抓取標題 (🌟 優化：優先使用最準確的 og:title，作為防呆機制)
-                og_title = art_soup.find('meta', attrs={'property': 'og:title'})
-                if og_title and og_title.get('content'):
-                    # 通常 og:title 會是 "文章名 | The Point Magazine"，我們用 split 把後面的後綴切掉
-                    title = og_title['content'].split('|')[0].strip()
-                else:
-                    h1 = art_soup.find('h1')
-                    title = h1.get_text(strip=True) if h1 else "無標題"
-                
-                # 抓取作者 (通常帶有 /author/ 的連結)
-                author_a = art_soup.find('a', href=re.compile(r'/author/'))
-                author = author_a.get_text(strip=True) if author_a else ""
-                
-                # 抓取圖片 (利用 Meta OG tag 抓取隱藏的高清首圖)
-                og_img = art_soup.find('meta', attrs={'property': 'og:image'})
-                img_url = og_img['content'] if og_img and og_img.get('content') else None
-                
-                # 深度抓取內文
-                paragraphs = []
-                for p in art_soup.find_all('p'):
-                    text = p.get_text(strip=True)
-                    # 過濾掉太短的版權宣告或導航文字
-                    if len(text) > 80:
-                        paragraphs.append(text)
-                        
-                summary_text = " ".join(paragraphs)
-                
-                # 字數擷取 (英文以字母計算長度，抓取約前 600 個字元)
-                eng_count = sum(1 for c in summary_text[:50] if 'a' <= c.lower() <= 'z' or 'A' <= c.upper() <= 'Z')
-                max_len = 600 if eng_count > 25 else 200 
-                summary_text = summary_text[:max_len] + '...' if len(summary_text) > max_len else summary_text
-                
-                summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
-                
-                return {
-                    "Source": source_name, 
-                    "Title": title, 
-                    "Link": article_url,
-                    "Published": issue_title, 
-                    "Summary": summary, 
-                    "Image": img_url
-                }
-            except Exception as e:
-                # 深度抓取若單篇超時，默默跳過不影響其他文章
-                return None
-
-        # 4. 啟用內部多執行緒 (子執行緒)，同時進入每一篇文章抓取
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as thread_executor:
-            futures = [thread_executor.submit(process_thepoint_article, link) for link in valid_links]
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result:
-                    articles.append(result)
-                    
-    except Exception as e:
-        print(f"The Point 抓取失敗: {e}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            articles = [res for res in ex.map(process_link, links) if res]
+            
+    except Exception as e: 
+        print(f"The Point 錯誤: {e}")
         
     return articles
 
-def fetch_bijutsutecho():
-    """美術手帖 (Series)：抓取文章列表，並自動標示 PREMIUM 付費文章"""
-    url = "https://bijutsutecho.com/magazine/series"
-    articles = []
-    source_name = "美術手帖"
-    
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        res = scraper.get(url, headers=headers, timeout=15)
-        
-        if res.status_code != 200:
-            print(f"美術手帖 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
-            return articles
-
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 尋找所有的文章卡片
-        for article in soup.find_all('article', class_='MagazinePageListItem'):
-            # 1. 抓取標題與連結
-            title_tag = article.find('h2', class_='title')
-            if not title_tag or not title_tag.find('a'): 
-                continue
-                
-            a_tag = title_tag.find('a')
-            title = a_tag.get_text(strip=True)
-            href = a_tag['href']
-            # 美術手帖的連結是相對路徑，需要補全為主網址
-            full_link = urllib.parse.urljoin("https://bijutsutecho.com", href)
-            
-            # 2. 檢查是否為 PREMIUM 付費文章
-            premium_badge = article.find('div', class_='premium-label')
-            if premium_badge:
-                title = f"🔒 {title}"
-                
-            # 3. 抓取圖片
-            img_tag = article.find('img')
-            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            
-            # 4. 抓取摘要
-            lead_tag = article.find('p', class_='lead')
-            summary = lead_tag.get_text(separator=" ", strip=True) if lead_tag else "（點擊標題閱讀原文）"
-            
-            # 5. 抓取發布時間
-            time_tag = article.find('time')
-            date = time_tag['datetime'] if time_tag and 'datetime' in time_tag.attrs else "最新"
-            
-            articles.append({
-                "Source": source_name, 
-                "Title": title, 
-                "Link": full_link,
-                "Published": date, 
-                "Summary": summary, 
-                "Image": img_url
-            })
-            
-            # 抓取前 15 篇即可
-            if len(articles) >= 15:
-                break
-                
-    except Exception as e:
-        print(f"美術手帖 抓取失敗: {e}")
-        
-    return articles
-
-def fetch_thepaper():
-    """澎湃思想市場：直接萃取 Next.js 內建的底層 JSON 資料"""
-    url = "https://m.thepaper.cn/list_25483"
-    articles = []
-    source_name = "澎湃思想市場"
-    
-    try:
-        # 偽裝成手機版瀏覽器
-        headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'}
-        res = scraper.get(url, headers=headers, timeout=15)
-        
-        if res.status_code != 200:
-            print(f"澎湃思想市場 阻擋: 收到 HTTP 代碼 {res.status_code}")
-            return articles
-
-        # 🌟 魔法步驟：直接用正則擷取網頁底層的 JSON 資料包
-        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
-        if not match:
-            return articles
-            
-        data = json.loads(match.group(1))
-        # 依照 Next.js 的結構層層深入，獲取文章陣列
-        items = data.get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
-        
-        for item in items[:15]:  # 抓取最新的 15 篇
-            title = item.get('name', '')
-            cont_id = item.get('contId', '')
-            
-            if not title or not cont_id:
-                continue
-                
-            # 將手機版 ID 轉換為易於在電腦/手機上閱讀的 PC 版標準網址
-            link = f"https://www.thepaper.cn/newsDetail_forward_{cont_id}"
-            img_url = item.get('pic', '')
-            published = item.get('pubTimeNew', '最新')
-            
-            # 澎湃列表預設沒有提供長摘要，但 JSON 裡藏有豐富的「標籤 (Tags)」
-            # 我們可以把標籤萃取出來作為摘要提示
-            tags = [t.get('tag', '') for t in item.get('tagList', [])]
-            tags_str = "、".join(tags) if tags else "無"
-            summary = f"**🏷️ 探討議題：** {tags_str}\n\n（點擊標題閱讀原文）"
-            
-            articles.append({
-                "Source": source_name, 
-                "Title": title, 
-                "Link": link,
-                "Published": published, 
-                "Summary": summary, 
-                "Image": img_url
-            })
-            
-    except Exception as e:
-        print(f"澎湃思想市場 抓取失敗: {e}")
-        
-    return articles
-
-def fetch_funambulist():
-    """The Funambulist：自動抓取最新一期的【所有】文章"""
-    issues_url = "https://thefunambulist.net/magazine/issues"
-    articles = []
-    try:
-        soup = BeautifulSoup(scraper.get(issues_url, timeout=15).text, 'html.parser')
-        latest_issue_url = None
-        invalid_paths = ['geo-index', 'stockists', 'subscribe', 'shop', 'podcast', 'editorials', 'network']
-        
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href']
-            if '/magazine/' in href and not any(bad in href for bad in invalid_paths):
-                clean_href = href.rstrip('/')
-                if not clean_href.endswith('/magazine') and not clean_href.endswith('/magazine/issues'):
-                    latest_issue_url = href if href.startswith('http') else f"https://thefunambulist.net{href}"
-                    break 
-                
-        if not latest_issue_url: return articles 
-            
-        soup_issue = BeautifulSoup(scraper.get(latest_issue_url, timeout=15).text, 'html.parser')
-        h1_tag = soup_issue.find('h1')
-        issue_title = h1_tag.get_text(strip=True) if h1_tag else "最新刊"
-        source_name = f"The Funambulist ({issue_title})"
-        
-        def process_funambulist_link(a_tag):
-            href = a_tag['href']
-            title = a_tag.get_text(strip=True)
-            try:
-                art_soup = BeautifulSoup(scraper.get(href, timeout=15).text, 'html.parser')
-                paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80]
-                summary = " ".join(paragraphs)[:600] + "..." if paragraphs else "（本文無提供文字摘要）"
-            except Exception:
-                summary = "（摘要載入超時）"
-                
-            return {
-                "Source": source_name, "Title": title, "Link": href,
-                "Published": issue_title, "Summary": summary, "Image": None
-            }
-
-        valid_links = []
-        seen_titles = set()
-        bad_title_keywords = ['subscribe', 'subscribing', 'introduction', 'editorial', 'about', 'shop']
-        
-        for a_tag in soup_issue.find_all('a', href=True):
-            href = a_tag['href']
-            title = a_tag.get_text(strip=True)
-            if len(title) > 10 and href.startswith('https://thefunambulist.net/') and title.lower() != "the funambulist":
-                if not any(bad_word in title.lower() for bad_word in bad_title_keywords):
-                    if title not in seen_titles:
-                        valid_links.append(a_tag)
-                        seen_titles.add(title)
-                # 🌟 修改點：移除了 if len(valid_links) >= 8: break，讓它抓完這期所有文章
-                
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(process_funambulist_link, a) for a in valid_links]
-            for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res: articles.append(res)
-                
-    except Exception as e:
-        print(f"Funambulist 抓取失敗: {e}")
-    return articles
-
-def fetch_eurozine():
-    """Eurozine：精準抓取 Essays 區塊的文章、作者與 ISO 格式時間"""
-    url = "https://www.eurozine.com/essays/"
-    articles = []
-    source_name = "Eurozine"
-    
-    try:
-        # 加入 headers 模擬真實瀏覽器，降低被阻擋的機率
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        res = scraper.get(url, headers=headers, timeout=15)
-        
-        if res.status_code != 200:
-            print(f"Eurozine 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
-            return articles
-
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Eurozine 的文章都放在 <article class="p1 col"> 裡面
-        for article in soup.find_all('article', class_='p1 col'):
-            # 1. 抓取標題與連結
-            title_tag = article.find('h3')
-            if not title_tag or not title_tag.find('a'): continue
-            
-            a_tag = title_tag.find('a')
-            title = a_tag.get_text(strip=True)
-            link = a_tag['href']
-            
-            # 2. 抓取圖片
-            img_tag = article.find('img')
-            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            
-            # 3. 抓取摘要
-            copy_div = article.find('div', class_='copy')
-            summary_text = copy_div.get_text(separator=" ", strip=True) if copy_div else "（無提供文字摘要）"
-            
-            # 4. 抓取作者與時間 (位於 <aside> 區塊內)
-            author = ""
-            date = "最新"
-            author_tags = article.find_all('aside')
-            if author_tags:
-                aside = author_tags[0]
-                
-                # 作者可能有兩位以上，把它們用頓號接起來
-                author_links = aside.select('ul.color-red a')
-                if author_links:
-                    author = "、".join([a.get_text(strip=True) for a in author_links])
-                    
-                # 優先抓取精確的 datetime 屬性（如 2026-05-13T11:25:56+00:00）
-                time_tag = aside.find('time')
-                if time_tag:
-                    date = time_tag.get('datetime', time_tag.get_text(strip=True))
-
-            # 組合排版
-            if author:
-                summary = f"**👤 著者：** {author}\n\n{summary_text}"
-            else:
-                summary = summary_text
-                
-            articles.append({
-                "Source": source_name, 
-                "Title": title, 
-                "Link": link,
-                "Published": date, 
-                "Summary": summary, 
-                "Image": img_url
-            })
-            
-            # 抓取前 15 篇即可
-            if len(articles) >= 15:
-                break
-                
-    except Exception as e:
-        print(f"Eurozine 抓取失敗: {e}")
-        
-    return articles
-
-
-def fetch_webgenron():
-    """Webゲンロン：抓取首頁最新發布的所有文章 (設安全上限15篇)"""
-    url = "https://webgenron.com/"
-    articles = []
-    try:
-        res = scraper.get(url, timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        seen_links = set()
-        for a in soup.find_all('a', href=True):
-            href = a['href']
-            if '/articles/' in href and not href.endswith('/articles') and not href.endswith('/articles/'):
-                title = a.get_text(strip=True)
-                if len(title) < 8 or href in seen_links: continue
-                seen_links.add(href)
-                full_link = f"https://webgenron.com{href}" if href.startswith('/') else href
-                
-                try:
-                    art_soup = BeautifulSoup(scraper.get(full_link, timeout=5).text, 'html.parser')
-                    desc = art_soup.find('meta', attrs={'name': 'description'}) or art_soup.find('meta', attrs={'property': 'og:description'})
-                    summary = desc['content'][:200] + "..." if desc else "（點擊標題閱讀原文）"
-                except:
-                    summary = "（摘要載入超時）"
-                
-                articles.append({
-                    "Source": "webゲンロン", "Title": title, "Link": full_link,
-                    "Published": "最新", "Summary": summary, "Image": None
-                })
-                # 🌟 修改點：將上限從 8 提高到 15，確保能涵蓋首頁所有的近期更新，同時避免爬到無關的舊連結
-                if len(articles) >= 15: break
-    except Exception as e:
-        print(f"webゲンロン 抓取失敗: {e}")
-    return articles
-
-def fetch_mit_reader():
-    """MIT Press Reader：使用第三方 API (rss2json) 代理，完美繞過 GitHub IP 403 阻擋"""
-    # 透過 rss2json 服務幫我們去抓 MIT 的 RSS
-    api_url = "https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/"
-    articles = []
-    source_name = "MIT Press Reader"
-    
-    try:
-        # 直接向 API 發送請求，不直接碰觸 MIT 伺服器
-        res = requests.get(api_url, timeout=15)
-        
-        if res.status_code != 200:
-            print(f"MIT Press API 代理失敗: HTTP 代碼 {res.status_code}")
-            return articles
-            
-        data = res.json()
-        if data.get('status') != 'ok':
-            print(f"MIT Press API 狀態異常")
-            return articles
-            
-        items = data.get('items', [])[:15] # 抓取最新的 15 篇
-        
-        for item in items:
-            title = item.get('title', '')
-            link = item.get('link', '')
-            author = item.get('author', '')
-            published = item.get('pubDate', '最新')
-            
-            # API 會自動幫我們萃取出縮圖
-            img_url = item.get('thumbnail', '') 
-            
-            # 處理摘要 (過濾掉 HTML 標籤)
-            raw_desc = item.get('description', '')
-            soup = BeautifulSoup(raw_desc, 'html.parser')
-            summary_text = soup.get_text(separator=" ", strip=True)
-            
-            # 摘要字數限制 (中英文長度判斷)
-            eng_count = sum(1 for c in summary_text[:50] if 'a' <= c.lower() <= 'z' or 'A' <= c.upper() <= 'Z')
-            max_len = 600 if eng_count > 25 else 200 
-            summary_text = summary_text[:max_len] + '...' if len(summary_text) > max_len else summary_text
-
-            summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
-            
-            # 防呆：如果 API 沒抓到縮圖，我們自己從內文找
-            if not img_url:
-                img_tag = soup.find('img')
-                if img_tag and 'src' in img_tag.attrs:
-                    img_url = img_tag['src']
-            
-            articles.append({
-                "Source": source_name, 
-                "Title": title, 
-                "Link": link,
-                "Published": published, 
-                "Summary": summary, 
-                "Image": img_url
-            })
-            
-    except Exception as e:
-        print(f"MIT Press Reader 抓取失敗: {e}")
-        
-    return articles
-    
 def fetch_eflux():
-    """e-flux Journal：抓取當期【所有】文章，並動態顯示期號"""
-    url = "https://www.e-flux.com/journal/"
-    articles = []
     try:
-        res = scraper.get(url, timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        soup = get_soup("https://www.e-flux.com/journal/")
+        issues = sorted([a['href'] for a in soup.find_all('a', href=re.compile(r'^/journal/\d+$')) if soup], key=lambda x: int(x.split('/')[-1]), reverse=True)
+        if not issues: return []
         
-        issue_links = []
-        for a in soup.find_all('a', href=True):
-            match = re.match(r'^/journal/(\d+)$', a['href'])
-            if match:
-                issue_links.append((int(match.group(1)), a['href']))
-                
-        if not issue_links:
-            return articles
-            
-        # 🌟 擷取最新的期號數字，並建立動態 source_name
-        latest_issue_num = sorted(issue_links, reverse=True)[0][0]
-        latest_issue_path = sorted(issue_links, reverse=True)[0][1]
-        latest_issue_url = f"https://www.e-flux.com{latest_issue_path}"
+        issue_num = issues[0].split('/')[-1]
+        issue_soup = get_soup(f"https://www.e-flux.com{issues[0]}")
         
-        source_name = f"e-flux Journal (Issue {latest_issue_num})" # 動態名稱！
-        
-        issue_res = scraper.get(latest_issue_url, timeout=10)
-        issue_soup = BeautifulSoup(issue_res.text, 'html.parser')
-        
+        articles = []
         for card in issue_soup.find_all('div', class_='preview-journalarticle'):
             title_tag = card.find('a', class_='preview-journalarticle__title')
             if not title_tag: continue
-                
-            title = title_tag.get_text(strip=True)
-            href = title_tag['href']
-            full_link = f"https://www.e-flux.com{href}" if href.startswith('/') else href
             
-            author_tag = card.find('div', class_='preview-journalarticle__author')
-            author = author_tag.get_text(strip=True) if author_tag else ""
-            
+            author = card.find('div', class_='preview-journalarticle__author')
             text_tag = card.find('div', class_='preview-journalarticle__text')
-            if text_tag:
-                raw_html = str(text_tag)
-                extracted_p = re.findall(r'<p[^>]*>(.*?)</p>', raw_html)
-                if extracted_p:
-                    summary_text = " ".join([BeautifulSoup(p, "html.parser").get_text() for p in extracted_p])
-                else:
-                    summary_text = text_tag.get_text(separator=" ", strip=True)
-            else:
-                summary_text = "（請點擊標題閱讀原文）"
-
-            blacklisted_words = ["subscribe", "education announces", "newsletter"]
-            if any(bad_word in summary_text.lower() for bad_word in blacklisted_words):
-                continue
             
-            img_tag = card.find('img')
-            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            summary = " ".join(re.findall(r'<p[^>]*>(.*?)</p>', str(text_tag))) if text_tag and '<p' in str(text_tag) else (text_tag.get_text(" ", strip=True) if text_tag else "")
+            if any(bad in summary.lower() for bad in ["subscribe", "education announces"]): continue
             
-            if author:
-                summary = f"**👤 著者：** {author}\n\n{summary_text}"
-            else:
-                summary = summary_text
-                
+            img = card.find('img')
             articles.append({
-                "Source": source_name, # 🌟 改為帶有期號的動態名稱
-                "Title": title,
-                "Link": full_link,
-                "Published": f"Issue {latest_issue_num}", # 🌟 發布時間也改成確切的期號
-                "Summary": summary,
-                "Image": img_url
+                "Source": f"e-flux Journal (Issue {issue_num})", "Title": title_tag.get_text(strip=True),
+                "Link": f"https://www.e-flux.com{title_tag['href']}", "Published": f"Issue {issue_num}",
+                "Summary": format_summary(summary or "（請點擊標題閱讀原文）", author.get_text(strip=True) if author else ""),
+                "Image": img['src'] if img and 'src' in img.attrs else None
             })
+        return articles
+    except Exception as e: print(f"e-flux 錯誤: {e}"); return []
+
+def fetch_eurozine():
+    try:
+        soup = get_soup("https://www.eurozine.com/essays/")
+        articles = []
+        for article in soup.find_all('article', class_='p1 col')[:15] if soup else []:
+            a_tag = article.find('h3').find('a')
+            if not a_tag: continue
+            
+            aside = article.find('aside')
+            author = "、".join([a.get_text(strip=True) for a in aside.select('ul.color-red a')]) if aside else ""
+            time_tag = aside.find('time') if aside else None
+            copy_div = article.find('div', class_='copy')
+            img = article.find('img')
+            
+            articles.append({
+                "Source": "Eurozine", "Title": a_tag.get_text(strip=True), "Link": a_tag['href'],
+                "Published": time_tag.get('datetime', time_tag.get_text(strip=True)) if time_tag else "最新",
+                "Summary": format_summary(copy_div.get_text(" ", strip=True) if copy_div else "（無摘要）", author),
+                "Image": img['src'] if img and 'src' in img.attrs else None
+            })
+        return articles
+    except Exception as e: print(f"Eurozine 錯誤: {e}"); return []
+
+def fetch_bijutsutecho():
+    try:
+        soup = get_soup("https://bijutsutecho.com/magazine/series")
+        articles = []
+        for article in soup.find_all('article', class_='MagazinePageListItem')[:15] if soup else []:
+            a_tag = article.find('h2', class_='title').find('a')
+            if not a_tag: continue
+            
+            title = f"🔒 {a_tag.get_text(strip=True)}" if article.find('div', class_='premium-label') else a_tag.get_text(strip=True)
+            lead = article.find('p', class_='lead')
+            time_tag = article.find('time')
+            img = article.find('img')
+            
+            articles.append({
+                "Source": "美術手帖", "Title": title, "Link": urllib.parse.urljoin("https://bijutsutecho.com", a_tag['href']),
+                "Published": time_tag['datetime'] if time_tag else "最新",
+                "Summary": format_summary(lead.get_text(" ", strip=True) if lead else ""),
+                "Image": img['src'] if img and 'src' in img.attrs else None
+            })
+        return articles
+    except Exception as e: print(f"美術手帖 錯誤: {e}"); return []
+
+def fetch_thepaper():
+    try:
+        iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
+        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
+        if not match: return []
+        
+        items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
+        return [{
+            "Source": "澎湃思想市場", "Title": item.get('name', ''),
+            "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}",
+            "Published": item.get('pubTimeNew', '最新'),
+            "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）",
+            "Image": item.get('pic', '')
+        } for item in items[:15] if item.get('name') and item.get('contId')]
+    except Exception as e: print(f"澎湃 錯誤: {e}"); return []
+
+def fetch_webgenron():
+    try:
+        soup = get_soup("https://webgenron.com/")
+        articles, seen = [], set()
+        for a in soup.find_all('a', href=True) if soup else []:
+            href = a['href']
+            if '/articles/' in href and not href.endswith(('/articles', '/articles/')) and href not in seen:
+                title = a.get_text(strip=True)
+                if len(title) < 8: continue
+                seen.add(href)
+                full_link = f"https://webgenron.com{href}" if href.startswith('/') else href
                 
-    except Exception as e:
-        print(f"e-flux 抓取失敗: {e}")
-    return articles
-    
+                art_soup = get_soup(full_link)
+                desc = art_soup.find('meta', attrs={'name': 'description'}) or art_soup.find('meta', property='og:description') if art_soup else None
+                
+                articles.append({
+                    "Source": "webゲンロン", "Title": title, "Link": full_link, "Published": "最新",
+                    "Summary": format_summary(desc['content'] if desc else ""), "Image": None
+                })
+                if len(articles) >= 15: break
+        return articles
+    except Exception as e: print(f"webゲンロン 錯誤: {e}"); return []
+
+def fetch_funambulist():
+    try:
+        soup = get_soup("https://thefunambulist.net/magazine/issues")
+        invalid = ['geo-index', 'stockists', 'subscribe', 'shop', 'podcast', 'editorials', 'network']
+        latest_url = next((href if href.startswith('http') else f"https://thefunambulist.net{href}" 
+                           for a in soup.find_all('a', href=True) if '/magazine/' in (href := a['href']) 
+                           and not any(b in href for b in invalid) and not href.rstrip('/').endswith(('magazine', 'issues'))), None) if soup else None
+        
+        if not latest_url: return []
+        
+        issue_soup = get_soup(latest_url)
+        issue_title = issue_soup.find('h1').get_text(strip=True) if issue_soup and issue_soup.find('h1') else "最新刊"
+        
+        valid_links, seen = [], set()
+        for a in issue_soup.find_all('a', href=re.compile(r'^https://thefunambulist\.net/')):
+            title = a.get_text(strip=True)
+            if len(title) > 10 and title.lower() != "the funambulist" and title not in seen and not any(b in title.lower() for b in ['subscribe', 'editorial', 'about', 'shop']):
+                valid_links.append((title, a['href'])); seen.add(title)
+
+        def process_link(data):
+            title, href = data
+            art_soup = get_soup(href)
+            paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80] if art_soup else []
+            return {"Source": f"The Funambulist ({issue_title})", "Title": title, "Link": href, "Published": issue_title, "Summary": format_summary(" ".join(paragraphs)), "Image": None}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            return [res for res in ex.map(process_link, valid_links) if res]
+    except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
+
+def fetch_mit_reader():
+    try:
+        data = requests.get("https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/", timeout=TIMEOUT).json()
+        if data.get('status') != 'ok': return []
+        
+        articles = []
+        for item in data.get('items', [])[:15]:
+            soup = BeautifulSoup(item.get('description', ''), 'html.parser')
+            img_tag = soup.find('img')
+            articles.append({
+                "Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''),
+                "Published": item.get('pubDate', '最新'),
+                "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')),
+                "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)
+            })
+        return articles
+    except Exception as e: print(f"MIT Press 錯誤: {e}"); return []
+
+# ==========================================
+# 主程式排程
+# ==========================================
 def main():
     print("🚀 開始執行資料抓取...")
     all_articles = []
     
-    # 🌟 修改點：將 RSS 的抓取數量提高至 15 或 20 篇
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -627,36 +305,19 @@ def main():
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        # 注意這裡傳入了 limit 參數
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
         
-        futures.extend([
-            executor.submit(fetch_webgenron), 
-            executor.submit(fetch_eflux),
-            executor.submit(fetch_funambulist),
-            executor.submit(fetch_mit_reader),
-            executor.submit(fetch_eurozine),
-            executor.submit(fetch_bijutsutecho),
-            executor.submit(fetch_thepaper),
-            executor.submit(fetch_thepoint)
-        ])
+        custom_scrapers = [fetch_webgenron, fetch_eflux, fetch_funambulist, fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, fetch_thepaper, fetch_thepoint]
+        futures.extend([executor.submit(func) for func in custom_scrapers])
         
         for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result: all_articles.extend(result)
+            res = future.result()
+            if res: all_articles.extend(res)
 
     df = pd.DataFrame(all_articles)
-    
     if not df.empty:
-        def parse_date(date_str):
-            if pd.isna(date_str) or "最新" in str(date_str): return pd.Timestamp.now(tz='UTC')
-            try: return pd.to_datetime(date_str, utc=True)
-            except: return pd.Timestamp('2000-01-01', tz='UTC')
-            
-        df['SortDate'] = df['Published'].apply(parse_date)
-        df = df.sort_values(by='SortDate', ascending=False).reset_index(drop=True)
-        df = df.drop(columns=['SortDate'])
-        
+        df['SortDate'] = pd.to_datetime(df['Published'], errors='coerce', utc=True).fillna(pd.Timestamp('2000-01-01', tz='UTC'))
+        df = df.sort_values(by='SortDate', ascending=False).drop(columns=['SortDate'])
         df.to_json("data.json", orient="records", force_ascii=False, indent=4)
         print(f"✅ 成功抓取 {len(df)} 篇文章，已儲存至 data.json")
     else:
