@@ -33,6 +33,10 @@ def get_source_link(source_name):
     """處理動態名稱（如 The Funambulist 每期名稱不同）與靜態名稱的網址對應"""
     if "Funambulist" in source_name: 
         return "https://thefunambulist.net/"
+    if "The Point" in source_name:
+        return "https://thepointmag.com/magazine/"
+    if "e-flux Journal" in source_name:  # 🌟 新增對 e-flux 動態期號的支援
+        return "https://www.e-flux.com/journal/"
     return SOURCE_URLS.get(source_name, "#")
 
 # ==========================================
