@@ -121,9 +121,14 @@ def fetch_thepoint():
                 art_res = scraper.get(article_url, headers=headers, timeout=15)
                 art_soup = BeautifulSoup(art_res.text, 'html.parser')
                 
-                # 抓取標題
-                h1 = art_soup.find('h1')
-                title = h1.get_text(strip=True) if h1 else "無標題"
+                # 抓取標題 (🌟 優化：優先使用最準確的 og:title，作為防呆機制)
+                og_title = art_soup.find('meta', attrs={'property': 'og:title'})
+                if og_title and og_title.get('content'):
+                    # 通常 og:title 會是 "文章名 | The Point Magazine"，我們用 split 把後面的後綴切掉
+                    title = og_title['content'].split('|')[0].strip()
+                else:
+                    h1 = art_soup.find('h1')
+                    title = h1.get_text(strip=True) if h1 else "無標題"
                 
                 # 抓取作者 (通常帶有 /author/ 的連結)
                 author_a = art_soup.find('a', href=re.compile(r'/author/'))
@@ -533,7 +538,7 @@ def fetch_mit_reader():
     return articles
     
 def fetch_eflux():
-    """e-flux Journal：抓取當期【所有】文章"""
+    """e-flux Journal：抓取當期【所有】文章，並動態顯示期號"""
     url = "https://www.e-flux.com/journal/"
     articles = []
     try:
@@ -549,8 +554,12 @@ def fetch_eflux():
         if not issue_links:
             return articles
             
+        # 🌟 擷取最新的期號數字，並建立動態 source_name
+        latest_issue_num = sorted(issue_links, reverse=True)[0][0]
         latest_issue_path = sorted(issue_links, reverse=True)[0][1]
         latest_issue_url = f"https://www.e-flux.com{latest_issue_path}"
+        
+        source_name = f"e-flux Journal (Issue {latest_issue_num})" # 動態名稱！
         
         issue_res = scraper.get(latest_issue_url, timeout=10)
         issue_soup = BeautifulSoup(issue_res.text, 'html.parser')
@@ -590,20 +599,18 @@ def fetch_eflux():
                 summary = summary_text
                 
             articles.append({
-                "Source": "e-flux Journal",
+                "Source": source_name, # 🌟 改為帶有期號的動態名稱
                 "Title": title,
                 "Link": full_link,
-                "Published": "最新刊",
+                "Published": f"Issue {latest_issue_num}", # 🌟 發布時間也改成確切的期號
                 "Summary": summary,
                 "Image": img_url
             })
-            
-            # 🌟 修改點：移除了 if len(articles) >= 8: break，讓它抓完該期雜誌的所有卡片
                 
     except Exception as e:
         print(f"e-flux 抓取失敗: {e}")
     return articles
-
+    
 def main():
     print("🚀 開始執行資料抓取...")
     all_articles = []
