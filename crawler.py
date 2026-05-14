@@ -79,6 +79,102 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
         print(f"{source_name} 抓取失敗: {e}")
     return articles
 
+def fetch_thepoint():
+    """The Point Magazine: 自動抓取最新一期目錄，並進入每篇文章深度擷取內文與圖片"""
+    url = "https://thepointmag.com/magazine/"
+    articles = []
+    source_name = "The Point"
+    
+    try:
+        # 加入 headers 模擬真實瀏覽器
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        res = scraper.get(url, headers=headers, timeout=15)
+        
+        if res.status_code != 200:
+            print(f"The Point 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
+            return articles
+
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. 抓取最新期號 (例如從首頁抓取 "Issue 36")
+        issue_tag = soup.find(lambda tag: tag.name in ['h1', 'h2'] and 'Issue' in tag.get_text())
+        issue_title = issue_tag.get_text(strip=True) if issue_tag else "最新刊"
+        source_name = f"The Point ({issue_title})"
+        
+        # 2. 蒐集當期所有文章連結 (使用正則表達式精準過濾)
+        valid_links = set()
+        # The Point 的文章通常在這些分類目錄下
+        article_pattern = re.compile(r'https://thepointmag\.com/(examined|politics|criticism|dialogue|letter)/([^/]+)/?$')
+        
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if article_pattern.match(href):
+                valid_links.add(href)
+                
+        valid_links = list(valid_links)
+        if not valid_links:
+            return articles
+
+        # 3. 定義單篇文章的深度抓取邏輯
+        def process_thepoint_article(article_url):
+            try:
+                art_res = scraper.get(article_url, headers=headers, timeout=15)
+                art_soup = BeautifulSoup(art_res.text, 'html.parser')
+                
+                # 抓取標題
+                h1 = art_soup.find('h1')
+                title = h1.get_text(strip=True) if h1 else "無標題"
+                
+                # 抓取作者 (通常帶有 /author/ 的連結)
+                author_a = art_soup.find('a', href=re.compile(r'/author/'))
+                author = author_a.get_text(strip=True) if author_a else ""
+                
+                # 抓取圖片 (利用 Meta OG tag 抓取隱藏的高清首圖)
+                og_img = art_soup.find('meta', attrs={'property': 'og:image'})
+                img_url = og_img['content'] if og_img and og_img.get('content') else None
+                
+                # 深度抓取內文
+                paragraphs = []
+                for p in art_soup.find_all('p'):
+                    text = p.get_text(strip=True)
+                    # 過濾掉太短的版權宣告或導航文字
+                    if len(text) > 80:
+                        paragraphs.append(text)
+                        
+                summary_text = " ".join(paragraphs)
+                
+                # 字數擷取 (英文以字母計算長度，抓取約前 600 個字元)
+                eng_count = sum(1 for c in summary_text[:50] if 'a' <= c.lower() <= 'z' or 'A' <= c.upper() <= 'Z')
+                max_len = 600 if eng_count > 25 else 200 
+                summary_text = summary_text[:max_len] + '...' if len(summary_text) > max_len else summary_text
+                
+                summary = f"**👤 著者：** {author}\n\n{summary_text}" if author else summary_text
+                
+                return {
+                    "Source": source_name, 
+                    "Title": title, 
+                    "Link": article_url,
+                    "Published": issue_title, 
+                    "Summary": summary, 
+                    "Image": img_url
+                }
+            except Exception as e:
+                # 深度抓取若單篇超時，默默跳過不影響其他文章
+                return None
+
+        # 4. 啟用內部多執行緒 (子執行緒)，同時進入每一篇文章抓取
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as thread_executor:
+            futures = [thread_executor.submit(process_thepoint_article, link) for link in valid_links]
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result:
+                    articles.append(result)
+                    
+    except Exception as e:
+        print(f"The Point 抓取失敗: {e}")
+        
+    return articles
+
 def fetch_bijutsutecho():
     """美術手帖 (Series)：抓取文章列表，並自動標示 PREMIUM 付費文章"""
     url = "https://bijutsutecho.com/magazine/series"
@@ -534,7 +630,8 @@ def main():
             executor.submit(fetch_mit_reader),
             executor.submit(fetch_eurozine),
             executor.submit(fetch_bijutsutecho),
-            executor.submit(fetch_thepaper)
+            executor.submit(fetch_thepaper),
+            executor.submit(fetch_thepoint)
         ])
         
         for future in concurrent.futures.as_completed(futures):
