@@ -143,6 +143,82 @@ def fetch_funambulist():
         print(f"Funambulist 抓取失敗: {e}")
     return articles
 
+def fetch_eurozine():
+    """Eurozine：精準抓取 Essays 區塊的文章、作者與 ISO 格式時間"""
+    url = "https://www.eurozine.com/essays/"
+    articles = []
+    source_name = "Eurozine"
+    
+    try:
+        # 加入 headers 模擬真實瀏覽器，降低被阻擋的機率
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        res = scraper.get(url, headers=headers, timeout=15)
+        
+        if res.status_code != 200:
+            print(f"Eurozine 網頁阻擋: 收到 HTTP 代碼 {res.status_code}")
+            return articles
+
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Eurozine 的文章都放在 <article class="p1 col"> 裡面
+        for article in soup.find_all('article', class_='p1 col'):
+            # 1. 抓取標題與連結
+            title_tag = article.find('h3')
+            if not title_tag or not title_tag.find('a'): continue
+            
+            a_tag = title_tag.find('a')
+            title = a_tag.get_text(strip=True)
+            link = a_tag['href']
+            
+            # 2. 抓取圖片
+            img_tag = article.find('img')
+            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            
+            # 3. 抓取摘要
+            copy_div = article.find('div', class_='copy')
+            summary_text = copy_div.get_text(separator=" ", strip=True) if copy_div else "（無提供文字摘要）"
+            
+            # 4. 抓取作者與時間 (位於 <aside> 區塊內)
+            author = ""
+            date = "最新"
+            author_tags = article.find_all('aside')
+            if author_tags:
+                aside = author_tags[0]
+                
+                # 作者可能有兩位以上，把它們用頓號接起來
+                author_links = aside.select('ul.color-red a')
+                if author_links:
+                    author = "、".join([a.get_text(strip=True) for a in author_links])
+                    
+                # 優先抓取精確的 datetime 屬性（如 2026-05-13T11:25:56+00:00）
+                time_tag = aside.find('time')
+                if time_tag:
+                    date = time_tag.get('datetime', time_tag.get_text(strip=True))
+
+            # 組合排版
+            if author:
+                summary = f"**👤 著者：** {author}\n\n{summary_text}"
+            else:
+                summary = summary_text
+                
+            articles.append({
+                "Source": source_name, 
+                "Title": title, 
+                "Link": link,
+                "Published": date, 
+                "Summary": summary, 
+                "Image": img_url
+            })
+            
+            # 抓取前 15 篇即可
+            if len(articles) >= 15:
+                break
+                
+    except Exception as e:
+        print(f"Eurozine 抓取失敗: {e}")
+        
+    return articles
+
 
 def fetch_webgenron():
     """Webゲンロン：抓取首頁最新發布的所有文章 (設安全上限15篇)"""
@@ -335,7 +411,8 @@ def main():
             executor.submit(fetch_webgenron), 
             executor.submit(fetch_eflux),
             executor.submit(fetch_funambulist),
-            executor.submit(fetch_mit_reader)
+            executor.submit(fetch_mit_reader),
+            executor.submit(fetch_eurozine)
         ])
         
         for future in concurrent.futures.as_completed(futures):
