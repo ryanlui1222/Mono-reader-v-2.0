@@ -254,10 +254,33 @@ def fetch_funambulist():
         issue_title = issue_soup.find('h1').get_text(strip=True) if issue_soup and issue_soup.find('h1') else "最新刊"
         
         valid_links, seen = [], set()
-        for a in issue_soup.find_all('a', href=re.compile(r'^https://thefunambulist\.net/')):
-            title = a.get_text(strip=True)
-            if len(title) > 10 and title.lower() != "the funambulist" and title not in seen and not any(b in title.lower() for b in ['subscribe', 'editorial', 'about', 'shop']):
-                valid_links.append((title, a['href'])); seen.add(title)
+        
+        # 🌟 新增：狀態機開關 (預設為關閉)
+        is_in_target_section = False 
+        
+        # 讓爬蟲「由上往下」逐一檢視標題與連結
+        for element in issue_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'a']):
+            
+            # 如果遇到標題，判斷是否該「打開」或「關閉」開關
+            if element.name.startswith('h'):
+                header_text = element.get_text(strip=True).upper()
+                # 遇到這兩個區塊，打開收集開關
+                if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text:
+                    is_in_target_section = True
+                # 遇到作者區、預覽區或分享區，關閉收集開關
+                elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]):
+                    is_in_target_section = False
+                    
+            # 如果是連結，且「開關是打開的狀態」，才進行收集
+            elif element.name == 'a' and is_in_target_section:
+                href = element.get('href', '')
+                title = element.get_text(strip=True)
+                
+                # 確保是站內連結，且標題長度大於 8 (排除圖示或過短的無效標籤)
+                if href.startswith('https://thefunambulist.net/') and len(title) > 8:
+                    if title.lower() != "the funambulist" and title not in seen:
+                        valid_links.append((title, href))
+                        seen.add(title)
 
         def process_link(data):
             title, href = data
@@ -267,7 +290,10 @@ def fetch_funambulist():
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             return [res for res in ex.map(process_link, valid_links) if res]
-    except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
+            
+    except Exception as e: 
+        print(f"Funambulist 錯誤: {e}")
+        return []
 
 def fetch_mit_reader():
     try:
