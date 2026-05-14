@@ -82,19 +82,16 @@ def fetch_thepoint():
         soup = get_soup("https://thepointmag.com/magazine/")
         if not soup: return articles
         
-        # 🌟 核心優化：精準鎖定「最新一期」的專屬區塊
+        # 精準鎖定「最新一期」的專屬區塊
         latest_section = soup.find('div', class_='section-top')
         if not latest_section: return articles
         
-        # 從最新一期區塊中抓取期號 (例如 Issue 36)
         issue_tag = latest_section.find('h1')
         issue_num = issue_tag.get_text(strip=True) if issue_tag else "最新刊"
         source_name = f"The Point ({issue_num})"
         
-        # 涵蓋 HTML 裡出現的所有分類 (加入了 examined-life, correspondence 等)
         pattern = re.compile(r'https://thepointmag\.com/(examined-life|politics|criticism|dialogue|letter|correspondence)/([^/]+)/?$')
         
-        # 🌟 僅在「最新一期」的區塊內尋找連結，並維持順序
         links = []
         for a in latest_section.find_all('a', href=True):
             href = a['href']
@@ -254,29 +251,19 @@ def fetch_funambulist():
         issue_title = issue_soup.find('h1').get_text(strip=True) if issue_soup and issue_soup.find('h1') else "最新刊"
         
         valid_links, seen = [], set()
-        
-        # 🌟 新增：狀態機開關 (預設為關閉)
         is_in_target_section = False 
         
-        # 讓爬蟲「由上往下」逐一檢視標題與連結
         for element in issue_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'a']):
-            
-            # 如果遇到標題，判斷是否該「打開」或「關閉」開關
             if element.name.startswith('h'):
                 header_text = element.get_text(strip=True).upper()
-                # 遇到這兩個區塊，打開收集開關
                 if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text:
                     is_in_target_section = True
-                # 遇到作者區、預覽區或分享區，關閉收集開關
                 elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]):
                     is_in_target_section = False
                     
-            # 如果是連結，且「開關是打開的狀態」，才進行收集
             elif element.name == 'a' and is_in_target_section:
                 href = element.get('href', '')
                 title = element.get_text(strip=True)
-                
-                # 確保是站內連結，且標題長度大於 8 (排除圖示或過短的無效標籤)
                 if href.startswith('https://thefunambulist.net/') and len(title) > 8:
                     if title.lower() != "the funambulist" and title not in seen:
                         valid_links.append((title, href))
@@ -320,10 +307,12 @@ def main():
     print("🚀 開始執行資料抓取...")
     all_articles = []
     
+    # 🌟 修改點：將 421 News 分拆為 EN 與 ZH 雙語抓取
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
-        ("https://www.421.news/zh/rss", "421 News", 15, False),
+        ("https://www.421.news/en/rss/", "421 News (EN)", 15, False),
+        ("https://www.421.news/zh/rss/", "421 News (ZH)", 15, False),
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
