@@ -25,7 +25,8 @@ SOURCE_URLS = {
     "Eurozine": "https://www.eurozine.com/essays/",
     "美術手帖": "https://bijutsutecho.com/magazine/series",
     "澎湃思想市場": "https://www.thepaper.cn/list_25483",
-    "Verso Blog": "https://www.versobooks.com/blogs/news"
+    "Verso Blog": "https://www.versobooks.com/blogs/news",
+    "The Point": "https://thepointmag.com/magazine/"
 }
 
 def get_source_link(source_name):
