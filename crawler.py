@@ -9,6 +9,7 @@ import json
 import requests
 import os
 from supabase import create_client, Client
+from datetime import datetime
 
 # ==========================================
 # 全局網路引擎 & 基礎設定
@@ -18,7 +19,7 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 TIMEOUT = 15
 
 # ==========================================
-# 🛠️ 輔助函數 (Helpers) - 大幅減少重複程式碼
+# 🛠️ 輔助函數 (Helpers)
 # ==========================================
 def get_soup(url, custom_headers=HEADERS):
     """通用的 HTML 獲取與解析器"""
@@ -29,15 +30,12 @@ def get_soup(url, custom_headers=HEADERS):
         return None
 
 def format_summary(text, author="", max_len=None):
-    """通用的摘要清洗、字數計算與作者排版器"""
+    """通用的摘要清洗器"""
     if not text: return "（無提供文字摘要）"
-    text = " ".join(text.split()) # 清除多餘空白與換行
-    
-    # 計算英文比例決定截斷長度 (若無強制指定 max_len)
+    text = " ".join(text.split())
     if not max_len:
         eng_count = sum(1 for c in text[:50] if c.isalpha() and c.isascii())
         max_len = 600 if eng_count > 25 else 200 
-        
     summary = text[:max_len] + '...' if len(text) > max_len else text
     return f"**👤 著者：** {author}\n\n{summary}" if author else summary
 
@@ -50,16 +48,14 @@ def sync_to_supabase(articles):
     key = os.environ.get("SUPABASE_KEY")
     
     if not url or not key:
-        print("❌ 找不到 Supabase 環境變數，跳過同步。請確認 GitHub Actions 的 Secrets 已正確設定。")
+        print("❌ 找不到 Supabase 環境變數，跳過同步。")
         return
     
     supabase: Client = create_client(url, key)
     
     if articles:
         try:
-            # 核心邏輯：Upsert (以 Link 為唯一值進行衝突檢查)
-            # on_conflict='Link' 確保文章不重複且永久保留。
-            # 由於我們沒有傳入 is_bookmarked 欄位，資料庫會保留已存在的書籤狀態！
+            # 執行 Upsert，衝突時更新
             supabase.table('articles').upsert(articles, on_conflict='Link').execute()
             print(f"✅ 成功同步 {len(articles)} 篇文章至雲端資料庫！")
         except Exception as e:
@@ -71,9 +67,14 @@ def sync_to_supabase(articles):
 def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     articles = []
     try:
-        parsed = feedparser.parse(scraper.get(feed_url, timeout=TIMEOUT).content)
+        response = scraper.get(feed_url, timeout=TIMEOUT)
+        parsed = feedparser.parse(response.content)
         
         def process_entry(entry):
+            # 🌟 強化日期抓取邏輯
+            # 優先嘗試 published，若無則嘗試 updated 或其他可能位置
+            raw_date = entry.get('published') or entry.get('pubDate') or entry.get('updated') or "最新"
+            
             raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
             soup = BeautifulSoup(raw_text, 'html.parser')
             img_tag = soup.find('img')
@@ -86,14 +87,13 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     if not img_url:
                         og_img = art_soup.find('meta', attrs={'property': 'og:image'})
                         img_url = og_img['content'] if og_img else None
-                    
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
                     clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
                     if clean_p: text = " ".join(clean_p[:3])
             
             return {
                 "Source": source_name, "Title": entry.title, "Link": entry.link,
-                "Published": entry.get('published', '最新'),
+                "Published": raw_date, # 暫存原始日期
                 "Summary": format_summary(text), "Image": img_url
             }
 
@@ -102,50 +102,39 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     except Exception as e: print(f"{source_name} 錯誤: {e}")
     return articles
 
+# ... (其餘 fetch_thepoint, fetch_eflux, fetch_eurozine, fetch_bijutsutecho, fetch_thepaper, fetch_webgenron, fetch_funambulist, fetch_mit_reader 保留不變) ...
+# 注意：這些函數中的 "Published" 欄位將繼續存放 "Issue XX" 或 "最新"
+
 def fetch_thepoint():
     articles = []
     try:
         soup = get_soup("https://thepointmag.com/magazine/")
         if not soup: return articles
-        
-        # 精準鎖定「最新一期」的專屬區塊
         latest_section = soup.find('div', class_='section-top')
         if not latest_section: return articles
-        
         issue_tag = latest_section.find('h1')
         issue_num = issue_tag.get_text(strip=True) if issue_tag else "最新刊"
         source_name = f"The Point ({issue_num})"
-        
         pattern = re.compile(r'https://thepointmag\.com/(examined-life|politics|criticism|dialogue|letter|correspondence)/([^/]+)/?$')
-        
         links = []
         for a in latest_section.find_all('a', href=True):
             href = a['href']
-            if pattern.match(href) and href not in links:
-                links.append(href)
+            if pattern.match(href) and href not in links: links.append(href)
         
         def process_link(url):
             art_soup = get_soup(url)
             if not art_soup: return None
-            
             og_title = art_soup.find('meta', property='og:title')
             title = og_title['content'].split('|')[0].strip() if og_title else art_soup.find('h1').get_text(strip=True)
-            
             author_a = art_soup.find('a', href=re.compile(r'/author/'))
             author = author_a.get_text(strip=True) if author_a else ""
-            
             og_img = art_soup.find('meta', property='og:image')
             text = " ".join([p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80])
-            
             return {"Source": source_name, "Title": title, "Link": url, "Published": issue_num, 
                     "Summary": format_summary(text, author), "Image": og_img['content'] if og_img else None}
-
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
             articles = [res for res in ex.map(process_link, links) if res]
-            
-    except Exception as e: 
-        print(f"The Point 錯誤: {e}")
-        
+    except Exception as e: print(f"The Point 錯誤: {e}")
     return articles
 
 def fetch_eflux():
@@ -153,28 +142,18 @@ def fetch_eflux():
         soup = get_soup("https://www.e-flux.com/journal/")
         issues = sorted([a['href'] for a in soup.find_all('a', href=re.compile(r'^/journal/\d+$')) if soup], key=lambda x: int(x.split('/')[-1]), reverse=True)
         if not issues: return []
-        
         issue_num = issues[0].split('/')[-1]
         issue_soup = get_soup(f"https://www.e-flux.com{issues[0]}")
-        
         articles = []
         for card in issue_soup.find_all('div', class_='preview-journalarticle'):
             title_tag = card.find('a', class_='preview-journalarticle__title')
             if not title_tag: continue
-            
             author = card.find('div', class_='preview-journalarticle__author')
             text_tag = card.find('div', class_='preview-journalarticle__text')
-            
             summary = " ".join(re.findall(r'<p[^>]*>(.*?)</p>', str(text_tag))) if text_tag and '<p' in str(text_tag) else (text_tag.get_text(" ", strip=True) if text_tag else "")
             if any(bad in summary.lower() for bad in ["subscribe", "education announces"]): continue
-            
             img = card.find('img')
-            articles.append({
-                "Source": f"e-flux Journal (Issue {issue_num})", "Title": title_tag.get_text(strip=True),
-                "Link": f"https://www.e-flux.com{title_tag['href']}", "Published": f"Issue {issue_num}",
-                "Summary": format_summary(summary or "（請點擊標題閱讀原文）", author.get_text(strip=True) if author else ""),
-                "Image": img['src'] if img and 'src' in img.attrs else None
-            })
+            articles.append({"Source": f"e-flux Journal (Issue {issue_num})", "Title": title_tag.get_text(strip=True), "Link": f"https://www.e-flux.com{title_tag['href']}", "Published": f"Issue {issue_num}", "Summary": format_summary(summary or "（請點擊標題閱讀原文）", author.get_text(strip=True) if author else ""), "Image": img['src'] if img and 'src' in img.attrs else None})
         return articles
     except Exception as e: print(f"e-flux 錯誤: {e}"); return []
 
@@ -185,19 +164,12 @@ def fetch_eurozine():
         for article in soup.find_all('article', class_='p1 col')[:15] if soup else []:
             a_tag = article.find('h3').find('a')
             if not a_tag: continue
-            
             aside = article.find('aside')
             author = "、".join([a.get_text(strip=True) for a in aside.select('ul.color-red a')]) if aside else ""
             time_tag = aside.find('time') if aside else None
             copy_div = article.find('div', class_='copy')
             img = article.find('img')
-            
-            articles.append({
-                "Source": "Eurozine", "Title": a_tag.get_text(strip=True), "Link": a_tag['href'],
-                "Published": time_tag.get('datetime', time_tag.get_text(strip=True)) if time_tag else "最新",
-                "Summary": format_summary(copy_div.get_text(" ", strip=True) if copy_div else "（無摘要）", author),
-                "Image": img['src'] if img and 'src' in img.attrs else None
-            })
+            articles.append({"Source": "Eurozine", "Title": a_tag.get_text(strip=True), "Link": a_tag['href'], "Published": time_tag.get('datetime', time_tag.get_text(strip=True)) if time_tag else "最新", "Summary": format_summary(copy_div.get_text(" ", strip=True) if copy_div else "（無摘要）", author), "Image": img['src'] if img and 'src' in img.attrs else None})
         return articles
     except Exception as e: print(f"Eurozine 錯誤: {e}"); return []
 
@@ -208,18 +180,11 @@ def fetch_bijutsutecho():
         for article in soup.find_all('article', class_='MagazinePageListItem')[:15] if soup else []:
             a_tag = article.find('h2', class_='title').find('a')
             if not a_tag: continue
-            
             title = f"🔒 {a_tag.get_text(strip=True)}" if article.find('div', class_='premium-label') else a_tag.get_text(strip=True)
             lead = article.find('p', class_='lead')
             time_tag = article.find('time')
             img = article.find('img')
-            
-            articles.append({
-                "Source": "美術手帖", "Title": title, "Link": urllib.parse.urljoin("https://bijutsutecho.com", a_tag['href']),
-                "Published": time_tag['datetime'] if time_tag else "最新",
-                "Summary": format_summary(lead.get_text(" ", strip=True) if lead else ""),
-                "Image": img['src'] if img and 'src' in img.attrs else None
-            })
+            articles.append({"Source": "美術手帖", "Title": title, "Link": urllib.parse.urljoin("https://bijutsutecho.com", a_tag['href']), "Published": time_tag['datetime'] if time_tag else "最新", "Summary": format_summary(lead.get_text(" ", strip=True) if lead else ""), "Image": img['src'] if img and 'src' in img.attrs else None})
         return articles
     except Exception as e: print(f"美術手帖 錯誤: {e}"); return []
 
@@ -229,15 +194,8 @@ def fetch_thepaper():
         res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
         match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
         if not match: return []
-        
         items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
-        return [{
-            "Source": "澎湃思想市場", "Title": item.get('name', ''),
-            "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}",
-            "Published": item.get('pubTimeNew', '最新'),
-            "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）",
-            "Image": item.get('pic', '')
-        } for item in items[:15] if item.get('name') and item.get('contId')]
+        return [{"Source": "澎湃思想市場", "Title": item.get('name', ''), "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}", "Published": item.get('pubTimeNew', '最新'), "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）", "Image": item.get('pic', '')} for item in items[:15] if item.get('name') and item.get('contId')]
     except Exception as e: print(f"澎湃 錯誤: {e}"); return []
 
 def fetch_webgenron():
@@ -251,14 +209,9 @@ def fetch_webgenron():
                 if len(title) < 8: continue
                 seen.add(href)
                 full_link = f"https://webgenron.com{href}" if href.startswith('/') else href
-                
                 art_soup = get_soup(full_link)
                 desc = art_soup.find('meta', attrs={'name': 'description'}) or art_soup.find('meta', property='og:description') if art_soup else None
-                
-                articles.append({
-                    "Source": "webゲンロン", "Title": title, "Link": full_link, "Published": "最新",
-                    "Summary": format_summary(desc['content'] if desc else ""), "Image": None
-                })
+                articles.append({"Source": "webゲンロン", "Title": title, "Link": full_link, "Published": "最新", "Summary": format_summary(desc['content'] if desc else ""), "Image": None})
                 if len(articles) >= 15: break
         return articles
     except Exception as e: print(f"webゲンロン 錯誤: {e}"); return []
@@ -267,62 +220,41 @@ def fetch_funambulist():
     try:
         soup = get_soup("https://thefunambulist.net/magazine/issues")
         invalid = ['geo-index', 'stockists', 'subscribe', 'shop', 'podcast', 'editorials', 'network']
-        latest_url = next((href if href.startswith('http') else f"https://thefunambulist.net{href}" 
-                           for a in soup.find_all('a', href=True) if '/magazine/' in (href := a['href']) 
-                           and not any(b in href for b in invalid) and not href.rstrip('/').endswith(('magazine', 'issues'))), None) if soup else None
-        
+        latest_url = next((href if href.startswith('http') else f"https://thefunambulist.net{href}" for a in soup.find_all('a', href=True) if '/magazine/' in (href := a['href']) and not any(b in href for b in invalid) and not href.rstrip('/').endswith(('magazine', 'issues'))), None) if soup else None
         if not latest_url: return []
-        
         issue_soup = get_soup(latest_url)
         issue_title = issue_soup.find('h1').get_text(strip=True) if issue_soup and issue_soup.find('h1') else "最新刊"
-        
         valid_links, seen = [], set()
         is_in_target_section = False 
-        
         for element in issue_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'a']):
             if element.name.startswith('h'):
                 header_text = element.get_text(strip=True).upper()
-                if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text:
-                    is_in_target_section = True
-                elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]):
-                    is_in_target_section = False
-                    
+                if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text: is_in_target_section = True
+                elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]): is_in_target_section = False
             elif element.name == 'a' and is_in_target_section:
                 href = element.get('href', '')
                 title = element.get_text(strip=True)
                 if href.startswith('https://thefunambulist.net/') and len(title) > 8:
                     if title.lower() != "the funambulist" and title not in seen:
-                        valid_links.append((title, href))
-                        seen.add(title)
-
+                        valid_links.append((title, href)); seen.add(title)
         def process_link(data):
             title, href = data
             art_soup = get_soup(href)
             paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80] if art_soup else []
             return {"Source": f"The Funambulist ({issue_title})", "Title": title, "Link": href, "Published": issue_title, "Summary": format_summary(" ".join(paragraphs)), "Image": None}
-
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             return [res for res in ex.map(process_link, valid_links) if res]
-            
-    except Exception as e: 
-        print(f"Funambulist 錯誤: {e}")
-        return []
+    except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
 
 def fetch_mit_reader():
     try:
         data = requests.get("https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/", timeout=TIMEOUT).json()
         if data.get('status') != 'ok': return []
-        
         articles = []
         for item in data.get('items', [])[:15]:
             soup = BeautifulSoup(item.get('description', ''), 'html.parser')
             img_tag = soup.find('img')
-            articles.append({
-                "Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''),
-                "Published": item.get('pubDate', '最新'),
-                "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')),
-                "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)
-            })
+            articles.append({"Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''), "Published": item.get('pubDate', '最新'), "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')), "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)})
         return articles
     except Exception as e: print(f"MIT Press 錯誤: {e}"); return []
 
@@ -332,7 +264,6 @@ def fetch_mit_reader():
 def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
-    
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -346,30 +277,38 @@ def main():
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
-        
         custom_scrapers = [fetch_webgenron, fetch_eflux, fetch_funambulist, fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, fetch_thepaper, fetch_thepoint]
         futures.extend([executor.submit(func) for func in custom_scrapers])
-        
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: all_articles.extend(res)
 
     if all_articles:
-        # 🌟 日期格式清洗：確保符合 PostgreSQL 的標準格式
+        cleaned_articles = []
         for a in all_articles:
-            try:
-                if a['Published'] and a['Published'] != "最新":
-                    dt = pd.to_datetime(a['Published'], errors='coerce', utc=True)
-                    if pd.isna(dt):
-                        dt = pd.Timestamp('2000-01-01', tz='UTC')
-                    a['SortDate'] = dt.isoformat()
-                else:
-                    a['SortDate'] = pd.Timestamp.utcnow().isoformat()
-            except Exception:
-                a['SortDate'] = pd.Timestamp('2000-01-01', tz='UTC').isoformat()
+            article_data = a.copy()
+            has_valid_date = False
+            
+            # 🌟 嘗試解析與標準化日期 (例如將 "Thu, 14 May..." 轉為 "2024-05-14")
+            if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊"]):
+                try:
+                    dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
+                    if not pd.isna(dt):
+                        article_data['Published'] = dt.strftime('%Y-%m-%d') # 標準化顯示日期
+                        article_data['SortDate'] = dt.isoformat() # 排序用精確 ISO
+                        has_valid_date = True
+                except:
+                    pass
+            
+            # 🎯 核心邏輯：如果沒有明確日期
+            # 1. 'Published' 保留原樣 (例如 "最新" 或 "Issue 36")，供 UI 判斷
+            # 2. 刪除 'SortDate'，讓 Supabase 自動填入 NOW() (作為擷取時間)
+            if not has_valid_date:
+                if 'SortDate' in article_data: del article_data['SortDate']
+                    
+            cleaned_articles.append(article_data)
 
-        # 🌟 將清洗好的資料陣列推上雲端！
-        sync_to_supabase(all_articles)
+        sync_to_supabase(cleaned_articles)
     else:
         print("❌ 未抓取到任何資料。")
 
