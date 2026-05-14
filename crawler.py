@@ -143,6 +143,62 @@ def fetch_bijutsutecho():
         
     return articles
 
+def fetch_thepaper():
+    """澎湃思想市場：直接萃取 Next.js 內建的底層 JSON 資料"""
+    url = "https://m.thepaper.cn/list_25483"
+    articles = []
+    source_name = "澎湃思想市場"
+    
+    try:
+        # 偽裝成手機版瀏覽器
+        headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'}
+        res = scraper.get(url, headers=headers, timeout=15)
+        
+        if res.status_code != 200:
+            print(f"澎湃思想市場 阻擋: 收到 HTTP 代碼 {res.status_code}")
+            return articles
+
+        # 🌟 魔法步驟：直接用正則擷取網頁底層的 JSON 資料包
+        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
+        if not match:
+            return articles
+            
+        data = json.loads(match.group(1))
+        # 依照 Next.js 的結構層層深入，獲取文章陣列
+        items = data.get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
+        
+        for item in items[:15]:  # 抓取最新的 15 篇
+            title = item.get('name', '')
+            cont_id = item.get('contId', '')
+            
+            if not title or not cont_id:
+                continue
+                
+            # 將手機版 ID 轉換為易於在電腦/手機上閱讀的 PC 版標準網址
+            link = f"https://www.thepaper.cn/newsDetail_forward_{cont_id}"
+            img_url = item.get('pic', '')
+            published = item.get('pubTimeNew', '最新')
+            
+            # 澎湃列表預設沒有提供長摘要，但 JSON 裡藏有豐富的「標籤 (Tags)」
+            # 我們可以把標籤萃取出來作為摘要提示
+            tags = [t.get('tag', '') for t in item.get('tagList', [])]
+            tags_str = "、".join(tags) if tags else "無"
+            summary = f"**🏷️ 探討議題：** {tags_str}\n\n（點擊標題閱讀原文）"
+            
+            articles.append({
+                "Source": source_name, 
+                "Title": title, 
+                "Link": link,
+                "Published": published, 
+                "Summary": summary, 
+                "Image": img_url
+            })
+            
+    except Exception as e:
+        print(f"澎湃思想市場 抓取失敗: {e}")
+        
+    return articles
+
 def fetch_funambulist():
     """The Funambulist：自動抓取最新一期的【所有】文章"""
     issues_url = "https://thefunambulist.net/magazine/issues"
@@ -476,7 +532,8 @@ def main():
             executor.submit(fetch_funambulist),
             executor.submit(fetch_mit_reader),
             executor.submit(fetch_eurozine),
-            executor.submit(fetch_bijutsutecho)
+            executor.submit(fetch_bijutsutecho),
+            executor.submit(fetch_thepaper)
         ])
         
         for future in concurrent.futures.as_completed(futures):
