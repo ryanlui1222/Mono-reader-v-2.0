@@ -5,11 +5,11 @@ import math
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 介面基礎設定
+# 1. 介面基礎設定與路徑定義
 # ==========================================
 st.set_page_config(page_title="Monoreader Cloud", layout="wide", initial_sidebar_state="expanded")
 
-# 🔗 官方來源網址
+# 🔗 官方來源網址對應
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/",
     "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -30,63 +30,72 @@ SOURCE_URLS = {
 }
 
 def get_source_link(source_name):
+    # 取得基礎名稱以查找對應網址 (例如 "The Point (Issue 35)" -> "The Point")
     base_name = source_name.split(" (")[0]
     return SOURCE_URLS.get(base_name, "#")
 
 # ==========================================
-# 2. 雲端資料庫連線
+# 2. 雲端資料庫連線與資料操作
 # ==========================================
 @st.cache_resource
 def init_connection():
+    """建立 Supabase 連線"""
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = init_connection()
 
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
+    """
+    核心資料抓取邏輯
+    """
     query = supabase.table('articles').select("*")
     
-    # --- 邏輯 1: 處理瀏覽模式 ---
+    # --- 邏輯 A: 處理瀏覽模式 ---
     if view_mode == "🔥 今日最新":
-        # 抓取過去 24 小時的文章
+        # 僅抓取過去 24 小時內「擷取」到的文章 (SortDate)
         time_threshold = (datetime.utcnow() - timedelta(hours=24)).isoformat()
         query = query.gte("SortDate", time_threshold)
     
     elif view_mode == "🔖 我的收藏庫":
         query = query.eq("is_bookmarked", True)
     
-    # --- 邏輯 2: 處理來源過濾 (僅在非「今日最新」模式下生效) ---
+    # --- 邏輯 B: 處理分類存檔的來源過濾 ---
+    # 只有在非「今日最新」模式下，來源過濾才會生效
     if view_mode != "🔥 今日最新" and source_filter != "全部來源總覽":
         query = query.eq("Source", source_filter)
              
-    # --- 邏輯 3: 全文搜尋 ---
+    # --- 邏輯 C: 處理全文搜尋 ---
     if search_query:
         query = query.or_(f'Title.ilike.%{search_query}%,Summary.ilike.%{search_query}%')
         
+    # 預設依時間排序，並限制 500 筆以確保效能
     res = query.order("SortDate", desc=True).limit(500).execute()
     return pd.DataFrame(res.data)
 
 def toggle_bookmark_db(link, current_state):
+    """切換收藏狀態"""
     try:
         supabase.table('articles').update({"is_bookmarked": not current_state}).eq("Link", link).execute()
-        st.cache_data.clear()
-        st.toast("書籤狀態已更新")
+        st.cache_data.clear() # 強制刷新快取
+        st.toast("書籤狀態已更新！")
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
 # ==========================================
-# 3. 側邊欄渲染 (Sidebar)
+# 3. 介面渲染：側邊欄 (Sidebar)
 # ==========================================
 st.sidebar.title("📚 Monoreader")
 
-# --- 搜尋框 ---
-search_input = st.sidebar.text_input("🔍 雲端全文搜尋", placeholder="關鍵字或作者...")
+# --- 搜尋功能 ---
+search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="文章、作者或關鍵字...")
 st.sidebar.markdown("---")
 
-# --- 核心模式切換 ---
+# --- 核心模式選擇 ---
 view_mode = st.sidebar.radio("瀏覽模式", ["🔥 今日最新", "🗄️ 分類存檔", "🔖 我的收藏庫"])
 st.sidebar.markdown("---")
 
+# --- 分類存檔邏輯 (僅在分類模式顯示) ---
 selected_source = "全部來源總覽"
 if view_mode == "🗄️ 分類存檔":
     st.sidebar.subheader("選擇訂閱來源")
@@ -100,61 +109,96 @@ if view_mode == "🗄️ 分類存檔":
         else:
             main_options.append(src_key)
             
-    selected_main = st.sidebar.selectbox("請選擇版塊：", ["全部來源總覽"] + main_options)
+    selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options)
 
+    # 動態次選單處理
     if selected_main.startswith("📁 "):
         base_name = selected_main.replace("📁 ", "")
+        # 輕量查詢資料庫中現有的具體 Source 名稱
         res = supabase.table('articles').select('Source').ilike('Source', f'%{base_name}%').execute()
         all_sub_sources = sorted(list(set([r['Source'] for r in res.data])), reverse=True)
         if all_sub_sources:
-            selected_source = st.sidebar.radio(f"{base_name} 期號：", all_sub_sources)
+            selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources)
     else:
         selected_source = selected_main
 
 # ==========================================
-# 4. 主畫面渲染
+# 4. 介面渲染：主畫面 (Main View)
 # ==========================================
 df = fetch_data(view_mode, selected_source, search_input)
 
-# 顯示標題
+# 顯示頁面標題與小工具
 if view_mode == "🔥 今日最新":
-    st.subheader(f"🔥 今日最新文章 (過去 24 小時，共 {len(df)} 篇)")
-    st.caption("這裡僅顯示最新抓取的內容，保持閱讀的新鮮感。")
+    st.subheader(f"🔥 今日最新文章 (過去 24 小時內，共 {len(df)} 篇)")
+    st.caption("自動顯示每日爬蟲擷取到的最新內容。")
 elif view_mode == "🔖 我的收藏庫":
     st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
 else:
     if selected_source != "全部來源總覽":
         st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
-        st.markdown(f"🔗 **[前往官網]({get_source_link(selected_source)})**")
+        st.markdown(f"🔗 **[前往該雜誌官網閱讀]({get_source_link(selected_source)})**")
     else:
         st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
 
 st.markdown("---")
 
+# 檢查是否有資料
 if df.empty:
     if search_input: st.info("找不到符合關鍵字的文章。")
-    elif view_mode == "🔥 今日最新": st.info("過去 24 小時內暫無新抓取的文章。")
+    elif view_mode == "🔥 今日最新": st.info("今日暫無新文章，請待下次爬蟲執行或查看分類存檔。")
     else: st.info("這裡目前空空如也。")
 else:
-    # 分頁
+    # --- 分頁系統 (Pagination) ---
     PER_PAGE = 20
     total_pages = math.ceil(len(df) / PER_PAGE)
-    page = st.selectbox("📄 選擇頁數", range(1, total_pages + 1)) if total_pages > 1 else 1
     
-    for _, row in df.iloc[(page-1)*PER_PAGE : page*PER_PAGE].iterrows():
+    if total_pages > 1:
+        col_p1, col_p2 = st.columns([4, 1])
+        with col_p2:
+            page = st.selectbox("📄 選擇頁數", range(1, total_pages + 1))
+    else:
+        page = 1
+    
+    start_idx = (page - 1) * PER_PAGE
+    end_idx = start_idx + PER_PAGE
+    
+    # --- 渲染文章列表 ---
+    for _, row in df.iloc[start_idx:end_idx].iterrows():
         with st.container():
             st.markdown(f"#### [{row['Title']}]({row['Link']})")
+            
             col_meta, col_btn = st.columns([5, 1])
             with col_meta:
-                clean_date = str(row['Published']).split('T')[0] if pd.notna(row['Published']) else "最新"
-                st.caption(f"🏷️ {row['Source']} | 🕒 {clean_date}")
+                # 🌟 雙時間顯示邏輯：
+                # 如果 Published 是 "最新" 或 "Issue XX"，則標示擷取時間 (SortDate)
+                raw_pub = str(row['Published'])
+                if any(k in raw_pub for k in ["最新", "Issue", "刊"]):
+                    # 擷取 SortDate 中的日期部分 (YYYY-MM-DD)
+                    display_date = f"擷取於 {str(row['SortDate']).split('T')[0]}"
+                else:
+                    # 否則直接顯示標準化後的日期
+                    display_date = raw_pub
+                
+                st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
+            
             with col_btn:
                 is_bk = bool(row.get('is_bookmarked', False))
                 st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"btn_{row['Link']}", 
                           on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
             
+            # 圖片顯示與錯誤捕捉
             if row['Image'] and str(row['Image']).startswith('http'):
-                try: st.image(row['Image'], use_container_width=True)
-                except: pass
+                try: 
+                    st.image(row['Image'], use_container_width=True)
+                except: 
+                    pass
+                
             st.write(row['Summary'])
             st.markdown("---")
+
+    if total_pages > 1:
+        st.caption(f"目前顯示第 {page} 頁，共 {total_pages} 頁")
+
+# 底部狀態列
+st.sidebar.markdown("---")
+st.sidebar.caption("Monoreader Cloud v2.0")
