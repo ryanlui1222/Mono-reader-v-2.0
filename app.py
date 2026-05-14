@@ -1,18 +1,15 @@
 import streamlit as st
 import pandas as pd
-import json
-import os
+from supabase import create_client, Client
 import math
-import requests
 
 # ==========================================
-# 介面排版區塊與基礎設定
+# 1. 介面排版區塊與基礎設定
 # ==========================================
-st.set_page_config(page_title="My Culture Dashboard", layout="wide")
+st.set_page_config(page_title="Monoreader Cloud", layout="wide", initial_sidebar_state="expanded")
+st.title("📚 Monoreader Cloud")
 
-st.title("📚 Monoreader")
-
-# 🔗 來源對應網址字典
+# 🔗 官方來源網址對應 (用於跳轉連結)
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/",
     "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -28,200 +25,168 @@ SOURCE_URLS = {
     "美術手帖": "https://bijutsutecho.com/magazine/series",
     "澎湃思想市場": "https://www.thepaper.cn/list_25483",
     "Verso Blog": "https://www.versobooks.com/blogs/news",
-    "The Point": "https://thepointmag.com/magazine/"
+    "The Point": "https://thepointmag.com/magazine/",
+    "The Funambulist": "https://thefunambulist.net/"
 }
 
 def get_source_link(source_name):
-    if "Funambulist" in source_name: return "https://thefunambulist.net/"
-    if "The Point" in source_name: return "https://thepointmag.com/magazine/"
-    if "e-flux Journal" in source_name: return "https://www.e-flux.com/journal/"
-    return SOURCE_URLS.get(source_name, "#")
+    # 處理帶有期號的來源名稱，提取主名稱以查找 URL
+    base_name = source_name.split(" (")[0]
+    return SOURCE_URLS.get(base_name, "#")
 
 # ==========================================
-# ☁️ 雲端書籤處理中心 (JSONBin 版)
+# 2. 雲端資料庫連線與資料操作
 # ==========================================
-if "jsonbin" in st.secrets:
-    BIN_ID = st.secrets["jsonbin"]["bin_id"]
-    API_KEY = st.secrets["jsonbin"]["api_key"]
-    BIN_URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
+@st.cache_resource
+def init_connection():
+    """初始化 Supabase 連線"""
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_connection()
+
+@st.cache_data(ttl=600)
+def fetch_data(source_filter="全部來源總覽", search_query="", show_bookmarks=False):
+    """
+    從 Supabase 抓取資料
+    - source_filter: 具體的來源名稱 (包含期號)
+    - search_query: 全文搜尋關鍵字
+    - show_bookmarks: 是否僅顯示收藏文章
+    """
+    query = supabase.table('articles').select("*")
     
-    HEADERS = {
-        "X-Access-Key": API_KEY,
-        "Content-Type": "application/json"
-    }
+    # 1. 處理書籤模式
+    if show_bookmarks:
+        query = query.eq("is_bookmarked", True)
+    # 2. 處理特定來源過濾 (精確匹配，避免期號堆疊)
+    elif source_filter != "全部來源總覽":
+        query = query.eq("Source", source_filter)
+             
+    # 3. 全文搜尋邏輯 (模糊比對標題或摘要)
+    if search_query:
+        query = query.or_(f'Title.ilike.%{search_query}%,Summary.ilike.%{search_query}%')
+        
+    # 依時間排序並限制前 500 筆，確保效能
+    res = query.order("SortDate", desc=True).limit(500).execute()
+    return pd.DataFrame(res.data)
 
-    def load_bookmarks():
-        """從 JSONBin 雲端讀取書籤"""
-        try:
-            req = requests.get(BIN_URL, headers=HEADERS)
-            if req.status_code == 200:
-                return req.json().get("record", [])
-            return []
-        except Exception:
-            return []
+def toggle_bookmark_db(link, current_state):
+    """更新資料庫中的書籤狀態"""
+    new_state = not current_state
+    try:
+        supabase.table('articles').update({"is_bookmarked": new_state}).eq("Link", link).execute()
+        st.cache_data.clear() # 更新後清除快取以刷新介面
+        st.toast("❤️ 已收藏" if new_state else "🤍 已移除收藏")
+    except Exception as e:
+        st.error(f"操作失敗: {e}")
 
-    def save_bookmarks(bookmarks_list):
-        """將書籤同步寫入 JSONBin 雲端"""
-        try:
-            data_to_save = bookmarks_list if bookmarks_list else []
-            requests.put(BIN_URL, json=data_to_save, headers=HEADERS)
-        except Exception as e:
-            st.error(f"書籤同步失敗：{e}")
-else:
-    def load_bookmarks(): return []
-    def save_bookmarks(bookmarks_list): pass
+# ==========================================
+# 3. 介面渲染：側邊欄 (Sidebar)
+# ==========================================
+st.sidebar.title("📂 導覽與搜尋")
 
-# 初始化 Session State 來記住書籤
-if 'bookmarks' not in st.session_state:
-    st.session_state.bookmarks = load_bookmarks()
+# --- 搜尋功能 ---
+search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="輸入關鍵字或作者...")
+st.sidebar.markdown("---")
 
-def toggle_bookmark(article_dict):
-    """切換收藏狀態的觸發函數"""
-    links = [b['Link'] for b in st.session_state.bookmarks]
-    if article_dict['Link'] in links:
-        st.session_state.bookmarks = [b for b in st.session_state.bookmarks if b['Link'] != article_dict['Link']]
-    else:
-        st.session_state.bookmarks.insert(0, article_dict)
+# --- 瀏覽模式 ---
+view_mode = st.sidebar.radio("瀏覽模式", ["最新文章", "🔖 我的收藏庫"])
+st.sidebar.markdown("---")
+
+# --- 來源選單與動態期號資料夾 ---
+if view_mode == "最新文章":
+    st.sidebar.subheader("閱讀版塊")
     
-    # 狀態更新後，立即同步到雲端
-    save_bookmarks(st.session_state.bookmarks)
-
-# ==========================================
-# 資料讀取與處理
-# ==========================================
-@st.cache_data(ttl=900)
-def load_data():
-    if os.path.exists("data.json"):
-        try:
-            df = pd.read_json("data.json")
-            def sort_key(date_str):
-                if pd.isna(date_str) or "最新" in str(date_str):
-                    return pd.Timestamp('1900-01-01', tz='UTC') 
-                try:
-                    return pd.to_datetime(date_str, utc=True)
-                except:
-                    return pd.Timestamp('1900-01-01', tz='UTC')
-            df['SortDate'] = df['Published'].apply(sort_key)
-            df = df.sort_values(by=['SortDate'], ascending=False).reset_index(drop=True)
-            df = df.drop(columns=['SortDate'])
-            return df
-        except Exception as e:
-            st.error(f"資料讀取錯誤：{e}")
-            return pd.DataFrame()
-    return pd.DataFrame()
-
-news_df = load_data()
-
-# ==========================================
-# 介面渲染
-# ==========================================
-update_time_str = "未知"
-if os.path.exists("data.json"):
-    mtime = os.path.getmtime("data.json")
-    update_time = pd.Timestamp(mtime, unit='s', tz='UTC').tz_convert('Asia/Taipei')
-    update_time_str = update_time.strftime("%Y-%m-%d %H:%M:%S")
-
-if not news_df.empty or st.session_state.bookmarks:
-    st.sidebar.title("📂 閱讀來源")
-    st.sidebar.caption(f"🔄 最後更新：{update_time_str}")
-    st.sidebar.markdown("---")
+    # 定義哪些來源需要「資料夾化」(處理期號)
+    FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News"]
     
-    # 🌟 側邊欄：主選單與檔案夾邏輯
-    raw_sources = news_df['Source'].unique() if not news_df.empty else []
-    main_categories = set()
-    
-    for src in raw_sources:
-        if "421 News" in src:
-            main_categories.add("📁 421 News")
+    main_options = []
+    for src_key in sorted(SOURCE_URLS.keys()):
+        if any(k in src_key for k in FOLDER_KEYWORDS):
+            # 統一主名稱，例如 "The Point (Issue 35)" -> "📁 The Point"
+            folder_name = f"📁 {src_key.split(' (')[0]}"
+            if folder_name not in main_options:
+                main_options.append(folder_name)
         else:
-            main_categories.add(src)
+            main_options.append(src_key)
             
-    main_categories = sorted(list(main_categories), key=lambda x: x.lower().replace("📁 ", ""))
-    
-    # 將「🔖 我的書籤」從主選單中移除
-    source_options = ["全部來源總覽"] + main_categories
-    
-    selected_main = st.sidebar.radio("請點選要查看的板塊：", source_options)
-    
-    if selected_main == "📁 421 News":
+    source_menu = ["全部來源總覽"] + main_options
+    selected_main = st.sidebar.selectbox("請選擇來源：", source_menu)
+
+    # --- 動態次選單：處理期號 / 分類 ---
+    if selected_main.startswith("📁 "):
         st.sidebar.markdown("---")
-        sub_options = sorted([s for s in raw_sources if "421 News" in s])
-        selected_source = st.sidebar.radio("切換語言版本：", sub_options)
+        base_name = selected_main.replace("📁 ", "")
+        
+        # 向資料庫查詢該品牌下現有的所有具體 Source 標籤
+        res = supabase.table('articles').select('Source').ilike('Source', f'%{base_name}%').execute()
+        all_sub_sources = sorted(list(set([r['Source'] for r in res.data])), reverse=True)
+        
+        if all_sub_sources:
+            selected_source = st.sidebar.radio(f"{base_name} 期號選擇：", all_sub_sources)
+        else:
+            selected_source = selected_main # 若無資料則退回主名稱
     else:
         selected_source = selected_main
-        
-    st.sidebar.markdown("---")
-    
-    # 🌟 獨立的書籤區塊，放置於側邊欄最下方
-    st.sidebar.markdown("### 📌 個人收藏")
-    view_bookmarks = st.sidebar.toggle("🔖 進入我的書籤", value=False)
-    
-    # 當開關被打開時，強制將顯示來源切換為書籤
-    if view_bookmarks:
-        selected_source = "🔖 我的書籤"
-        
-    st.markdown("---")
-
-    # 決定要顯示的 DataFrame
-    if selected_source == "🔖 我的書籤":
-        display_df = pd.DataFrame(st.session_state.bookmarks)
-        st.subheader(f"目前顯示：🔖 我的書籤 (共 {len(display_df)} 篇)")
-    elif selected_source != "全部來源總覽":
-        display_df = news_df[news_df['Source'] == selected_source]
-        source_link = get_source_link(selected_source)
-        st.subheader(f"目前顯示：{selected_source} (共 {len(display_df)} 篇)")
-        st.markdown(f"🔗 **[前往 {selected_source} 官方網站閱讀更多]({source_link})**")
-    else:
-        display_df = news_df 
-        st.subheader(f"目前顯示：全部來源總覽 (共 {len(display_df)} 篇)")
-        
-    st.markdown("---")
-
-    if display_df.empty:
-        st.info("這裡目前空空如也，趕快去收藏幾篇文章吧！")
-    else:
-        ITEMS_PER_PAGE = 20
-        total_pages = math.ceil(len(display_df) / ITEMS_PER_PAGE)
-        
-        if total_pages > 1:
-            col1, col2 = st.columns([3, 1])
-            with col2:
-                page_number = st.selectbox("📄 選擇頁數", range(1, total_pages + 1), index=0)
-        else:
-            page_number = 1
-            
-        start_idx = (page_number - 1) * ITEMS_PER_PAGE
-        end_idx = start_idx + ITEMS_PER_PAGE
-        page_df = display_df.iloc[start_idx:end_idx]
-
-        # 取得已收藏清單用來變更按鈕狀態
-        bookmarked_links = [b['Link'] for b in st.session_state.bookmarks]
-
-        # 渲染文章卡片
-        for index, row in page_df.iterrows():
-            with st.container():
-                st.markdown(f"#### [{row['Title']}]({row['Link']})")
-                
-                meta_col, btn_col = st.columns([5, 1])
-                with meta_col:
-                    st.caption(f"🏷️ {row['Source']} | 🕒 {row['Published']}")
-                with btn_col:
-                    is_saved = row['Link'] in bookmarked_links
-                    button_label = "❌ 移除" if is_saved else "🔖 收藏"
-                    st.button(button_label, key=f"btn_{row['Link']}", on_click=toggle_bookmark, args=(row.to_dict(),))
-            
-                if isinstance(row.get('Image'), str) and row['Image'].strip() != "":
-                    if row['Image'].startswith('http'):
-                        try: 
-                            st.image(row['Image'], use_container_width=True)
-                        except: 
-                            pass
-                
-                st.write(row['Summary'])
-                st.markdown("---")
-                
-        if total_pages > 1:
-            st.caption(f"目前為第 {page_number} 頁，共 {total_pages} 頁")
-            
 else:
-    st.info("目前系統正在更新資料庫中，或尚無資料，請稍後再試。")
+    # 書籤模式下不顯示來源選單
+    selected_source = "🔖 我的書籤"
+
+# ==========================================
+# 4. 介面渲染：主畫面 (Main Content)
+# ==========================================
+st.markdown("---")
+
+# 獲取資料
+is_bookmark_view = (view_mode == "🔖 我的收藏庫")
+df = fetch_data(selected_source, search_input, is_bookmark_view)
+
+# 標題與網址連結
+if is_bookmark_view:
+    st.subheader(f"目前顯示：🔖 我的收藏庫 (共 {len(df)} 篇)")
+elif selected_source != "全部來源總覽":
+    link = get_source_link(selected_source)
+    st.subheader(f"目前顯示：{selected_source} (共 {len(df)} 篇)")
+    st.markdown(f"🔗 **[前往該雜誌官網閱讀更多]({link})**")
+else:
+    st.subheader(f"目前顯示：全部來源總覽 (共 {len(df)} 篇)")
+
+st.markdown("---")
+
+if df.empty:
+    st.info("尚無符合條件的文章。如果是新設定的資料庫，請先執行一次爬蟲。")
+else:
+    # 分頁處理
+    PER_PAGE = 20
+    total_pages = math.ceil(len(df) / PER_PAGE)
+    page = st.selectbox("📄 頁數", range(1, total_pages + 1)) if total_pages > 1 else 1
+    
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    
+    for _, row in df.iloc[start:end].iterrows():
+        with st.container():
+            st.markdown(f"#### [{row['Title']}]({row['Link']})")
+            
+            col_meta, col_btn = st.columns([5, 1])
+            with col_meta:
+                # 簡化日期顯示
+                clean_date = str(row['Published']).split('T')[0] if pd.notna(row['Published']) else "最新"
+                st.caption(f"🏷️ {row['Source']} | 🕒 {clean_date}")
+            
+            with col_btn:
+                is_bk = bool(row.get('is_bookmarked', False))
+                label = "❤️ 已收藏" if is_bk else "🤍 收藏"
+                st.button(label, key=f"btn_{row['Link']}", on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
+            
+            # 圖片處理
+            if row['Image'] and str(row['Image']).startswith('http'):
+                try: st.image(row['Image'], use_container_width=True)
+                except: pass
+                
+            st.write(row['Summary'])
+            st.markdown("---")
+
+    if total_pages > 1:
+        st.caption(f"第 {page} 頁 / 共 {total_pages} 頁")
