@@ -46,7 +46,7 @@ if "jsonbin" in st.secrets:
     BIN_URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
     
     HEADERS = {
-        "X-Access-Key": API_KEY,  # 🌟 注意：這裡使用 X-Access-Key
+        "X-Access-Key": API_KEY,
         "Content-Type": "application/json"
     }
 
@@ -126,7 +126,7 @@ if not news_df.empty or st.session_state.bookmarks:
     st.sidebar.caption(f"🔄 最後更新：{update_time_str}")
     st.sidebar.markdown("---")
     
-    # 🌟 側邊欄：加入書籤、檔案夾邏輯與字母排序
+    # 🌟 側邊欄：主選單與檔案夾邏輯
     raw_sources = news_df['Source'].unique() if not news_df.empty else []
     main_categories = set()
     
@@ -137,7 +137,9 @@ if not news_df.empty or st.session_state.bookmarks:
             main_categories.add(src)
             
     main_categories = sorted(list(main_categories), key=lambda x: x.lower().replace("📁 ", ""))
-    source_options = ["🔖 我的書籤", "全部來源總覽"] + main_categories
+    
+    # 將「🔖 我的書籤」從主選單中移除
+    source_options = ["全部來源總覽"] + main_categories
     
     selected_main = st.sidebar.radio("請點選要查看的板塊：", source_options)
     
@@ -147,6 +149,16 @@ if not news_df.empty or st.session_state.bookmarks:
         selected_source = st.sidebar.radio("切換語言版本：", sub_options)
     else:
         selected_source = selected_main
+        
+    st.sidebar.markdown("---")
+    
+    # 🌟 獨立的書籤區塊，放置於側邊欄最下方
+    st.sidebar.markdown("### 📌 個人收藏")
+    view_bookmarks = st.sidebar.toggle("🔖 進入我的書籤", value=False)
+    
+    # 當開關被打開時，強制將顯示來源切換為書籤
+    if view_bookmarks:
+        selected_source = "🔖 我的書籤"
         
     st.markdown("---")
 
@@ -190,7 +202,6 @@ if not news_df.empty or st.session_state.bookmarks:
             with st.container():
                 st.markdown(f"#### [{row['Title']}]({row['Link']})")
                 
-                # 🌟 加入書籤按鈕佈局
                 meta_col, btn_col = st.columns([5, 1])
                 with meta_col:
                     st.caption(f"🏷️ {row['Source']} | 🕒 {row['Published']}")
