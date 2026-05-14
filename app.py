@@ -22,7 +22,8 @@ SOURCE_URLS = {
     "MIT Press Reader": "https://thereader.mitpress.mit.edu/",
     "webゲンロン": "https://webgenron.com/",
     "e-flux Journal": "https://www.e-flux.com/journal/",
-    "Eurozine": "https://www.eurozine.com/essays/"
+    "Eurozine": "https://www.eurozine.com/essays/",
+    "美術手帖": "https://bijutsutecho.com/magazine/series"
 }
 
 def get_source_link(source_name):
