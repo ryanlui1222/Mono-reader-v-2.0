@@ -42,24 +42,12 @@ def format_summary(text, author="", max_len=None):
 # ==========================================
 # ☁️ Supabase 雲端資料庫同步模組
 # ==========================================
-def sync_to_supabase(articles):
-    """將抓取到的文章列表同步至 Supabase"""
+def get_supabase_client():
+    """獲取 Supabase 連線實體"""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
-    
-    if not url or not key:
-        print("❌ 找不到 Supabase 環境變數，跳過同步。")
-        return
-    
-    supabase: Client = create_client(url, key)
-    
-    if articles:
-        try:
-            # 執行 Upsert，衝突時更新
-            supabase.table('articles').upsert(articles, on_conflict='Link').execute()
-            print(f"✅ 成功同步 {len(articles)} 篇文章至雲端資料庫！")
-        except Exception as e:
-            print(f"❌ 同步失敗: {e}")
+    if not url or not key: return None
+    return create_client(url, key)
 
 # ==========================================
 # 🕷️ 各平台專屬爬蟲模組
@@ -264,6 +252,7 @@ def fetch_mit_reader():
 def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
+    # (原本的 rss_sources 與 futures 執行邏輯保持不變...)
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -284,31 +273,52 @@ def main():
             if res: all_articles.extend(res)
 
     if all_articles:
+        supabase = get_supabase_client()
+        if not supabase:
+            print("❌ 找不到 Supabase 環境變數，跳過同步。")
+            return
+
+        # 🔍 1. 預先查詢資料庫中已存在的文章時間 (解決 NULL 注入問題)
+        links_to_check = [a['Link'] for a in all_articles]
+        existing_dates = {}
+        try:
+            res = supabase.table('articles').select('Link, SortDate').in_('Link', links_to_check).execute()
+            existing_dates = {r['Link']: r['SortDate'] for r in res.data if r.get('SortDate')}
+        except Exception as e:
+            print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
+
         cleaned_articles = []
         for a in all_articles:
             article_data = a.copy()
             has_valid_date = False
             
-            # 🌟 嘗試解析與標準化日期 (例如將 "Thu, 14 May..." 轉為 "2024-05-14")
+            # 🌟 嘗試解析與標準化日期
             if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊"]):
                 try:
                     dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
                     if not pd.isna(dt):
-                        article_data['Published'] = dt.strftime('%Y-%m-%d') # 標準化顯示日期
-                        article_data['SortDate'] = dt.isoformat() # 排序用精確 ISO
+                        article_data['Published'] = dt.strftime('%Y-%m-%d')
+                        article_data['SortDate'] = dt.isoformat()
                         has_valid_date = True
-                except:
-                    pass
+                except: pass
             
-            # 🎯 核心邏輯：如果沒有明確日期
-            # 1. 'Published' 保留原樣 (例如 "最新" 或 "Issue 36")，供 UI 判斷
-            # 2. 刪除 'SortDate'，讓 Supabase 自動填入 NOW() (作為擷取時間)
+            # 🎯 核心防護：由 Python 強制賦予時間，防堵空值
             if not has_valid_date:
-                if 'SortDate' in article_data: del article_data['SortDate']
+                if article_data['Link'] in existing_dates:
+                    # 繼承這篇文章第一次被抓取時的時間
+                    article_data['SortDate'] = existing_dates[article_data['Link']]
+                else:
+                    # 第一次看到這篇文章，蓋上當下 UTC 時間印章
+                    article_data['SortDate'] = datetime.utcnow().isoformat()
                     
             cleaned_articles.append(article_data)
 
-        sync_to_supabase(cleaned_articles)
+        # 🚀 2. 執行同步
+        try:
+            supabase.table('articles').upsert(cleaned_articles, on_conflict='Link').execute()
+            print(f"✅ 成功同步 {len(cleaned_articles)} 篇文章至雲端資料庫！")
+        except Exception as e:
+            print(f"❌ 同步失敗: {e}")
     else:
         print("❌ 未抓取到任何資料。")
 
