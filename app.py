@@ -169,14 +169,19 @@ else:
             
             col_meta, col_btn = st.columns([5, 1])
             with col_meta:
-                # 🌟 雙時間顯示邏輯：
-                # 如果 Published 是 "最新" 或 "Issue XX"，則標示擷取時間 (SortDate)
                 raw_pub = str(row['Published'])
-                if any(k in raw_pub for k in ["最新", "Issue", "刊"]):
-                    # 擷取 SortDate 中的日期部分 (YYYY-MM-DD)
-                    display_date = f"擷取於 {str(row['SortDate']).split('T')[0]}"
+                sort_date = row.get('SortDate')
+                
+                # 防呆機制：如果資料庫裡極端情況下仍是空值
+                if pd.isna(sort_date) or sort_date is None:
+                    safe_sort_date = "未知時間"
                 else:
-                    # 否則直接顯示標準化後的日期
+                    safe_sort_date = str(sort_date).split('T')[0]
+                
+                # 判斷是否需要輔助顯示「擷取時間」
+                if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan"]):
+                    display_date = f"擷取於 {safe_sort_date}"
+                else:
                     display_date = raw_pub
                 
                 st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
