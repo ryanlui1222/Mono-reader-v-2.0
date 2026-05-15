@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client, Client
 import math
 from datetime import datetime, timedelta
+import re
 
 # ==========================================
 # 1. 介面基礎設定與路徑定義
@@ -114,9 +115,18 @@ if view_mode == "🗄️ 分類存檔":
     # 動態次選單處理
     if selected_main.startswith("📁 "):
         base_name = selected_main.replace("📁 ", "")
-        # 輕量查詢資料庫中現有的具體 Source 名稱
         res = supabase.table('articles').select('Source').ilike('Source', f'%{base_name}%').execute()
-        all_sub_sources = sorted(list(set([r['Source'] for r in res.data])), reverse=True)
+        
+        # 1. 先抓出所有不重複的 Source
+        raw_sources = list(set([r['Source'] for r in res.data]))
+        
+        # 2. 智慧排序邏輯：提取括號中的數字進行絕對大小排序
+        def extract_issue_number(source_str):
+            match = re.search(r'\d+', source_str)
+            return int(match.group()) if match else 0
+            
+        all_sub_sources = sorted(raw_sources, key=extract_issue_number, reverse=True)
+        
         if all_sub_sources:
             selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources)
     else:
