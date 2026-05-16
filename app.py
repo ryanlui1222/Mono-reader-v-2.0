@@ -86,17 +86,24 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     if df.empty:
         return df
         
-    # 🌟 智慧流量分流邏輯
+    # 智慧流量分流邏輯
     if view_mode == "✍️ 最新評論":
-        # 排除三家快訊媒體（BIE別的 因為不在名單內，會完美保留在評論中）
         mask = df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)
         df = df[~mask]
     elif view_mode == "⚡ 文化快訊":
-        # 僅顯示三家快訊媒體
         mask = df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)
         df = df[mask]
         
     return df
+
+def toggle_bookmark_db(link, current_state):
+    """切換收藏狀態 (已補回)"""
+    try:
+        supabase.table('articles').update({"is_bookmarked": not current_state}).eq("Link", link).execute()
+        st.cache_data.clear() # 強制刷新快取
+        st.toast("書籤狀態已更新！")
+    except Exception as e:
+        st.error(f"操作失敗: {e}")
 
 # ==========================================
 # 4. 介面渲染：側邊欄 (Sidebar)
@@ -113,122 +120,4 @@ view_mode = st.sidebar.radio(
 )
 st.sidebar.markdown("---")
 
-selected_source = "全部來源總覽"
-if view_mode == "🗄️ 分類存檔":
-    st.sidebar.subheader("選擇訂閱來源")
-    
-    FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News"]
-    main_options = []
-    for src_key in sorted(SOURCE_URLS.keys()):
-        if any(k in src_key for k in FOLDER_KEYWORDS):
-            folder_name = f"📁 {src_key.split(' (')[0]}"
-            if folder_name not in main_options: main_options.append(folder_name)
-        else:
-            main_options.append(src_key)
-            
-    selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options, on_change=reset_page)
-
-    if selected_main.startswith("📁 "):
-        base_name = selected_main.replace("📁 ", "")
-        res = supabase.table('articles').select('Source').ilike('Source', f'%{base_name}%').execute()
-        raw_sources = list(set([r['Source'] for r in res.data]))
-        
-        def extract_issue_number(source_str):
-            match = re.search(r'\d+', source_str)
-            return int(match.group()) if match else 0
-            
-        all_sub_sources = sorted(raw_sources, key=extract_issue_number, reverse=True)
-        if all_sub_sources:
-            selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources, on_change=reset_page)
-    else:
-        selected_source = selected_main
-
-# ==========================================
-# 5. 介面渲染：主畫面 (Main View)
-# ==========================================
-if view_mode == "⏳ 未來典藏":
-    st.subheader("⏳ 未來典藏 (Future Archive)")
-    st.markdown("這裡記錄了已停止更新，但值得未來編寫回溯腳本導入的歷史文化資料庫。")
-    st.markdown("---")
-    st.markdown("### 🇯🇵 TOKION")
-    st.caption("停更於 2024 年。日本前衛流行、藝術與當代潮流次文化的重要指標。")
-    st.markdown("🔗 **[前往官網探索](https://tokion.jp/)**")
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🇨🇳 歪腦 Wainao")
-    st.caption("停更於 2025 年。專注於新世代華語青年、邊緣視角與深度的社會紀實觀察。")
-    st.markdown("🔗 **[前往官網探索](https://www.wainao.me/)**")
-
-else:
-    df = fetch_data(view_mode, selected_source, search_input)
-
-    if view_mode == "✨ 全部來源總覽":
-        st.subheader(f"✨ 全部來源總覽 (聚合最新 {len(df)} 篇文章)")
-        st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
-    elif view_mode == "✍️ 最新評論":
-        st.subheader(f"✍️ 最新思想與文化評論 (共 {len(df)} 篇)")
-        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 BIE別的）。")
-    elif view_mode == "⚡ 文化快訊":
-        st.subheader(f"⚡ 文化與藝術快訊 (共 {len(df)} 篇)")
-        st.caption("聚合 WIRED.jp、CINRA、VERSE 每日高頻更新的潮流、展演與當代文化即時消息。")
-    elif view_mode == "🔖 我的收藏庫":
-        st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
-    else:
-        if selected_source != "全部來源總覽":
-            st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
-            st.markdown(f"🔗 **[前往該雜誌官網閱讀]({get_source_link(selected_source)})**")
-        else:
-            st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
-
-    st.markdown("---")
-
-    if df.empty:
-        st.info("這裡目前空空如也，找不到符合條件的文章。")
-    else:
-        PER_PAGE = 20
-        total_pages = math.ceil(len(df) / PER_PAGE)
-        if st.session_state.current_page > total_pages and total_pages > 0:
-            st.session_state.current_page = total_pages
-            
-        start_idx = (st.session_state.current_page - 1) * PER_PAGE
-        end_idx = start_idx + PER_PAGE
-        
-        for _, row in df.iloc[start_idx:end_idx].iterrows():
-            with st.container():
-                st.markdown(f"#### [{row['Title']}]({row['Link']})")
-                
-                col_meta, col_btn = st.columns([5, 1])
-                with col_meta:
-                    raw_pub = str(row['Published'])
-                    sort_date = row.get('SortDate')
-                    
-                    safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
-                    display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan"]) else raw_pub
-                    st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
-                
-                with col_btn:
-                    is_bk = bool(row.get('is_bookmarked', False))
-                    st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"btn_{row['Link']}", 
-                              on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
-                
-                if row['Image'] and str(row['Image']).startswith('http'):
-                    img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
-                    st.markdown(img_html, unsafe_allow_html=True)
-                    
-                st.write(row['Summary'])
-                st.markdown("---")
-
-        if total_pages > 1:
-            st.write("")
-            col_space, col_page, col_space2 = st.columns([1, 2, 1])
-            with col_page:
-                st.selectbox(
-                    "📄 選擇頁數 (跳轉至)：", 
-                    range(1, total_pages + 1), 
-                    index=st.session_state.current_page - 1, 
-                    key="page_selector", 
-                    on_change=update_page
-                )
-                st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v2.2 (Multi-Stream Optimized)")
+selected_source
