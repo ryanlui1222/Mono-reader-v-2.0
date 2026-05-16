@@ -72,13 +72,24 @@ supabase = init_connection()
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     query = supabase.table('articles').select("*")
     
-    if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
-        query = query.eq("Source", source_filter)
-    elif view_mode == "🔖 我的收藏庫":
-        query = query.eq("is_bookmarked", True)
-        
+    # 🌟 邏輯修正：區分「有搜尋」與「無搜尋」的狀態
     if search_query:
+        # 如果使用者正在搜尋，解除 24 小時限制，進行全域模糊比對
         query = query.or_(f'Title.ilike.%{search_query}%,Summary.ilike.%{search_query}%')
+        if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
+            query = query.eq("Source", source_filter)
+        elif view_mode == "🔖 我的收藏庫":
+            query = query.eq("is_bookmarked", True)
+    else:
+        # 正常的瀏覽模式
+        if view_mode in ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊"]:
+            # 🌟 加上 24 小時過濾限制
+            time_threshold = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+            query = query.gte("SortDate", time_threshold)
+        elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
+            query = query.eq("Source", source_filter)
+        elif view_mode == "🔖 我的收藏庫":
+            query = query.eq("is_bookmarked", True)
         
     res = query.order("SortDate", desc=True).limit(500).execute()
     df = pd.DataFrame(res.data)
@@ -86,7 +97,7 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     if df.empty:
         return df
         
-    # 智慧流量分流邏輯
+    # 🌟 智慧流量分流邏輯 (即使在搜尋狀態下也保留分類特性)
     if view_mode == "✍️ 最新評論":
         mask = df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)
         df = df[~mask]
@@ -97,7 +108,6 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     return df
 
 def toggle_bookmark_db(link, current_state):
-    """切換收藏狀態 (已補回)"""
     try:
         supabase.table('articles').update({"is_bookmarked": not current_state}).eq("Link", link).execute()
         st.cache_data.clear() # 強制刷新快取
@@ -168,14 +178,15 @@ if view_mode == "⏳ 未來典藏":
 else:
     df = fetch_data(view_mode, selected_source, search_input)
 
+    # 🌟 標題修正，標示「過去 24 小時內」
     if view_mode == "✨ 全部來源總覽":
-        st.subheader(f"✨ 全部來源總覽 (聚合最新 {len(df)} 篇文章)")
+        st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
         st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
     elif view_mode == "✍️ 最新評論":
-        st.subheader(f"✍️ 最新思想與文化評論 (共 {len(df)} 篇)")
+        st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
         st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 BIE別的）。")
     elif view_mode == "⚡ 文化快訊":
-        st.subheader(f"⚡ 文化與藝術快訊 (共 {len(df)} 篇)")
+        st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
         st.caption("聚合 WIRED.jp、CINRA、VERSE 每日高頻更新的潮流、展演與當代文化即時消息。")
     elif view_mode == "🔖 我的收藏庫":
         st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
@@ -189,7 +200,8 @@ else:
     st.markdown("---")
 
     if df.empty:
-        st.info("這裡目前空空如也，找不到符合條件的文章。")
+        if search_input: st.info("找不到符合關鍵字的文章。")
+        else: st.info("過去 24 小時內暫無新文章，請待下次爬蟲執行或查看分類存檔。")
     else:
         PER_PAGE = 20
         total_pages = math.ceil(len(df) / PER_PAGE)
@@ -199,7 +211,6 @@ else:
         start_idx = (st.session_state.current_page - 1) * PER_PAGE
         end_idx = start_idx + PER_PAGE
         
-        # 渲染文章列表
         for _, row in df.iloc[start_idx:end_idx].iterrows():
             with st.container():
                 st.markdown(f"#### [{row['Title']}]({row['Link']})")
@@ -218,7 +229,6 @@ else:
                     st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"btn_{row['Link']}", 
                               on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
                 
-                # 🌟 修復引號衝突：外層使用單引號，內層 row["Image"] 改用雙引號
                 if row['Image'] and str(row['Image']).startswith('http'):
                     img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
                     st.markdown(img_html, unsafe_allow_html=True)
