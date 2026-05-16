@@ -145,6 +145,83 @@ def fetch_eflux():
         return articles
     except Exception as e: print(f"e-flux 錯誤: {e}"); return []
 
+def fetch_verse():
+    """VERSE 專屬客製化爬蟲"""
+    articles = []
+    try:
+        soup = get_soup("https://www.verse.com.tw/")
+        if not soup: return articles
+        
+        seen = set()
+        valid_links = []
+        
+        # 掃描首頁所有的超連結
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            full_url = urllib.parse.urljoin("https://www.verse.com.tw/", href)
+            
+            # VERSE 的文章網址都包含 /article/ (排除作者頁或首頁)
+            if '/article/' in href and full_url not in seen:
+                seen.add(full_url)
+                
+                # 嘗試抓取標題，若 a 標籤包的是圖片，則抓取圖片的 alt 屬性
+                title = a.get_text(strip=True)
+                if not title:
+                    img = a.find('img')
+                    title = img.get('alt', '') if img else ""
+                
+                # 過濾掉太短的無效字串
+                if len(title) > 5:
+                    valid_links.append((title, full_url))
+                    
+        # 限制只抓取前 15 篇最新文章，避免請求過多
+        valid_links = valid_links[:15]
+        
+        def process_link(data):
+            title, url = data
+            art_soup = get_soup(url)
+            if not art_soup: return None
+            
+            # 抓取配圖 (從 meta og:image 抓取最高畫質)
+            og_img = art_soup.find('meta', property='og:image')
+            img_url = og_img['content'] if og_img else None
+            
+            # 抓取作者
+            author_meta = art_soup.find('meta', attrs={'name': 'author'})
+            author = author_meta['content'] if author_meta and author_meta.get('content') else ""
+            if author.upper() == "VERSE": author = "" # 移除預設的無意義作者名
+            
+            # 抓取摘要 (優先使用 og:description)
+            og_desc = art_soup.find('meta', property='og:description')
+            summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
+            
+            # 如果沒有 description，去內文抓前 3 個段落
+            if not summary or len(summary) < 20:
+                paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 40]
+                summary = " ".join(paragraphs[:3]) if paragraphs else "（請點擊標題閱讀原文）"
+            
+            # 嘗試抓取發布日期
+            time_tag = art_soup.find('time')
+            published = time_tag.get('datetime', '最新') if time_tag else "最新"
+            
+            return {
+                "Source": "VERSE", 
+                "Title": title, 
+                "Link": url, 
+                "Published": published,
+                "Summary": format_summary(summary, author), 
+                "Image": img_url
+            }
+
+        # 開啟 5 個執行緒並發抓取 VERSE 內頁
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            articles = [res for res in ex.map(process_link, valid_links) if res]
+            
+    except Exception as e: 
+        print(f"VERSE 錯誤: {e}")
+        
+    return articles
+
 def fetch_eurozine():
     try:
         soup = get_soup("https://www.eurozine.com/essays/")
@@ -252,7 +329,8 @@ def fetch_mit_reader():
 def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
-    # (原本的 rss_sources 與 futures 執行邏輯保持不變...)
+    
+    # 1. 在 rss_sources 列表加入 WIRED.jp
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -261,13 +339,22 @@ def main():
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
-        ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False)
+        ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
+        # 🌟 加入 WIRED.jp (deep_fetch=True 讓它進內頁抓更完整的圖文)
+        ("https://wired.jp/feed/rss", "WIRED.jp", 15, True) 
     ]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
-        custom_scrapers = [fetch_webgenron, fetch_eflux, fetch_funambulist, fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, fetch_thepaper, fetch_thepoint]
+        
+        # 2. 🌟 將 fetch_verse 加入自訂網頁爬蟲名單中
+        custom_scrapers = [
+            fetch_webgenron, fetch_eflux, fetch_funambulist, 
+            fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
+            fetch_thepaper, fetch_thepoint, fetch_verse
+        ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
+        
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: all_articles.extend(res)
