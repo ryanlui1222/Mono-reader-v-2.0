@@ -3,7 +3,7 @@ from supabase import create_client, Client
 from datetime import datetime, timedelta
 
 def clean_up_old_articles():
-    print("🧹 開始執行每月資料庫大掃除...")
+    print("🧹 開始執行每週資料庫分級大掃除...")
     
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -13,40 +13,59 @@ def clean_up_old_articles():
         
     supabase: Client = create_client(url, key)
     
-    # 定義保留條件
-    PROTECTED_SOURCES = ["The Point", "e-flux", "The Funambulist"]
-    six_months_ago = (datetime.utcnow() - timedelta(days=180)).isoformat()
-    
     try:
-        # 從資料庫抓取「候選名單」
-        res = supabase.table('articles') \
+        # ==========================================
+        # 🌟 級別一：快快訊息 (超過 7 天 且 未收藏 則清理)
+        # ==========================================
+        FAST_CLEANUP_SOURCES = ["WIRED.jp", "CINRA", "VERSE"]
+        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        
+        print("🔍 正在掃描過期的文化快訊 (7天門檻)...")
+        res_fast = supabase.table('articles') \
+            .select('Link, Source') \
+            .eq('is_bookmarked', False) \
+            .lt('SortDate', seven_days_ago) \
+            .execute()
+            
+        # 只要 Source 名稱包含快訊關鍵字，就列入刪除名單
+        links_to_delete = [
+            art['Link'] for art in res_fast.data 
+            if any(k in art['Source'] for k in FAST_CLEANUP_SOURCES)
+        ]
+
+        # ==========================================
+        # 🌟 級別二：常規深度評論 (超過 180 天 且 未收藏 則清理)
+        # ==========================================
+        PROTECTED_SOURCES = ["The Point", "e-flux", "The Funambulist"]
+        six_months_ago = (datetime.utcnow() - timedelta(days=180)).isoformat()
+        
+        print("🔍 正在掃描過期的深度長文 (180天門檻)...")
+        res_normal = supabase.table('articles') \
             .select('Link, Source') \
             .eq('is_bookmarked', False) \
             .lt('SortDate', six_months_ago) \
             .execute()
             
-        candidates = res.data
-        if not candidates:
-            print("✨ 目前沒有需要清理的舊文章。")
-            return
+        # 排除三大永久保留期刊，其餘常規長文列入刪除名單
+        normal_links = [
+            art['Link'] for art in res_normal.data 
+            if not any(k in art['Source'] for k in PROTECTED_SOURCES + FAST_CLEANUP_SOURCES)
+        ]
+        links_to_delete.extend(normal_links)
 
-        # 白名單過濾
-        links_to_delete = []
-        for article in candidates:
-            is_protected = any(keyword in article['Source'] for keyword in PROTECTED_SOURCES)
-            if not is_protected:
-                links_to_delete.append(article['Link'])
-
-        # 執行批次刪除
+        # ==========================================
+        # 🚀 執行批次精準抹除
+        # ==========================================
         if links_to_delete:
-            print(f"🗑️ 發現 {len(links_to_delete)} 篇過期文章，準備刪除...")
+            links_to_delete = list(set(links_to_delete)) # 去除重複項
+            print(f"🗑️ 總共發現 {len(links_to_delete)} 篇符合清理條件的文章，準備刪除...")
             chunk_size = 50
             for i in range(0, len(links_to_delete), chunk_size):
                 chunk = links_to_delete[i:i + chunk_size]
                 supabase.table('articles').delete().in_('Link', chunk).execute()
-            print("✅ 大掃除完成，成功釋放資料庫空間！")
+            print("✅ 大掃除完成，成功釋放雲端資料庫空間！")
         else:
-            print("✨ 候選文章皆為受保護的期刊，無需刪除。")
+            print("✨ 檢查完畢，目前資料庫內沒有任何過期文章。")
             
     except Exception as e:
         print(f"❌ 清理過程中發生錯誤: {e}")
