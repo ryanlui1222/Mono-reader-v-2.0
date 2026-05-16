@@ -4,6 +4,17 @@ from supabase import create_client, Client
 import math
 import re
 from datetime import datetime, timedelta
+import streamlit as st
+
+# 必須是第一個執行的 Streamlit 指令
+st.set_page_config(
+    page_title="MonoReader",  # 手機主畫面的預設名稱
+    page_icon="📚",               # 可以是 Emoji
+    # page_icon="https://yourdomain.com/my-icon.png", # 也可以是網路圖片的網址
+    layout="centered"
+)
+
+st.title("歡迎來到Mono Reader")
 
 # ==========================================
 # 1. 介面基礎設定與路徑定義
