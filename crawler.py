@@ -125,6 +125,64 @@ def fetch_thepoint():
     except Exception as e: print(f"The Point 錯誤: {e}")
     return articles
 
+def fetch_cinra():
+    """CINRA 專屬首頁極速爬蟲 (不進內頁即可獲取完整圖文)"""
+    articles = []
+    try:
+        soup = get_soup("https://www.cinra.net/")
+        if not soup: return articles
+        
+        seen = set()
+        # 尋找所有的文章卡片
+        cards = soup.find_all('div', class_=re.compile(r'p-articleCard'))
+        
+        for card in cards:
+            title_tag = card.find('p', class_='p-articleCard__title')
+            if not title_tag or not title_tag.find('a'): continue
+            
+            a_tag = title_tag.find('a')
+            title = a_tag.get_text(strip=True)
+            href = a_tag['href']
+            full_url = urllib.parse.urljoin("https://www.cinra.net/", href)
+            
+            # 防呆：排除求職廣告 (job.cinra.net) 與重複的文章
+            if 'job.cinra.net' in full_url or full_url in seen:
+                continue
+            seen.add(full_url)
+            
+            # 抓取前導摘要 (如果沒有 lead，就給預設文字)
+            lead_tag = card.find('p', class_='p-articleCard__lead')
+            summary = lead_tag.get_text(strip=True) if lead_tag else "（請點擊標題閱讀原文）"
+            
+            # 抓取作者 (移除前面的 "by ")
+            author_tag = card.find('span', class_='c-author__name')
+            author = author_tag.get_text(strip=True).replace('by ', '').strip() if author_tag else ""
+            
+            # 抓取時間 (例如 "2026.05.14" -> "2026-05-14"，方便後續處理)
+            date_tag = card.find('p', class_='p-articleCard__date')
+            published = date_tag.get_text(strip=True).replace('.', '-') if date_tag else "最新"
+            
+            # 抓取圖片
+            img_tag = card.find('img')
+            img_url = img_tag.get('data-src') or img_tag.get('src') if img_tag else None
+            
+            articles.append({
+                "Source": "CINRA",
+                "Title": title,
+                "Link": full_url,
+                "Published": published,
+                "Summary": format_summary(summary, author),
+                "Image": img_url
+            })
+            
+            # 只要最新的 15 篇
+            if len(articles) >= 15: break
+            
+    except Exception as e:
+        print(f"CINRA 錯誤: {e}")
+        
+    return articles
+
 def fetch_eflux():
     try:
         soup = get_soup("https://www.e-flux.com/journal/")
@@ -330,7 +388,6 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
-    # 1. 在 rss_sources 列表加入 WIRED.jp
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -340,18 +397,18 @@ def main():
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
-        # 🌟 加入 WIRED.jp (deep_fetch=True 讓它進內頁抓更完整的圖文)
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True) 
+        # ⚠️ 注意：已經把 CINRA 從這裡拿掉了！
     ]
-
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
         
-        # 2. 🌟 將 fetch_verse 加入自訂網頁爬蟲名單中
+        # 將 fetch_cinra 加入執行清單
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
-            fetch_thepaper, fetch_thepoint, fetch_verse
+            fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra
         ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
         
