@@ -17,7 +17,7 @@ def clean_up_old_articles():
         # ==========================================
         # 🌟 級別一：快快訊息 (超過 7 天 且 未收藏 則清理)
         # ==========================================
-        FAST_CLEANUP_SOURCES = ["WIRED.jp", "CINRA", "VERSE"]
+        FAST_CLEANUP_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化"]
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
         
         print("🔍 正在掃描過期的文化快訊 (7天門檻)...")
