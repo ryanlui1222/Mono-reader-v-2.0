@@ -125,6 +125,51 @@ def fetch_thepoint():
     except Exception as e: print(f"The Point 錯誤: {e}")
     return articles
 
+def fetch_jiemian():
+    """界面文化 (Jiemian Culture) 手機版網頁爬蟲"""
+    articles = []
+    try:
+        # 使用手機版 User-Agent 確保獲取乾淨的行動版 HTML 結構
+        iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        soup = get_soup("https://m.jiemian.com/lists/130_1.html", custom_headers=iphone_headers)
+        if not soup: return articles
+        
+        items = soup.find_all('div', class_='news-view')
+        for item in items[:15]:
+            title_tag = item.select_one('.news-header h3 a')
+            if not title_tag: continue
+            
+            title = title_tag.get_text(strip=True)
+            link = title_tag['href']
+            # 若網址是相對路徑，補上網域
+            if link.startswith('/'): link = f"https://m.jiemian.com{link}"
+            
+            # 抓取配圖
+            img_tag = item.select_one('.news-img img')
+            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            
+            # 抓取標籤(如: 文艺圈)與發佈時間
+            footer_spans = item.select('.news-footer p span')
+            tag = footer_spans[0].get_text(strip=True) if len(footer_spans) > 0 else ""
+            pub_date = footer_spans[1].get_text(strip=True) if len(footer_spans) > 1 else "最新"
+            
+            # 由於列表頁無詳細摘要，我們利用其精準的 Tag 當作導讀標籤
+            summary = f"**🏷️ 探討領域：** {tag}\n\n（請點擊標題閱讀原文）" if tag else "（請點擊標題閱讀原文）"
+            
+            articles.append({
+                "Source": "界面文化",
+                "Title": title,
+                "Link": link,
+                "Published": pub_date,
+                "Summary": format_summary(summary),
+                "Image": img_url
+            })
+            
+    except Exception as e: 
+        print(f"界面文化 錯誤: {e}")
+        
+    return articles
+
 def fetch_cinra():
     """CINRA 專屬首頁極速爬蟲 (不進內頁即可獲取完整圖文)"""
     articles = []
@@ -408,7 +453,8 @@ def main():
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
-            fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra
+            fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
+            fetch_jiemian # <--- 新增在這裡
         ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
         
