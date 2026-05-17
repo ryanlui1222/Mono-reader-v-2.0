@@ -40,11 +40,12 @@ SOURCE_URLS = {
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
     "VERSE": "https://www.verse.com.tw/",
-    "界面文化": "https://www.jiemian.com/lists/130.html"
+    "界面文化": "https://www.jiemian.com/lists/130.html",
+    "Radii": "https://radii.co/"
 }
 
 # 🌟 排他過濾名單（僅包含快訊媒體）
-FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化"]
+FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii"]
 
 def get_source_link(source_name):
     base_name = source_name.split(" (")[0]
