@@ -4,6 +4,7 @@ import libsql_client
 import math
 import re
 import requests
+import cloudscraper  # 🌟 新增：用於突破外部網站的手動匯入防火牆
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -37,7 +38,7 @@ SOURCE_URLS = {
     "The Funambulist": "https://thefunambulist.net/",
     "BIE別的": "https://www.biede.com/",
     "Sabukaru": "https://sabukaru.online/articles", 
-    "TripleAmpersand": "https://tripleampersand.org/", # 🌟 新增：永久典藏深度長文
+    "TripleAmpersand": "https://tripleampersand.org/", # 🌟 永久典藏深度長文
     
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
@@ -139,9 +140,11 @@ def toggle_bookmark_db(link, current_state):
 # 🌟 萬能外部文章解析器 (Universal Scraper)
 # ==========================================
 def fetch_external_article(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    # 🌟 升級：使用 cloudscraper 取代標準 requests，突破網站防火牆
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = scraper.get(url, timeout=15)
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
         
@@ -172,9 +175,10 @@ def fetch_external_article(url):
             "Summary": final_summary,
             "Image": img_url,
             "SortDate": datetime.utcnow().isoformat(),
-            "is_bookmarked": 1 # 直接賦值為 1 (True)
+            "is_bookmarked": 1 # SQLite 格式的 True
         }
     except Exception as e:
+        print(f"解析外部文章失敗: {e}")
         return None
 
 # ==========================================
@@ -221,7 +225,6 @@ selected_source = "全部來源總覽"
 if view_mode == "🗄️ 分類存檔":
     st.sidebar.subheader("選擇訂閱來源")
     
-    # 🌟 已將 TripleAmpersand 加入獨立資料夾白名單
     FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
     main_options = []
     for src_key in sorted(SOURCE_URLS.keys()):
@@ -341,4 +344,4 @@ else:
                 st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.0 (Powered by Turso)")
+st.sidebar.caption("Monoreader Cloud v3.1 (Powered by Turso & Cloudscraper)")
