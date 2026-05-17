@@ -442,7 +442,8 @@ def main():
         ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
-        ("https://wired.jp/feed/rss", "WIRED.jp", 15, True) 
+        ("https://wired.jp/feed/rss", "WIRED.jp", 15, True) ,
+        ("https://radii.co/feed", Radii, 15, True)
         # ⚠️ 注意：已經把 CINRA 從這裡拿掉了！
     ]
     
