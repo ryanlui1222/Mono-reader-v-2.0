@@ -36,7 +36,7 @@ def clean_up_old_articles():
         # ==========================================
         # 🌟 級別二：常規深度評論 (超過 180 天 且 未收藏 則清理)
         # ==========================================
-        PROTECTED_SOURCES = ["The Point", "e-flux", "The Funambulist"]
+        PROTECTED_SOURCES = ["The Point", "e-flux", "The Funambulist", "TripleAmpersand"]
         six_months_ago = (datetime.utcnow() - timedelta(days=180)).isoformat()
         
         print("🔍 正在掃描過期的深度長文 (180天門檻)...")
