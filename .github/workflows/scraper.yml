@@ -24,12 +24,12 @@ jobs:
         pip install -r requirements.txt
 
     - name: 執行爬蟲腳本並同步雲端
-      # 🌟 關鍵修正：使用 env 區塊將鑰匙從 GitHub 保險箱傳遞給 Python 程式
       env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
         python crawler.py
 
     # 🌟 結構優化：已移除 git-auto-commit-action 
-    # 因為我們現在直接同步到 Supabase，不再需要把 json 檔推回 GitHub 了
+    # 因為我們現在直接同步到 Turso，不再需要把 json 檔推回 GitHub 了
