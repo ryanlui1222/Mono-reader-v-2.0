@@ -21,11 +21,12 @@ jobs:
     - name: 安裝依賴套件
       run: |
         python -m pip install --upgrade pip
-        pip install supabase
+        pip install libsql-client  # 🌟 修正：改為安裝 Turso 的套件
 
     - name: 執行資料庫大掃除
       env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
         python maintenance.py
