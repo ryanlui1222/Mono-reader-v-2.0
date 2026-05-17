@@ -36,15 +36,17 @@ SOURCE_URLS = {
     "The Point": "https://thepointmag.com/magazine/",
     "The Funambulist": "https://thefunambulist.net/",
     "BIE別的": "https://www.biede.com/",
+    "Sabukaru": "https://sabukaru.online/articles", # 🌟 新增：會自動進入最新評論
+    
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
     "VERSE": "https://www.verse.com.tw/",
     "界面文化": "https://www.jiemian.com/lists/130.html",
-    "Radii": "https://radii.co/"
+    "Radii": "https://radii.co/" # 🌟 新增：會進入文化快訊
 }
 
-# 🌟 排他過濾名單（僅包含快訊媒體）
+# 🌟 排他過濾名單（僅包含快訊媒體，Sabukaru 不在此列）
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii"]
 
 def get_source_link(source_name):
@@ -117,37 +119,30 @@ def toggle_bookmark_db(link, current_state):
 # 🌟 萬能外部文章解析器 (Universal Scraper)
 # ==========================================
 def fetch_external_article(url):
-    """解析任何外部連結的 Open Graph 資料，自動生成卡片格式"""
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        res.encoding = res.apparent_encoding # 修正可能的中文亂碼
+        res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 1. 抓標題 (優先抓 og:title，沒有就抓 <title>)
         og_title = soup.find('meta', property='og:title')
         title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未知標題')
         
-        # 2. 抓圖片
         og_img = soup.find('meta', property='og:image')
         img_url = og_img['content'] if og_img and og_img.get('content') else None
         
-        # 3. 抓作者
         author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
         author = author_meta['content'] if author_meta and author_meta.get('content') else ""
         
-        # 4. 抓摘要 (優先 og:description)
         og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
         summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
         
-        # 若沒有 description，去內文抓前幾個段落
         if not summary or len(summary) < 20:
             paragraphs = [p.get_text(strip=True) for p in soup.find_all('p') if len(p.get_text(strip=True)) > 30]
             summary = " ".join(paragraphs[:3]) if paragraphs else "（無法自動擷取摘要文字）"
             
-        # 組合摘要格式
         final_summary = f"**👤 著者：** {author}\n\n{summary}" if author else summary
-        if len(final_summary) > 400: final_summary = final_summary[:400] + "..." # 限制長度
+        if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
         
         return {
             "Source": "🌐 外部手動匯入",
@@ -157,7 +152,7 @@ def fetch_external_article(url):
             "Summary": final_summary,
             "Image": img_url,
             "SortDate": datetime.utcnow().isoformat(),
-            "is_bookmarked": True # 🌟 強制設定為已收藏
+            "is_bookmarked": True
         }
     except Exception as e:
         return None
@@ -177,7 +172,6 @@ view_mode = st.sidebar.radio(
 )
 st.sidebar.markdown("---")
 
-# 🌟 新增：外部文章匯入區塊
 with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
     external_url = st.text_input("貼上文章網址：", placeholder="https://...")
     if st.button("解析並加入收藏庫", use_container_width=True):
@@ -185,10 +179,9 @@ with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
             with st.spinner("正在解析網頁內容..."):
                 art_data = fetch_external_article(external_url)
                 if art_data:
-                    # 寫入資料庫
                     try:
                         supabase.table('articles').upsert([art_data], on_conflict='Link').execute()
-                        st.cache_data.clear() # 刷新快取
+                        st.cache_data.clear()
                         st.success("✅ 已成功解析並加入我的收藏庫！")
                     except Exception as e:
                         st.error("寫入資料庫時發生錯誤。")
@@ -212,7 +205,6 @@ if view_mode == "🗄️ 分類存檔":
         else:
             main_options.append(src_key)
             
-    # 將手動匯入也加入分類存檔的選單中
     main_options.append("🌐 外部手動匯入")
             
     selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options, on_change=reset_page)
@@ -255,10 +247,10 @@ else:
         st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
     elif view_mode == "✍️ 最新評論":
         st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 BIE別的）。")
+        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 Sabukaru 與 BIE別的）。")
     elif view_mode == "⚡ 文化快訊":
         st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化 每日高頻更新的即時消息。")
+        st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化、Radii 每日高頻更新的即時消息。")
     elif view_mode == "🔖 我的收藏庫":
         st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
     else:
