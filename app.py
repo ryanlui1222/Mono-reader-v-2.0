@@ -3,6 +3,8 @@ import pandas as pd
 from supabase import create_client, Client
 import math
 import re
+import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 # ==========================================
@@ -38,10 +40,10 @@ SOURCE_URLS = {
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
     "VERSE": "https://www.verse.com.tw/",
-    "界面文化": "https://www.jiemian.com/lists/130.html" # <--- 新增在這裡
+    "界面文化": "https://www.jiemian.com/lists/130.html"
 }
 
-# 🌟 排他過濾名單（同步加入界面文化）
+# 🌟 排他過濾名單（僅包含快訊媒體）
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化"]
 
 def get_source_link(source_name):
@@ -73,18 +75,14 @@ supabase = init_connection()
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     query = supabase.table('articles').select("*")
     
-    # 🌟 邏輯修正：區分「有搜尋」與「無搜尋」的狀態
     if search_query:
-        # 如果使用者正在搜尋，解除 24 小時限制，進行全域模糊比對
         query = query.or_(f'Title.ilike.%{search_query}%,Summary.ilike.%{search_query}%')
         if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
             query = query.eq("Source", source_filter)
         elif view_mode == "🔖 我的收藏庫":
             query = query.eq("is_bookmarked", True)
     else:
-        # 正常的瀏覽模式
         if view_mode in ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊"]:
-            # 🌟 加上 24 小時過濾限制
             time_threshold = (datetime.utcnow() - timedelta(hours=24)).isoformat()
             query = query.gte("SortDate", time_threshold)
         elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
@@ -95,10 +93,8 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     res = query.order("SortDate", desc=True).limit(500).execute()
     df = pd.DataFrame(res.data)
     
-    if df.empty:
-        return df
+    if df.empty: return df
         
-    # 🌟 智慧流量分流邏輯 (即使在搜尋狀態下也保留分類特性)
     if view_mode == "✍️ 最新評論":
         mask = df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)
         df = df[~mask]
@@ -111,10 +107,59 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 def toggle_bookmark_db(link, current_state):
     try:
         supabase.table('articles').update({"is_bookmarked": not current_state}).eq("Link", link).execute()
-        st.cache_data.clear() # 強制刷新快取
+        st.cache_data.clear()
         st.toast("書籤狀態已更新！")
     except Exception as e:
         st.error(f"操作失敗: {e}")
+
+# ==========================================
+# 🌟 萬能外部文章解析器 (Universal Scraper)
+# ==========================================
+def fetch_external_article(url):
+    """解析任何外部連結的 Open Graph 資料，自動生成卡片格式"""
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        res.encoding = res.apparent_encoding # 修正可能的中文亂碼
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. 抓標題 (優先抓 og:title，沒有就抓 <title>)
+        og_title = soup.find('meta', property='og:title')
+        title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未知標題')
+        
+        # 2. 抓圖片
+        og_img = soup.find('meta', property='og:image')
+        img_url = og_img['content'] if og_img and og_img.get('content') else None
+        
+        # 3. 抓作者
+        author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
+        author = author_meta['content'] if author_meta and author_meta.get('content') else ""
+        
+        # 4. 抓摘要 (優先 og:description)
+        og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
+        summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
+        
+        # 若沒有 description，去內文抓前幾個段落
+        if not summary or len(summary) < 20:
+            paragraphs = [p.get_text(strip=True) for p in soup.find_all('p') if len(p.get_text(strip=True)) > 30]
+            summary = " ".join(paragraphs[:3]) if paragraphs else "（無法自動擷取摘要文字）"
+            
+        # 組合摘要格式
+        final_summary = f"**👤 著者：** {author}\n\n{summary}" if author else summary
+        if len(final_summary) > 400: final_summary = final_summary[:400] + "..." # 限制長度
+        
+        return {
+            "Source": "🌐 外部手動匯入",
+            "Title": title.strip(),
+            "Link": url,
+            "Published": "手動收藏",
+            "Summary": final_summary,
+            "Image": img_url,
+            "SortDate": datetime.utcnow().isoformat(),
+            "is_bookmarked": True # 🌟 強制設定為已收藏
+        }
+    except Exception as e:
+        return None
 
 # ==========================================
 # 4. 介面渲染：側邊欄 (Sidebar)
@@ -131,6 +176,28 @@ view_mode = st.sidebar.radio(
 )
 st.sidebar.markdown("---")
 
+# 🌟 新增：外部文章匯入區塊
+with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
+    external_url = st.text_input("貼上文章網址：", placeholder="https://...")
+    if st.button("解析並加入收藏庫", use_container_width=True):
+        if external_url.startswith("http"):
+            with st.spinner("正在解析網頁內容..."):
+                art_data = fetch_external_article(external_url)
+                if art_data:
+                    # 寫入資料庫
+                    try:
+                        supabase.table('articles').upsert([art_data], on_conflict='Link').execute()
+                        st.cache_data.clear() # 刷新快取
+                        st.success("✅ 已成功解析並加入我的收藏庫！")
+                    except Exception as e:
+                        st.error("寫入資料庫時發生錯誤。")
+                else:
+                    st.error("❌ 無法解析該網址，可能是對方網站阻擋了機器人訪問。")
+        else:
+            st.warning("⚠️ 請輸入包含 http 的完整網址。")
+
+st.sidebar.markdown("---")
+
 selected_source = "全部來源總覽"
 if view_mode == "🗄️ 分類存檔":
     st.sidebar.subheader("選擇訂閱來源")
@@ -143,6 +210,9 @@ if view_mode == "🗄️ 分類存檔":
             if folder_name not in main_options: main_options.append(folder_name)
         else:
             main_options.append(src_key)
+            
+    # 將手動匯入也加入分類存檔的選單中
+    main_options.append("🌐 外部手動匯入")
             
     selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options, on_change=reset_page)
 
@@ -179,7 +249,6 @@ if view_mode == "⏳ 未來典藏":
 else:
     df = fetch_data(view_mode, selected_source, search_input)
 
-    # 🌟 標題修正，標示「過去 24 小時內」
     if view_mode == "✨ 全部來源總覽":
         st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
         st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
@@ -188,13 +257,14 @@ else:
         st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 BIE別的）。")
     elif view_mode == "⚡ 文化快訊":
         st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("聚合 WIRED.jp、CINRA、VERSE 每日高頻更新的潮流、展演與當代文化即時消息。")
+        st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化 每日高頻更新的即時消息。")
     elif view_mode == "🔖 我的收藏庫":
         st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
     else:
         if selected_source != "全部來源總覽":
             st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
-            st.markdown(f"🔗 **[前往該雜誌官網閱讀]({get_source_link(selected_source)})**")
+            link = get_source_link(selected_source)
+            if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
         else:
             st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
 
@@ -251,4 +321,4 @@ else:
                 st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v2.2 (Multi-Stream Optimized)")
+st.sidebar.caption("Monoreader Cloud v2.3 (Universal Clipper)")
