@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from supabase import create_client, Client
+import libsql_client
 import math
 import re
 import requests
@@ -36,17 +36,18 @@ SOURCE_URLS = {
     "The Point": "https://thepointmag.com/magazine/",
     "The Funambulist": "https://thefunambulist.net/",
     "BIE別的": "https://www.biede.com/",
-    "Sabukaru": "https://sabukaru.online/articles", # 🌟 新增：會自動進入最新評論
-    "TripleAmpersand": "https://tripleampersand.org/",
+    "Sabukaru": "https://sabukaru.online/articles", 
+    "TripleAmpersand": "https://tripleampersand.org/", # 🌟 新增：永久典藏深度長文
+    
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
     "VERSE": "https://www.verse.com.tw/",
     "界面文化": "https://www.jiemian.com/lists/130.html",
-    "Radii": "https://radii.co/" # 🌟 新增：會進入文化快訊
+    "Radii": "https://radii.co/"
 }
 
-# 🌟 排他過濾名單（僅包含快訊媒體，Sabukaru 不在此列）
+# 🌟 排他過濾名單
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii"]
 
 def get_source_link(source_name):
@@ -66,38 +67,55 @@ def update_page():
     st.session_state.current_page = st.session_state.page_selector
 
 # ==========================================
-# 3. 雲端資料庫連線與資料操作
+# 3. 雲端資料庫連線與資料操作 (Turso SQLite)
 # ==========================================
 @st.cache_resource
 def init_connection():
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    return libsql_client.create_client_sync(
+        url=st.secrets["TURSO_DATABASE_URL"],
+        auth_token=st.secrets["TURSO_AUTH_TOKEN"]
+    )
 
-supabase = init_connection()
+db = init_connection()
 
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
-    query = supabase.table('articles').select("*")
+    sql = "SELECT * FROM articles WHERE 1=1"
+    args = []
     
+    # 🔍 全文搜尋模式
     if search_query:
-        query = query.or_(f'Title.ilike.%{search_query}%,Summary.ilike.%{search_query}%')
+        sql += " AND (Title LIKE ? OR Summary LIKE ?)"
+        args.extend([f"%{search_query}%", f"%{search_query}%"])
         if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
-            query = query.eq("Source", source_filter)
+            sql += " AND Source = ?"
+            args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫":
-            query = query.eq("is_bookmarked", True)
+            sql += " AND is_bookmarked = 1"
+            
+    # 🕒 時間與過濾模式
     else:
         if view_mode in ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊"]:
             time_threshold = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-            query = query.gte("SortDate", time_threshold)
+            sql += " AND SortDate >= ?"
+            args.append(time_threshold)
         elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
-            query = query.eq("Source", source_filter)
+            sql += " AND Source = ?"
+            args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫":
-            query = query.eq("is_bookmarked", True)
+            sql += " AND is_bookmarked = 1"
         
-    res = query.order("SortDate", desc=True).limit(500).execute()
-    df = pd.DataFrame(res.data)
+    sql += " ORDER BY SortDate DESC LIMIT 500"
     
-    if df.empty: return df
+    # 執行查詢並轉換為 DataFrame
+    res = db.execute(sql, args)
+    
+    if not res.rows: 
+        return pd.DataFrame()
         
+    df = pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows])
+    
+    # 分流過濾邏輯
     if view_mode == "✍️ 最新評論":
         mask = df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)
         df = df[~mask]
@@ -109,7 +127,9 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 
 def toggle_bookmark_db(link, current_state):
     try:
-        supabase.table('articles').update({"is_bookmarked": not current_state}).eq("Link", link).execute()
+        # SQLite 沒有布林值，我們使用整數 0 和 1
+        new_state = 0 if current_state else 1
+        db.execute("UPDATE articles SET is_bookmarked = ? WHERE Link = ?", [new_state, link])
         st.cache_data.clear()
         st.toast("書籤狀態已更新！")
     except Exception as e:
@@ -152,7 +172,7 @@ def fetch_external_article(url):
             "Summary": final_summary,
             "Image": img_url,
             "SortDate": datetime.utcnow().isoformat(),
-            "is_bookmarked": True
+            "is_bookmarked": 1 # 直接賦值為 1 (True)
         }
     except Exception as e:
         return None
@@ -180,11 +200,16 @@ with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
                 art_data = fetch_external_article(external_url)
                 if art_data:
                     try:
-                        supabase.table('articles').upsert([art_data], on_conflict='Link').execute()
+                        sql = """
+                        INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                        ON CONFLICT(Link) DO UPDATE SET Title=excluded.Title, Summary=excluded.Summary, Image=excluded.Image;
+                        """
+                        db.execute(sql, [art_data['Source'], art_data['Title'], art_data['Link'], art_data['Published'], art_data['Summary'], art_data['Image'], art_data['SortDate']])
                         st.cache_data.clear()
                         st.success("✅ 已成功解析並加入我的收藏庫！")
                     except Exception as e:
-                        st.error("寫入資料庫時發生錯誤。")
+                        st.error(f"寫入資料庫時發生錯誤: {e}")
                 else:
                     st.error("❌ 無法解析該網址，可能是對方網站阻擋了機器人訪問。")
         else:
@@ -195,8 +220,8 @@ st.sidebar.markdown("---")
 selected_source = "全部來源總覽"
 if view_mode == "🗄️ 分類存檔":
     st.sidebar.subheader("選擇訂閱來源")
-        
-    # 🌟 將 TripleAmpersand 加入獨立資料夾白名單
+    
+    # 🌟 已將 TripleAmpersand 加入獨立資料夾白名單
     FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
     main_options = []
     for src_key in sorted(SOURCE_URLS.keys()):
@@ -212,8 +237,8 @@ if view_mode == "🗄️ 分類存檔":
 
     if selected_main.startswith("📁 "):
         base_name = selected_main.replace("📁 ", "")
-        res = supabase.table('articles').select('Source').ilike('Source', f'%{base_name}%').execute()
-        raw_sources = list(set([r['Source'] for r in res.data]))
+        res = db.execute("SELECT DISTINCT Source FROM articles WHERE Source LIKE ?", [f"%{base_name}%"])
+        raw_sources = [row[0] for row in res.rows]
         
         def extract_issue_number(source_str):
             match = re.search(r'\d+', source_str)
@@ -248,7 +273,7 @@ else:
         st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
     elif view_mode == "✍️ 最新評論":
         st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討（包含 Sabukaru 與 BIE別的）。")
+        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討。")
     elif view_mode == "⚡ 文化快訊":
         st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
         st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化、Radii 每日高頻更新的即時消息。")
@@ -266,7 +291,7 @@ else:
 
     if df.empty:
         if search_input: st.info("找不到符合關鍵字的文章。")
-        else: st.info("過去 24 小時內暫無新文章，請待下次爬蟲執行或查看分類存檔。")
+        else: st.info("暫無符合條件的新文章。")
     else:
         PER_PAGE = 20
         total_pages = math.ceil(len(df) / PER_PAGE)
@@ -286,11 +311,12 @@ else:
                     sort_date = row.get('SortDate')
                     
                     safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
-                    display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan"]) else raw_pub
+                    display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
                     st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
                 
                 with col_btn:
-                    is_bk = bool(row.get('is_bookmarked', False))
+                    # 在 SQLite 中，1 代表 True，0 代表 False
+                    is_bk = bool(row.get('is_bookmarked', 0))
                     st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"btn_{row['Link']}", 
                               on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
                 
@@ -315,4 +341,4 @@ else:
                 st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v2.3 (Universal Clipper)")
+st.sidebar.caption("Monoreader Cloud v3.0 (Powered by Turso)")
