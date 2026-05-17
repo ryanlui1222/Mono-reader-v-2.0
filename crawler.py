@@ -572,17 +572,20 @@ def main():
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # 1. 排程 RSS 來源
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
         
+        # 2. 排程客製化爬蟲 (🌟 已包含 fetch_tripleampersand)
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand  # 🌟 新增：TripleAmpersand 輕量爬蟲
+            fetch_tripleampersand
         ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
         
+        # 3. 收集所有結果
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: all_articles.extend(res)
@@ -593,40 +596,46 @@ def main():
             print("❌ 找不到 Turso 環境變數，跳過同步。")
             return
 
-        # 🔍 1. 預先查詢資料庫中已存在的文章時間
-        links_to_check = [a['Link'] for a in all_articles]
-        existing_dates = {}
         try:
-            placeholders = ','.join(['?'] * len(links_to_check))
-            res = db.execute(f"SELECT Link, SortDate FROM articles WHERE Link IN ({placeholders})", links_to_check)
-            existing_dates = {row[0]: row[1] for row in res.rows}
-        except Exception as e:
-            print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
+            # 🔍 1. 預先查詢資料庫中已存在的文章時間，以保留原始抓取時間
+            links_to_check = [a['Link'] for a in all_articles]
+            existing_dates = {}
+            try:
+                # 分批查詢避免 SQL 參數上限
+                chunk_size = 50
+                for i in range(0, len(links_to_check), chunk_size):
+                    chunk = links_to_check[i:i + chunk_size]
+                    placeholders = ','.join(['?'] * len(chunk))
+                    res = db.execute(f"SELECT Link, SortDate FROM articles WHERE Link IN ({placeholders})", chunk)
+                    for row in res.rows:
+                        existing_dates[row[0]] = row[1]
+            except Exception as e:
+                print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
 
-        cleaned_articles = []
-        for a in all_articles:
-            article_data = a.copy()
-            has_valid_date = False
-            
-            if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊"]):
-                try:
-                    dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
-                    if not pd.isna(dt):
-                        article_data['Published'] = dt.strftime('%Y-%m-%d')
-                        article_data['SortDate'] = dt.isoformat()
-                        has_valid_date = True
-                except: pass
-            
-            if not has_valid_date:
-                if article_data['Link'] in existing_dates:
-                    article_data['SortDate'] = existing_dates[article_data['Link']]
-                else:
-                    article_data['SortDate'] = datetime.utcnow().isoformat()
-                    
-            cleaned_articles.append(article_data)
+            # 清洗與標準化時間資料
+            cleaned_articles = []
+            for a in all_articles:
+                article_data = a.copy()
+                has_valid_date = False
+                
+                if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊", "歷史歸檔"]):
+                    try:
+                        dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
+                        if not pd.isna(dt):
+                            article_data['Published'] = dt.strftime('%Y-%m-%d')
+                            article_data['SortDate'] = dt.isoformat()
+                            has_valid_date = True
+                    except: pass
+                
+                if not has_valid_date:
+                    if article_data['Link'] in existing_dates:
+                        article_data['SortDate'] = existing_dates[article_data['Link']]
+                    else:
+                        article_data['SortDate'] = datetime.utcnow().isoformat()
+                        
+                cleaned_articles.append(article_data)
 
-        # 🚀 2. 執行同步 (使用 100% 穩定的單筆寫入防爆機制)
-        try:
+            # 🚀 2. 執行同步 (🌟 100% 穩定的單筆寫入防爆機制)
             sql = """
             INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0)
@@ -658,6 +667,13 @@ def main():
             
         except Exception as e:
             print(f"❌ 同步過程發生嚴重錯誤: {e}")
+            
+        finally:
+            # 🌟 關鍵修復：強制斷開連線，釋放 aiohttp 資源並允許 GitHub Actions 順利結束程式
+            if db:
+                db.close()
+                print("🔌 資料庫連線已安全關閉。")
+
     else:
         print("❌ 未抓取到任何資料。")
 
