@@ -37,7 +37,7 @@ SOURCE_URLS = {
     "The Funambulist": "https://thefunambulist.net/",
     "BIE別的": "https://www.biede.com/",
     "Sabukaru": "https://sabukaru.online/articles", # 🌟 新增：會自動進入最新評論
-    
+    "TripleAmpersand": "https://tripleampersand.org/",
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
@@ -195,8 +195,9 @@ st.sidebar.markdown("---")
 selected_source = "全部來源總覽"
 if view_mode == "🗄️ 分類存檔":
     st.sidebar.subheader("選擇訂閱來源")
-    
-    FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News"]
+        
+    # 🌟 將 TripleAmpersand 加入獨立資料夾白名單
+    FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
     main_options = []
     for src_key in sorted(SOURCE_URLS.keys()):
         if any(k in src_key for k in FOLDER_KEYWORDS):
