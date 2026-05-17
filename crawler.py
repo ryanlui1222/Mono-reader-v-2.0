@@ -98,6 +98,51 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     except Exception as e: print(f"{source_name} 錯誤: {e}")
     return articles
 
+def fetch_tripleampersand():
+    """TripleAmpersand 常規爬蟲 (只掃描首頁最新文章，極輕量)"""
+    articles = []
+    try:
+        soup = get_soup("https://tripleampersand.org/")
+        if not soup: return articles
+        
+        seen = set()
+        # 只抓取主要文章區塊，限制前 15 篇
+        posts = soup.find_all('div', class_='index-post')
+        
+        for post in posts[:15]:
+            title_tag = post.find('h2').find('a') if post.find('h2') else None
+            if not title_tag: continue
+            
+            title = title_tag.get_text(strip=True)
+            link = title_tag['href']
+            
+            if link in seen: continue
+            seen.add(link)
+            
+            author_tag = post.select_one('.authors li a')
+            author = author_tag.get_text(strip=True) if author_tag else ""
+            
+            img_tag = post.select_one('.post-img img')
+            img_url = img_tag['src'] if img_tag else None
+            
+            text_div = post.find('div', class_='text')
+            summary = text_div.get_text(" ", strip=True) if text_div else ""
+            summary = summary.replace("Read More »", "").strip()
+            
+            articles.append({
+                "Source": "TripleAmpersand",
+                "Title": title,
+                "Link": link,
+                "Published": "最新",
+                "Summary": format_summary(summary, author),
+                "Image": img_url
+            })
+            
+    except Exception as e:
+        print(f"TripleAmpersand 錯誤: {e}")
+        
+    return articles
+
 def fetch_thepoint():
     articles = []
     try:
@@ -571,12 +616,13 @@ def main():
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
-        
+        # 在 crawler.py 的 main() 函數中，找到 custom_scrapers 並加入 fetch_tripleampersand
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
-            fetch_jiemian, fetch_sabukaru, fetch_biede
+            fetch_jiemian, fetch_sabukaru, fetch_biede, 
+            fetch_tripleampersand # 🌟 新增這一行
         ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
         
