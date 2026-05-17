@@ -37,7 +37,7 @@ SOURCE_URLS = {
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/",
-    "VERSE": "https://www.verse.com.tw/"
+    "VERSE": "https://www.verse.com.tw/",
     "界面文化": "https://www.jiemian.com/lists/130.html" # <--- 新增在這裡
 }
 
