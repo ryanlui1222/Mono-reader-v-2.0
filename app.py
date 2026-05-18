@@ -325,8 +325,9 @@ else:
         for _, row in df.iloc[start_idx:end_idx].iterrows():
             with st.container():
                 st.markdown(f"#### [{row['Title']}]({row['Link']})")
+# 將版面切分為 3 個欄位，讓按鈕獨立且緊湊
+                col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
                 
-                col_meta, col_btn = st.columns([4, 2])
                 with col_meta:
                     raw_pub = str(row['Published'])
                     sort_date = row.get('SortDate')
@@ -335,17 +336,22 @@ else:
                     display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
                     st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
                 
-                # 🌟 整合：收藏與手動刪除雙按鈕並排
-                with col_btn:
-                    is_bk = bool(row.get('is_bookmarked', 0))
-                    btn_col1, btn_col2 = st.columns(2)
-                    with btn_col1:
-                        st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
-                                  on_click=toggle_bookmark_db, args=(row['Link'], is_bk), use_container_width=True)
-                    with btn_col2:
-                        st.button("🗑️ 刪除", key=f"del_{row['Link']}", 
-                                  on_click=delete_article_db, args=(row['Link'],), use_container_width=True)
+                # 🌟 整合：縮小按鈕並加入「刪除確認」的防呆機制
+                is_bk = bool(row.get('is_bookmarked', 0))
                 
+                with col_btn1:
+                    # 移除了 use_container_width=True，按鈕會自然縮小
+                    st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
+                              on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
+                              
+                with col_btn2:
+                    # 使用 st.popover 製作優雅的確認彈出視窗
+                    with st.popover("🗑️ 刪除"):
+                        st.markdown("⚠️ **確認刪除嗎？**")
+                        # 確認按鈕設定為 type="primary" (紅色醒目提示)
+                        st.button("✅ 確定", key=f"del_{row['Link']}", 
+                                  on_click=delete_article_db, args=(row['Link'],), 
+                                  type="primary", use_container_width=True)
                 if row['Image'] and str(row['Image']).startswith('http'):
                     img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
                     st.markdown(img_html, unsafe_allow_html=True)
