@@ -65,7 +65,9 @@ def reset_page():
     st.session_state.current_page = 1
 
 def update_page():
-    st.session_state.current_page = st.session_state.page_selector
+    # 🌟 新增安全檢查：確保 page_selector 存在於記憶體中才執行更新
+    if "page_selector" in st.session_state:
+        st.session_state.current_page = st.session_state.page_selector
 
 # ==========================================
 # 3. 雲端資料庫連線與資料操作 (Turso SQLite)
