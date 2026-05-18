@@ -4,7 +4,7 @@ import libsql_client
 import math
 import re
 import requests
-import cloudscraper  # 🌟 新增：用於突破外部網站的手動匯入防火牆
+import cloudscraper  # 用於突破外部網站的手動匯入防火牆
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -38,7 +38,7 @@ SOURCE_URLS = {
     "The Funambulist": "https://thefunambulist.net/",
     "BIE別的": "https://www.biede.com/",
     "Sabukaru": "https://sabukaru.online/articles", 
-    "TripleAmpersand": "https://tripleampersand.org/", # 🌟 永久典藏深度長文
+    "TripleAmpersand": "https://tripleampersand.org/", 
     
     # --- ⚡ 文化快訊 / 消息 ---
     "WIRED.jp": "https://wired.jp/",
@@ -108,7 +108,6 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
         
     sql += " ORDER BY SortDate DESC LIMIT 500"
     
-    # 執行查詢並轉換為 DataFrame
     res = db.execute(sql, args)
     
     if not res.rows: 
@@ -128,7 +127,6 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 
 def toggle_bookmark_db(link, current_state):
     try:
-        # SQLite 沒有布林值，我們使用整數 0 和 1
         new_state = 0 if current_state else 1
         db.execute("UPDATE articles SET is_bookmarked = ? WHERE Link = ?", [new_state, link])
         st.cache_data.clear()
@@ -136,11 +134,19 @@ def toggle_bookmark_db(link, current_state):
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
+# 🌟 新增：手動刪除文章功能
+def delete_article_db(link):
+    try:
+        db.execute("DELETE FROM articles WHERE Link = ?", [link])
+        st.cache_data.clear()
+        st.toast("🗑️ 文章已成功從雲端抹除！")
+    except Exception as e:
+        st.error(f"刪除失敗: {e}")
+
 # ==========================================
 # 🌟 萬能外部文章解析器 (Universal Scraper)
 # ==========================================
 def fetch_external_article(url):
-    # 🌟 升級：使用 cloudscraper 取代標準 requests，突破網站防火牆
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     
     try:
@@ -175,7 +181,7 @@ def fetch_external_article(url):
             "Summary": final_summary,
             "Image": img_url,
             "SortDate": datetime.utcnow().isoformat(),
-            "is_bookmarked": 1 # SQLite 格式的 True
+            "is_bookmarked": 1
         }
     except Exception as e:
         print(f"解析外部文章失敗: {e}")
@@ -258,12 +264,24 @@ if view_mode == "🗄️ 分類存檔":
 # ==========================================
 if view_mode == "⏳ 未來典藏":
     st.subheader("⏳ 未來典藏 (Future Archive)")
-    st.markdown("這裡記錄了已停止更新，但值得未來編寫回溯腳本導入的歷史文化資料庫。")
+    st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
     st.markdown("---")
+    
+    st.markdown("### 🇨🇳 異常漫畫研究中心")
+    st.caption("聚焦於另類漫畫 (Alternative Manga)、地下藝術與 Garo (ガロ) 系系譜的中文硬核考據誌。")
+    st.markdown("🔗 **[前往官網探索](https://search.bilibili.com/all?keyword=異常漫畫研究中心)**")
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("### 🌍 AQNB")
+    st.caption("專注於後網路藝術 (Post-Internet Art)、前衛數位美學、CGI 視覺與實驗電子音樂演變的海外先鋒平台。")
+    st.markdown("🔗 **[前往官網探索](https://www.aqnb.com/)**")
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     st.markdown("### 🇯🇵 TOKION")
-    st.caption("停更於 2024 年。日本前衛流行、藝術與當代潮流次文化的重要指標。")
+    st.caption("停更於 2024 年。日本前衛流行、藝術、電影與當代潮流次文化的重要指標。")
     st.markdown("🔗 **[前往官網探索](https://tokion.jp/)**")
     st.markdown("<br>", unsafe_allow_html=True)
+    
     st.markdown("### 🇨🇳 歪腦 Wainao")
     st.caption("停更於 2025 年。專注於新世代華語青年、邊緣視角與深度的社會紀實觀察。")
     st.markdown("🔗 **[前往官網探索](https://www.wainao.me/)**")
@@ -308,7 +326,7 @@ else:
             with st.container():
                 st.markdown(f"#### [{row['Title']}]({row['Link']})")
                 
-                col_meta, col_btn = st.columns([5, 1])
+                col_meta, col_btn = st.columns([4, 2])
                 with col_meta:
                     raw_pub = str(row['Published'])
                     sort_date = row.get('SortDate')
@@ -317,11 +335,16 @@ else:
                     display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
                     st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
                 
+                # 🌟 整合：收藏與手動刪除雙按鈕並排
                 with col_btn:
-                    # 在 SQLite 中，1 代表 True，0 代表 False
                     is_bk = bool(row.get('is_bookmarked', 0))
-                    st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"btn_{row['Link']}", 
-                              on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
+                                  on_click=toggle_bookmark_db, args=(row['Link'], is_bk), use_container_width=True)
+                    with btn_col2:
+                        st.button("🗑️ 刪除", key=f"del_{row['Link']}", 
+                                  on_click=delete_article_db, args=(row['Link'],), use_container_width=True)
                 
                 if row['Image'] and str(row['Image']).startswith('http'):
                     img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
@@ -344,4 +367,4 @@ else:
                 st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.1 (Powered by Turso & Cloudscraper)")
+st.sidebar.caption("Monoreader Cloud v3.2 (Powered by Turso & Cloudscraper)")
