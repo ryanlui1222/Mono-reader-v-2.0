@@ -48,8 +48,8 @@ SOURCE_URLS = {
     "Radii": "https://radii.co/"
 }
 
-# 🌟 排他過濾名單
-FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii"]
+# 🌟 更新排他過濾名單（加入 触乐 與 FNMNL）
+FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
 def get_source_link(source_name):
     base_name = source_name.split(" (")[0]
