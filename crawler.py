@@ -252,62 +252,40 @@ def fetch_verse():
     try:
         soup = get_soup("https://www.verse.com.tw/")
         if not soup: return articles
-        
         seen = set()
         valid_links = []
         for a in soup.find_all('a', href=True):
             href = a['href']
             full_url = urllib.parse.urljoin("https://www.verse.com.tw/", href)
-            
             if '/article/' in href and full_url not in seen:
                 seen.add(full_url)
                 title = a.get_text(strip=True)
                 if not title:
                     img = a.find('img')
                     title = img.get('alt', '') if img else ""
-                
                 if len(title) > 5:
                     valid_links.append((title, full_url))
-                    
         valid_links = valid_links[:15]
-        
         def process_link(data):
             title, url = data
             art_soup = get_soup(url)
             if not art_soup: return None
-            
             og_img = art_soup.find('meta', property='og:image')
             img_url = og_img['content'] if og_img else None
-            
             author_meta = art_soup.find('meta', attrs={'name': 'author'})
             author = author_meta['content'] if author_meta and author_meta.get('content') else ""
             if author.upper() == "VERSE": author = ""
-            
             og_desc = art_soup.find('meta', property='og:description')
             summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
-            
             if not summary or len(summary) < 20:
                 paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 40]
                 summary = " ".join(paragraphs[:3]) if paragraphs else "（請點擊標題閱讀原文）"
-            
             time_tag = art_soup.find('time')
             published = time_tag.get('datetime', '最新') if time_tag else "最新"
-            
-            return {
-                "Source": "VERSE", 
-                "Title": title, 
-                "Link": url, 
-                "Published": published,
-                "Summary": format_summary(summary, author), 
-                "Image": img_url
-            }
-
+            return {"Source": "VERSE", "Title": title, "Link": url, "Published": published, "Summary": format_summary(summary, author), "Image": img_url}
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
             articles = [res for res in ex.map(process_link, valid_links) if res]
-            
-    except Exception as e: 
-        print(f"VERSE 錯誤: {e}")
-        
+    except Exception as e: print(f"VERSE 錯誤: {e}")
     return articles
 
 def fetch_jiemian():
@@ -316,37 +294,21 @@ def fetch_jiemian():
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
         soup = get_soup("https://m.jiemian.com/lists/130_1.html", custom_headers=iphone_headers)
         if not soup: return articles
-        
         items = soup.find_all('div', class_='news-view')
         for item in items[:15]:
             title_tag = item.select_one('.news-header h3 a')
             if not title_tag: continue
-            
             title = title_tag.get_text(strip=True)
             link = title_tag['href']
             if link.startswith('/'): link = f"https://m.jiemian.com{link}"
-            
             img_tag = item.select_one('.news-img img')
             img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            
             footer_spans = item.select('.news-footer p span')
             tag = footer_spans[0].get_text(strip=True) if len(footer_spans) > 0 else ""
             pub_date = footer_spans[1].get_text(strip=True) if len(footer_spans) > 1 else "最新"
-            
             summary = f"**🏷️ 探討領域：** {tag}\n\n（請點擊標題閱讀原文）" if tag else "（請點擊標題閱讀原文）"
-            
-            articles.append({
-                "Source": "界面文化",
-                "Title": title,
-                "Link": link,
-                "Published": pub_date,
-                "Summary": format_summary(summary),
-                "Image": img_url
-            })
-            
-    except Exception as e: 
-        print(f"界面文化 錯誤: {e}")
-        
+            articles.append({"Source": "界面文化", "Title": title, "Link": link, "Published": pub_date, "Summary": format_summary(summary), "Image": img_url})
+    except Exception as e: print(f"界面文化 錯誤: {e}")
     return articles
 
 def fetch_cinra():
@@ -354,49 +316,28 @@ def fetch_cinra():
     try:
         soup = get_soup("https://www.cinra.net/")
         if not soup: return articles
-        
         seen = set()
         cards = soup.find_all('div', class_=re.compile(r'p-articleCard'))
-        
         for card in cards:
             title_tag = card.find('p', class_='p-articleCard__title')
             if not title_tag or not title_tag.find('a'): continue
-            
             a_tag = title_tag.find('a')
             title = a_tag.get_text(strip=True)
             href = a_tag['href']
             full_url = urllib.parse.urljoin("https://www.cinra.net/", href)
-            
-            if 'job.cinra.net' in full_url or full_url in seen:
-                continue
+            if 'job.cinra.net' in full_url or full_url in seen: continue
             seen.add(full_url)
-            
             lead_tag = card.find('p', class_='p-articleCard__lead')
             summary = lead_tag.get_text(strip=True) if lead_tag else "（請點擊標題閱讀原文）"
-            
             author_tag = card.find('span', class_='c-author__name')
             author = author_tag.get_text(strip=True).replace('by ', '').strip() if author_tag else ""
-            
             date_tag = card.find('p', class_='p-articleCard__date')
             published = date_tag.get_text(strip=True).replace('.', '-') if date_tag else "最新"
-            
             img_tag = card.find('img')
             img_url = img_tag.get('data-src') or img_tag.get('src') if img_tag else None
-            
-            articles.append({
-                "Source": "CINRA",
-                "Title": title,
-                "Link": full_url,
-                "Published": published,
-                "Summary": format_summary(summary, author),
-                "Image": img_url
-            })
-            
+            articles.append({"Source": "CINRA", "Title": title, "Link": full_url, "Published": published, "Summary": format_summary(summary, author), "Image": img_url})
             if len(articles) >= 15: break
-            
-    except Exception as e:
-        print(f"CINRA 錯誤: {e}")
-        
+    except Exception as e: print(f"CINRA 錯誤: {e}")
     return articles
 
 def fetch_sabukaru():
@@ -404,69 +345,39 @@ def fetch_sabukaru():
     try:
         soup = get_soup("https://sabukaru.online/articles")
         if not soup: return articles
-        
         seen = set()
         items = soup.find_all('article', class_=re.compile(r'BlogList-item'))
         valid_links = []
-        
         for item in items:
             a_tag = item.find('a', class_='Blog-header-content-link')
             title_tag = item.find('h2', class_='Blog-title')
-            
             if not a_tag or not title_tag: continue
-            
             href = a_tag['href']
             full_url = urllib.parse.urljoin("https://sabukaru.online", href)
             title = title_tag.get_text(strip=True)
-            
             if full_url in seen: continue
             seen.add(full_url)
-            
             author_tag = item.find('a', class_='Blog-meta-item--author')
             author = author_tag.get_text(strip=True) if author_tag else ""
-            
             time_tag = item.find('time', class_='Blog-meta-item--date')
             published = time_tag['datetime'] if time_tag and time_tag.has_attr('datetime') else "最新"
-            
             img_tag = item.find('img')
             img_url = img_tag.get('data-src') or img_tag.get('src') if img_tag else None
-            
-            valid_links.append({
-                "title": title,
-                "url": full_url,
-                "author": author,
-                "published": published,
-                "img_url": img_url
-            })
-            
+            valid_links.append({"title": title, "url": full_url, "author": author, "published": published, "img_url": img_url})
             if len(valid_links) >= 15: break
-
         def process_link(data):
             art_soup = get_soup(data["url"])
             summary = ""
             if art_soup:
                 og_desc = art_soup.find('meta', property='og:description')
                 summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
-                
                 if not summary or len(summary) < 20:
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 40]
                     summary = " ".join(paragraphs[:3]) if paragraphs else "（請點擊標題閱讀原文）"
-            
-            return {
-                "Source": "Sabukaru",
-                "Title": data["title"],
-                "Link": data["url"],
-                "Published": data["published"],
-                "Summary": format_summary(summary, data["author"]),
-                "Image": data["img_url"]
-            }
-
+            return {"Source": "Sabukaru", "Title": data["title"], "Link": data["url"], "Published": data["published"], "Summary": format_summary(summary, data["author"]), "Image": data["img_url"]}
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
             articles = [res for res in ex.map(process_link, valid_links) if res]
-
-    except Exception as e:
-        print(f"Sabukaru 錯誤: {e}")
-
+    except Exception as e: print(f"Sabukaru 錯誤: {e}")
     return articles
 
 def fetch_biede():
@@ -481,12 +392,10 @@ def fetch_biede():
             if ('/article/' in href or '/post/' in href) and full_url not in seen:
                 seen.add(full_url)
                 title = a.get_text(strip=True)
-                
                 if len(title) < 5:
                     h_tag = a.find(['h2', 'h3', 'h4', 'p'])
                     title = h_tag.get_text(strip=True) if h_tag else title
                 if len(title) < 5: continue
-                
                 art_soup = get_soup(full_url)
                 author = ""
                 text = "（請點擊標題閱讀原文紀實）"
@@ -498,56 +407,94 @@ def fetch_biede():
                     author = author_meta.get_text(strip=True) if author_meta and not author_meta.get('content') else (author_meta['content'] if author_meta else "")
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 40]
                     if paragraphs: text = " ".join(paragraphs[:3])
-                    
-                articles.append({
-                    "Source": "BIE別的", "Title": title, "Link": full_url, "Published": "最新",
-                    "Summary": format_summary(text, author), "Image": img_url
-                })
+                articles.append({"Source": "BIE別的", "Title": title, "Link": full_url, "Published": "最新", "Summary": format_summary(text, author), "Image": img_url})
                 if len(articles) >= 10: break
     except Exception as e: print(f"BIE別的 錯誤: {e}")
     return articles
 
 def fetch_tripleampersand():
-    """TripleAmpersand 常規爬蟲 (只掃描首頁最新文章，極輕量)"""
     articles = []
     try:
         soup = get_soup("https://tripleampersand.org/")
         if not soup: return articles
-        
         seen = set()
         posts = soup.find_all('div', class_='index-post')
-        
         for post in posts[:15]:
             title_tag = post.find('h2').find('a') if post.find('h2') else None
             if not title_tag: continue
-            
             title = title_tag.get_text(strip=True)
             link = title_tag['href']
-            
             if link in seen: continue
             seen.add(link)
-            
             author_tag = post.select_one('.authors li a')
             author = author_tag.get_text(strip=True) if author_tag else ""
-            
             img_tag = post.select_one('.post-img img')
             img_url = img_tag['src'] if img_tag else None
-            
             text_div = post.find('div', class_='text')
             summary = text_div.get_text(" ", strip=True) if text_div else ""
             summary = summary.replace("Read More »", "").strip()
+            articles.append({"Source": "TripleAmpersand", "Title": title, "Link": link, "Published": "最新", "Summary": format_summary(summary, author), "Image": img_url})
+    except Exception as e: print(f"TripleAmpersand 錯誤: {e}")
+    return articles
+
+# 🌟 新增：觸樂夜話專屬爬蟲
+def fetch_chuapp():
+    articles = []
+    try:
+        # 直接進入「觸樂怪話 / 夜話」的分類頁面
+        soup = get_soup("http://www.chuapp.com/tag/index/id/20369.html")
+        if not soup: return articles
+        
+        container = soup.find('div', class_='category-list')
+        if not container: return articles
+        
+        seen = set()
+        # 夜話列表結構為 a.fn-clear
+        for a in container.find_all('a', class_='fn-clear', recursive=False):
+            href = a.get('href')
+            if not href or not href.startswith('/article/'): continue
+            
+            full_url = urllib.parse.urljoin("http://www.chuapp.com", href)
+            if full_url in seen: continue
+            seen.add(full_url)
+            
+            title = a.get('title', '')
+            if not title:
+                dt = a.find('dt')
+                title = dt.get_text(strip=True) if dt else "未知標題"
+            
+            img = a.find('img')
+            img_url = img.get('src') if img else None
+            
+            dl = a.find('dl')
+            author, published, summary = "", "最新", "（請點擊標題閱讀原文）"
+            
+            if dl:
+                em = dl.find('em')
+                author = em.get_text(strip=True) if em else ""
+                
+                span = dl.find('span', class_='fn-left')
+                if span:
+                    # 濾除作者名稱，保留時間字串，例如「05月15日」
+                    published = span.get_text(strip=True).replace(author, '').strip()
+                    
+                dds = dl.find_all('dd')
+                if len(dds) > 1:
+                    summary = dds[1].get_text(strip=True)
             
             articles.append({
-                "Source": "TripleAmpersand",
+                "Source": "触乐",
                 "Title": title,
-                "Link": link,
-                "Published": "最新",
+                "Link": full_url,
+                "Published": published,
                 "Summary": format_summary(summary, author),
                 "Image": img_url
             })
             
-    except Exception as e:
-        print(f"TripleAmpersand 錯誤: {e}")
+            if len(articles) >= 15: break
+            
+    except Exception as e: 
+        print(f"触乐 錯誤: {e}")
         
     return articles
 
@@ -558,6 +505,7 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
+    # 🌟 新增：FNMNL (快訊) 與 The Comics Journal (評論)
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -568,24 +516,24 @@ def main():
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
-        ("https://radii.co/feed", "Radii", 15, True)
+        ("https://radii.co/feed", "Radii", 15, True),
+        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False)               # 音樂/街頭快訊
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        # 1. 排程 RSS 來源
         futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
         
-        # 2. 排程客製化爬蟲 (🌟 已包含 fetch_tripleampersand)
+        # 🌟 新增：fetch_chuapp 至客製化爬蟲陣列
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand
+            fetch_tripleampersand, fetch_chuapp
         ]
         futures.extend([executor.submit(func) for func in custom_scrapers])
         
-        # 3. 收集所有結果
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: all_articles.extend(res)
@@ -597,11 +545,9 @@ def main():
             return
 
         try:
-            # 🔍 1. 預先查詢資料庫中已存在的文章時間，以保留原始抓取時間
             links_to_check = [a['Link'] for a in all_articles]
             existing_dates = {}
             try:
-                # 分批查詢避免 SQL 參數上限
                 chunk_size = 50
                 for i in range(0, len(links_to_check), chunk_size):
                     chunk = links_to_check[i:i + chunk_size]
@@ -612,7 +558,6 @@ def main():
             except Exception as e:
                 print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
 
-            # 清洗與標準化時間資料
             cleaned_articles = []
             for a in all_articles:
                 article_data = a.copy()
@@ -620,6 +565,7 @@ def main():
                 
                 if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊", "歷史歸檔"]):
                     try:
+                        # 觸樂抓下來的「05月15日」等無年份時間字串，如果失敗會自動被指派 utcnow()
                         dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
                         if not pd.isna(dt):
                             article_data['Published'] = dt.strftime('%Y-%m-%d')
@@ -635,7 +581,6 @@ def main():
                         
                 cleaned_articles.append(article_data)
 
-            # 🚀 2. 執行同步 (🌟 100% 穩定的單筆寫入防爆機制)
             sql = """
             INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0)
@@ -656,7 +601,6 @@ def main():
                 ]
                 
                 try:
-                    # 強制逐筆寫入，徹底繞過 WebSocket 封包大小限制
                     db.execute(sql, args)
                     success_count += 1
                 except Exception as inner_e:
@@ -669,7 +613,6 @@ def main():
             print(f"❌ 同步過程發生嚴重錯誤: {e}")
             
         finally:
-            # 🌟 關鍵修復：強制斷開連線，釋放 aiohttp 資源並允許 GitHub Actions 順利結束程式
             if db:
                 db.close()
                 print("🔌 資料庫連線已安全關閉。")
