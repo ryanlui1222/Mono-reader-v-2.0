@@ -190,170 +190,186 @@ def fetch_external_article(url):
         return None
 
 # ==========================================
-# 4. 介面渲染：側邊欄 (Sidebar)
+# 4. 側邊欄：雙模組總開關
 # ==========================================
-st.sidebar.title("📚 Monoreader")
+with st.sidebar:
+    st.title("☁️ Monoreader Cloud")
+    # 使用 radio 按鈕作為雙模組切換開關
+    app_mode = st.radio(
+        "選擇模組",
+        ["📚 Monoreader", "🎓 Biblioapp"],
+        index=0, 
+        label_visibility="collapsed" 
+    )
+    st.divider()
 
-search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="文章、作者或關鍵字...", on_change=reset_page)
-st.sidebar.markdown("---")
 
-view_mode = st.sidebar.radio(
-    "瀏覽模式", 
-    ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], 
-    on_change=reset_page
-)
-st.sidebar.markdown("---")
+# ==========================================
+# 模組一：📚 Monoreader (文化與思想文章聚合)
+# ==========================================
+if app_mode == "📚 Monoreader":
 
-with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
-    external_url = st.text_input("貼上文章網址：", placeholder="https://...")
-    if st.button("解析並加入收藏庫", use_container_width=True):
-        if external_url.startswith("http"):
-            with st.spinner("正在解析網頁內容..."):
-                art_data = fetch_external_article(external_url)
-                if art_data:
-                    try:
-                        sql = """
-                        INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-                        ON CONFLICT(Link) DO UPDATE SET Title=excluded.Title, Summary=excluded.Summary, Image=excluded.Image;
-                        """
-                        db.execute(sql, [art_data['Source'], art_data['Title'], art_data['Link'], art_data['Published'], art_data['Summary'], art_data['Image'], art_data['SortDate']])
-                        st.cache_data.clear()
-                        st.success("✅ 已成功解析並加入我的收藏庫！")
-                    except Exception as e:
-                        st.error(f"寫入資料庫時發生錯誤: {e}")
-                else:
-                    st.error("❌ 無法解析該網址，可能是對方網站阻擋了機器人訪問。")
-        else:
-            st.warning("⚠️ 請輸入包含 http 的完整網址。")
+    # --- 介面渲染：側邊欄 (Sidebar) ---
+    st.sidebar.subheader("文章篩選")
 
-st.sidebar.markdown("---")
+    search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="文章、作者或關鍵字...", on_change=reset_page)
+    st.sidebar.markdown("---")
 
-selected_source = "全部來源總覽"
-if view_mode == "🗄️ 分類存檔":
-    st.sidebar.subheader("選擇訂閱來源")
-    
-    FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
-    main_options = []
-    for src_key in sorted(SOURCE_URLS.keys()):
-        if any(k in src_key for k in FOLDER_KEYWORDS):
-            folder_name = f"📁 {src_key.split(' (')[0]}"
-            if folder_name not in main_options: main_options.append(folder_name)
-        else:
-            main_options.append(src_key)
-            
-    main_options.append("🌐 外部手動匯入")
-            
-    selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options, on_change=reset_page)
+    view_mode = st.sidebar.radio(
+        "瀏覽模式", 
+        ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], 
+        on_change=reset_page
+    )
+    st.sidebar.markdown("---")
 
-    if selected_main.startswith("📁 "):
-        base_name = selected_main.replace("📁 ", "")
-        res = db.execute("SELECT DISTINCT Source FROM articles WHERE Source LIKE ?", [f"%{base_name}%"])
-        raw_sources = [row[0] for row in res.rows]
+    with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
+        external_url = st.text_input("貼上文章網址：", placeholder="https://...")
+        if st.button("解析並加入收藏庫", use_container_width=True):
+            if external_url.startswith("http"):
+                with st.spinner("正在解析網頁內容..."):
+                    art_data = fetch_external_article(external_url)
+                    if art_data:
+                        try:
+                            sql = """
+                            INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                            ON CONFLICT(Link) DO UPDATE SET Title=excluded.Title, Summary=excluded.Summary, Image=excluded.Image;
+                            """
+                            db.execute(sql, [art_data['Source'], art_data['Title'], art_data['Link'], art_data['Published'], art_data['Summary'], art_data['Image'], art_data['SortDate']])
+                            st.cache_data.clear()
+                            st.success("✅ 已成功解析並加入我的收藏庫！")
+                        except Exception as e:
+                            st.error(f"寫入資料庫時發生錯誤: {e}")
+                    else:
+                        st.error("❌ 無法解析該網址，可能是對方網站阻擋了機器人訪問。")
+            else:
+                st.warning("⚠️ 請輸入包含 http 的完整網址。")
+
+    st.sidebar.markdown("---")
+
+    selected_source = "全部來源總覽"
+    if view_mode == "🗄️ 分類存檔":
+        st.sidebar.subheader("選擇訂閱來源")
         
-        def extract_issue_number(source_str):
-            match = re.search(r'\d+', source_str)
-            return int(match.group()) if match else 0
-            
-        all_sub_sources = sorted(raw_sources, key=extract_issue_number, reverse=True)
-        if all_sub_sources:
-            selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources, on_change=reset_page)
-    else:
-        selected_source = selected_main
-
-# ==========================================
-# 5. 介面渲染：主畫面 (Main View)
-# ==========================================
-if view_mode == "⏳ 未來典藏":
-    st.subheader("⏳ 未來典藏 (Future Archive)")
-    st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
-    st.markdown("---")
-    
-    st.markdown("### 🇨🇳 異常漫畫研究中心")
-    st.caption("聚焦於另類漫畫 (Alternative Manga)、地下藝術與 Garo (ガロ) 系系譜的中文硬核考據誌。")
-    st.markdown("🔗 **[前往官網探索](https://search.bilibili.com/all?keyword=異常漫畫研究中心)**")
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("### 🌍 AQNB")
-    st.caption("專注於後網路藝術 (Post-Internet Art)、前衛數位美學、CGI 視覺與實驗電子音樂演變的海外先鋒平台。")
-    st.markdown("🔗 **[前往官網探索](https://www.aqnb.com/)**")
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("### 🇯🇵 TOKION")
-    st.caption("停更於 2024 年。日本前衛流行、藝術、電影與當代潮流次文化的重要指標。")
-    st.markdown("🔗 **[前往官網探索](https://tokion.jp/)**")
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("### 🇨🇳 歪腦 Wainao")
-    st.caption("停更於 2025 年。專注於新世代華語青年、邊緣視角與深度的社會紀實觀察。")
-    st.markdown("🔗 **[前往官網探索](https://www.wainao.me/)**")
-
-else:
-    df = fetch_data(view_mode, selected_source, search_input)
-
-    if view_mode == "✨ 全部來源總覽":
-        st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
-        st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
-    elif view_mode == "✍️ 最新評論":
-        st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討。")
-    elif view_mode == "⚡ 文化快訊":
-        st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
-        st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化、Radii 每日高頻更新的即時消息。")
-    elif view_mode == "🔖 我的收藏庫":
-        st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
-    else:
-        if selected_source != "全部來源總覽":
-            st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
-            link = get_source_link(selected_source)
-            if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
-        else:
-            st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
-
-    st.markdown("---")
-
-    if df.empty:
-        if search_input: st.info("找不到符合關鍵字的文章。")
-        else: st.info("暫無符合條件的新文章。")
-    else:
-        PER_PAGE = 20
-        total_pages = math.ceil(len(df) / PER_PAGE)
-        if st.session_state.current_page > total_pages and total_pages > 0:
-            st.session_state.current_page = total_pages
-            
-        start_idx = (st.session_state.current_page - 1) * PER_PAGE
-        end_idx = start_idx + PER_PAGE
-        
-        for _, row in df.iloc[start_idx:end_idx].iterrows():
-            with st.container():
-                st.markdown(f"#### [{row['Title']}]({row['Link']})")
-# 將版面切分為 3 個欄位，讓按鈕獨立且緊湊
-                col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
+        FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
+        main_options = []
+        for src_key in sorted(SOURCE_URLS.keys()):
+            if any(k in src_key for k in FOLDER_KEYWORDS):
+                folder_name = f"📁 {src_key.split(' (')[0]}"
+                if folder_name not in main_options: main_options.append(folder_name)
+            else:
+                main_options.append(src_key)
                 
-                with col_meta:
-                    raw_pub = str(row['Published'])
-                    sort_date = row.get('SortDate')
+        main_options.append("🌐 外部手動匯入")
+                
+        selected_main = st.sidebar.selectbox("請選擇板塊：", ["全部來源總覽"] + main_options, on_change=reset_page)
+
+        if selected_main.startswith("📁 "):
+            base_name = selected_main.replace("📁 ", "")
+            res = db.execute("SELECT DISTINCT Source FROM articles WHERE Source LIKE ?", [f"%{base_name}%"])
+            raw_sources = [row[0] for row in res.rows]
+            
+            def extract_issue_number(source_str):
+                match = re.search(r'\d+', source_str)
+                return int(match.group()) if match else 0
+                
+            all_sub_sources = sorted(raw_sources, key=extract_issue_number, reverse=True)
+            if all_sub_sources:
+                selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources, on_change=reset_page)
+        else:
+            selected_source = selected_main
+
+    # --- 介面渲染：主畫面 (Main View) ---
+    if view_mode == "⏳ 未來典藏":
+        st.subheader("⏳ 未來典藏 (Future Archive)")
+        st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
+        st.markdown("---")
+        
+        st.markdown("### 🇨🇳 異常漫畫研究中心")
+        st.caption("聚焦於另類漫畫 (Alternative Manga)、地下藝術與 Garo (ガロ) 系系譜的中文硬核考據誌。")
+        st.markdown("🔗 **[前往官網探索](https://search.bilibili.com/all?keyword=異常漫畫研究中心)**")
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        st.markdown("### 🌍 AQNB")
+        st.caption("專注於後網路藝術 (Post-Internet Art)、前衛數位美學、CGI 視覺與實驗電子音樂演變的海外先鋒平台。")
+        st.markdown("🔗 **[前往官網探索](https://www.aqnb.com/)**")
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        st.markdown("### 🇯🇵 TOKION")
+        st.caption("停更於 2024 年。日本前衛流行、藝術、電影與當代潮流次文化的重要指標。")
+        st.markdown("🔗 **[前往官網探索](https://tokion.jp/)**")
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        st.markdown("### 🇨🇳 歪腦 Wainao")
+        st.caption("停更於 2025 年。專注於新世代華語青年、邊緣視角與深度的社會紀實觀察。")
+        st.markdown("🔗 **[前往官網探索](https://www.wainao.me/)**")
+
+    else:
+        df = fetch_data(view_mode, selected_source, search_input)
+
+        if view_mode == "✨ 全部來源總覽":
+            st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
+            st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
+        elif view_mode == "✍️ 最新評論":
+            st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
+            st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討。")
+        elif view_mode == "⚡ 文化快訊":
+            st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
+            st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化、Radii 每日高頻更新的即時消息。")
+        elif view_mode == "🔖 我的收藏庫":
+            st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
+        else:
+            if selected_source != "全部來源總覽":
+                st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
+                link = get_source_link(selected_source)
+                if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
+            else:
+                st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
+
+        st.markdown("---")
+
+        if df.empty:
+            if search_input: st.info("找不到符合關鍵字的文章。")
+            else: st.info("暫無符合條件的新文章。")
+        else:
+            PER_PAGE = 20
+            total_pages = math.ceil(len(df) / PER_PAGE)
+            if st.session_state.current_page > total_pages and total_pages > 0:
+                st.session_state.current_page = total_pages
+                
+            start_idx = (st.session_state.current_page - 1) * PER_PAGE
+            end_idx = start_idx + PER_PAGE
+            
+            for _, row in df.iloc[start_idx:end_idx].iterrows():
+                with st.container():
+                    st.markdown(f"#### [{row['Title']}]({row['Link']})")
+                    # 將版面切分為 3 個欄位，讓按鈕獨立且緊湊
+                    col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
                     
-                    safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
-                    display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
-                    st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
-                
-                # 🌟 整合：縮小按鈕並加入「刪除確認」的防呆機制
-                is_bk = bool(row.get('is_bookmarked', 0))
-                
-                with col_btn1:
-                    # 移除了 use_container_width=True，按鈕會自然縮小
-                    st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
-                              on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
-                              
-                with col_btn2:
-                    # 使用 st.popover 製作優雅的確認彈出視窗
-                    with st.popover("🗑️ 刪除"):
-                        st.markdown("⚠️ **確認刪除嗎？**")
-                        # 確認按鈕設定為 type="primary" (紅色醒目提示)
-                        st.button("✅ 確定", key=f"del_{row['Link']}", 
-                                  on_click=delete_article_db, args=(row['Link'],), 
-                                  type="primary", use_container_width=True)
+                    with col_meta:
+                        raw_pub = str(row['Published'])
+                        sort_date = row.get('SortDate')
+                        
+                        safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
+                        display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
+                        st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
+                    
+                    # 🌟 整合：縮小按鈕並加入「刪除確認」的防呆機制
+                    is_bk = bool(row.get('is_bookmarked', 0))
+                    
+                    with col_btn1:
+                        # 移除了 use_container_width=True，按鈕會自然縮小
+                        st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
+                                  on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
+                                  
+                    with col_btn2:
+                        # 使用 st.popover 製作優雅的確認彈出視窗
+                        with st.popover("🗑️ 刪除"):
+                            st.markdown("⚠️ **確認刪除嗎？**")
+                            # 確認按鈕設定為 type="primary" (紅色醒目提示)
+                            st.button("✅ 確定", key=f"del_{row['Link']}", 
+                                      on_click=delete_article_db, args=(row['Link'],), 
+                                      type="primary", use_container_width=True)
                 if row['Image'] and str(row['Image']).startswith('http'):
                     img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
                     st.markdown(img_html, unsafe_allow_html=True)
@@ -361,18 +377,35 @@ else:
                 st.write(row['Summary'])
                 st.markdown("---")
 
-        if total_pages > 1:
-            st.write("")
-            col_space, col_page, col_space2 = st.columns([1, 2, 1])
-            with col_page:
-                st.selectbox(
-                    "📄 選擇頁數 (跳轉至)：", 
-                    range(1, total_pages + 1), 
-                    index=st.session_state.current_page - 1, 
-                    key="page_selector", 
-                    on_change=update_page
-                )
-                st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
+            if total_pages > 1:
+                st.write("")
+                col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                with col_page:
+                    st.selectbox(
+                        "📄 選擇頁數 (跳轉至)：", 
+                        range(1, total_pages + 1), 
+                        index=st.session_state.current_page - 1, 
+                        key="page_selector", 
+                        on_change=update_page
+                    )
+                    st.caption(f"目前顯示第 {st.session_state.current_page} 頁，共 {total_pages} 頁")
 
-st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.2 (Powered by Turso & Cloudscraper)")
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Monoreader Cloud v3.2 (Powered by Turso & Cloudscraper)")
+
+
+# ==========================================
+# 模組二：🎓 Biblioapp (學術文獻與出版追蹤)
+# ==========================================
+elif app_mode == "🎓 Biblioapp":
+    st.header("🎓 Biblioapp：學術文獻與出版追蹤")
+    
+    with st.sidebar:
+        st.subheader("文獻篩選")
+        st.info("這裡之後會加入出版年份、出版社/期刊等過濾器")
+    
+    st.write("歡迎來到 Biblioapp！學術文獻資料庫已就緒。")
+    st.write("（接下來我們將在這裡實作從 `academic_pubs` 讀取資料的介面）")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Biblioapp v1.0 (Powered by Turso)")
