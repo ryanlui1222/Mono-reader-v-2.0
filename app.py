@@ -458,6 +458,18 @@ elif app_mode == "🎓 Biblioapp":
                             st.image(img_url, use_container_width=True)
                         else:
                             st.info("無封面圖影")
+                    with col_img:
+                        img_url = row.get('image')
+                        if pd.notna(img_url) and str(img_url).startswith("http"):
+                            # 使用 HTML 渲染，若圖片失效 (404)，自動替換為佔位圖
+                            img_html = f'''
+                            <img src="{img_url}" 
+                                 style="width:100%; border-radius:6px; object-fit:cover; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" 
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/150x200?text=No+Cover';">
+                            '''
+                            st.markdown(img_html, unsafe_allow_html=True)
+                        else:
+                            st.info("無封面圖影")
                             
                     with col_info:
                         title = row.get('title', '未命名書籍')
