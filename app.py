@@ -48,7 +48,7 @@ SOURCE_URLS = {
     "Radii": "https://radii.co/"
 }
 
-# 🌟 更新排他過濾名單（加入 触乐 與 FNMNL）
+# 更新排他過濾名單（加入 触乐 與 FNMNL）
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
 def get_source_link(source_name):
@@ -65,7 +65,7 @@ def reset_page():
     st.session_state.current_page = 1
 
 def update_page():
-    # 🌟 新增安全檢查：確保 page_selector 存在於記憶體中才執行更新
+    # 安全檢查：確保 page_selector 存在於記憶體中才執行更新
     if "page_selector" in st.session_state:
         st.session_state.current_page = st.session_state.page_selector
 
@@ -81,6 +81,7 @@ def init_connection():
 
 db = init_connection()
 
+# --- 模組一：Monoreader 文章讀取 ---
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     sql = "SELECT * FROM articles WHERE 1=1"
@@ -127,6 +128,27 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
         
     return df
 
+# --- 模組二：Biblioapp 學術文獻讀取 ---
+@st.cache_data(ttl=600)
+def fetch_academic_pubs(pub_type="Book", source_filter="總覽"):
+    sql = "SELECT * FROM academic_pubs WHERE type = ?"
+    args = [pub_type]
+    
+    if source_filter != "總覽 (依日期遞減)":
+        sql += " AND publisher_journal = ?"
+        args.append(source_filter)
+        
+    sql += " ORDER BY publish_date DESC LIMIT 500"
+    
+    res = db.execute(sql, args)
+    
+    if not res.rows: 
+        return pd.DataFrame()
+        
+    df = pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows])
+    return df
+
+# --- 共通操作：書籤與刪除 ---
 def toggle_bookmark_db(link, current_state):
     try:
         new_state = 0 if current_state else 1
@@ -136,7 +158,6 @@ def toggle_bookmark_db(link, current_state):
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
-# 🌟 新增：手動刪除文章功能
 def delete_article_db(link):
     try:
         db.execute("DELETE FROM articles WHERE Link = ?", [link])
@@ -146,7 +167,7 @@ def delete_article_db(link):
         st.error(f"刪除失敗: {e}")
 
 # ==========================================
-# 🌟 萬能外部文章解析器 (Universal Scraper)
+# 4. 萬能外部文章解析器 (Universal Scraper)
 # ==========================================
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
@@ -189,14 +210,14 @@ def fetch_external_article(url):
         print(f"解析外部文章失敗: {e}")
         return None
 
+
 # ==========================================
-# 4. 側邊欄：雙模組總開關
+# 5. 側邊欄總開關 (Master Switch)
 # ==========================================
 with st.sidebar:
     st.title("☁️ Monoreader Cloud")
-    # 使用 radio 按鈕作為雙模組切換開關
     app_mode = st.radio(
-        "選擇模組",
+        "切換平台模組",
         ["📚 Monoreader", "🎓 Biblioapp"],
         index=0, 
         label_visibility="collapsed" 
@@ -208,10 +229,9 @@ with st.sidebar:
 # 模組一：📚 Monoreader (文化與思想文章聚合)
 # ==========================================
 if app_mode == "📚 Monoreader":
-
-    # --- 介面渲染：側邊欄 (Sidebar) ---
+    
+    # --- 側邊欄過濾與控制項 ---
     st.sidebar.subheader("文章篩選")
-
     search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="文章、作者或關鍵字...", on_change=reset_page)
     st.sidebar.markdown("---")
 
@@ -279,7 +299,7 @@ if app_mode == "📚 Monoreader":
         else:
             selected_source = selected_main
 
-    # --- 介面渲染：主畫面 (Main View) ---
+    # --- 主畫面視圖渲染 ---
     if view_mode == "⏳ 未來典藏":
         st.subheader("⏳ 未來典藏 (Future Archive)")
         st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
@@ -343,33 +363,28 @@ if app_mode == "📚 Monoreader":
             for _, row in df.iloc[start_idx:end_idx].iterrows():
                 with st.container():
                     st.markdown(f"#### [{row['Title']}]({row['Link']})")
-                    # 將版面切分為 3 個欄位，讓按鈕獨立且緊湊
                     col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
                     
                     with col_meta:
                         raw_pub = str(row['Published'])
                         sort_date = row.get('SortDate')
-                        
                         safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
                         display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
                         st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
                     
-                    # 🌟 整合：縮小按鈕並加入「刪除確認」的防呆機制
                     is_bk = bool(row.get('is_bookmarked', 0))
                     
                     with col_btn1:
-                        # 移除了 use_container_width=True，按鈕會自然縮小
                         st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", 
                                   on_click=toggle_bookmark_db, args=(row['Link'], is_bk))
                                   
                     with col_btn2:
-                        # 使用 st.popover 製作優雅的確認彈出視窗
                         with st.popover("🗑️ 刪除"):
                             st.markdown("⚠️ **確認刪除嗎？**")
-                            # 確認按鈕設定為 type="primary" (紅色醒目提示)
                             st.button("✅ 確定", key=f"del_{row['Link']}", 
                                       on_click=delete_article_db, args=(row['Link'],), 
                                       type="primary", use_container_width=True)
+                
                 if row['Image'] and str(row['Image']).startswith('http'):
                     img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
                     st.markdown(img_html, unsafe_allow_html=True)
@@ -400,45 +415,86 @@ if app_mode == "📚 Monoreader":
 elif app_mode == "🎓 Biblioapp":
     st.header("🎓 Biblioapp：學術文獻與出版追蹤")
     
-    # 1. 側邊欄：文獻類型切換
+    # --- 側邊欄過濾與控制項 ---
     with st.sidebar:
         st.subheader("文獻篩選")
-        biblio_type = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed")
+        biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed")
+        
+        # 轉譯前端標籤為資料庫實際存儲的值
+        db_type = "Book" if "專書" in biblio_type_label else "Journal"
         st.markdown("---")
         
-        # 這裡未來會從資料庫撈出實際的出版社與期刊清單
-        if biblio_type == "📚 出版專書":
-            publisher_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press"])
-            
+        # 分流渲染過濾選單
+        if db_type == "Book":
+            publisher_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press", "三聯", "青土社"])
+            active_filter = publisher_filter
         else:
             journal_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "PRISM: Theory and Modern Chinese Literature", "positions: asia critique"])
-            # 若選擇了特定期刊，出現期號選單
+            active_filter = journal_filter
+            
+            # 期刊特定選單（保留給後續卷期號深度檢索）
             if journal_filter != "總覽 (依日期遞減)":
-                issue_filter = st.selectbox("選擇期號：", ["全部期號", "Vol. 21, No. 1", "Vol. 20, No. 2"])
+                st.selectbox("選擇期號：", ["全部期號"])
 
-    # 2. 主畫面資料渲染
-    # df = fetch_biblio_data(biblio_type, publisher_journal_filter, ...) 
+    # --- 自 Turso 讀取即時數據 ---
+    df_pubs = fetch_academic_pubs(pub_type=db_type, source_filter=active_filter)
     
-    if biblio_type == "📚 出版專書":
-        st.subheader(f"{publisher_filter} - 專書目錄")
-        # 模擬一本書佔一個欄目的排版
-        # for _, row in df.iterrows():
-        with st.container():
-            col_img, col_info = st.columns([2, 7])
-            with col_img:
-                st.image("https://mitpress.mit.edu/cover_placeholder.jpg", use_container_width=True)
-            with col_info:
-                st.markdown("### [The Atmospheric Politics of XYZ](https://...)")
-                st.caption("👤 **Author:** John Doe | 🏛️ **Publisher:** MIT Press | 📅 **Date:** 2026-05-15")
-                st.write("This book explores the intersection of environment and state governance...")
-            st.divider()
+    # --- 主畫面學術視圖渲染 ---
+    if db_type == "Book":
+        st.subheader(f"🏛️ {active_filter} - 專書目錄 (共 {len(df_pubs)} 筆)")
+        st.markdown("---")
+        
+        if df_pubs.empty:
+            st.info("目前資料庫中沒有符合條件的書目資產。")
+        else:
+            for _, row in df_pubs.iterrows():
+                with st.container():
+                    # 一本書佔用一整個橫向欄目，利用 columns 區分圖片與元資料
+                    col_img, col_info = st.columns([2, 7])
+                    
+                    with col_img:
+                        img_url = row.get('image')
+                        if pd.notna(img_url) and str(img_url).startswith("http"):
+                            st.image(img_url, use_container_width=True)
+                        else:
+                            st.info("無封面圖影")
+                            
+                    with col_info:
+                        title = row.get('title', '未命名書籍')
+                        link = row.get('link', '#')
+                        author = row.get('author', '未知作者')
+                        publisher = row.get('publisher_journal', '未知出版社')
+                        pub_date = row.get('publish_date', '未知日期')
+                        abstract = row.get('abstract', '')
+                        
+                        st.markdown(f"### [{title}]({link})")
+                        st.caption(f"👤 **Author:** {author} | 🏛️ **Publisher:** {publisher} | 📅 **Date:** {pub_date}")
+                        st.write(abstract)
+                    st.divider()
 
     else:
-        st.subheader(f"{journal_filter} - 論文目錄")
-        # 期刊不顯示圖片，著重學術元資料
-        # for _, row in df.iterrows():
-        with st.container():
-            st.markdown("### [Leviathan and the Air: A New Perspective](https://...)")
-            st.caption("👤 **Author:** Jane Smith | 📄 **Journal:** PRISM | 🏷️ **Issue:** Vol. 21, No. 1 | 📅 **Date:** 2026-04-01")
-            st.write("An analysis of environmental elements as political actors in contemporary fiction...")
-            st.divider()
+        st.subheader(f"📄 {active_filter} - 期刊論文 (共 {len(df_pubs)} 筆)")
+        st.markdown("---")
+        
+        if df_pubs.empty:
+            st.info("目前資料庫中沒有符合條件的期刊文獻。")
+        else:
+            # 期刊介面不顯示圖片，著重高密度的學術元資料排版
+            for _, row in df_pubs.iterrows():
+                with st.container():
+                    title = row.get('title', '未命名論文')
+                    link = row.get('link', '#')
+                    author = row.get('author', '未知作者')
+                    journal = row.get('publisher_journal', '未知期刊')
+                    pub_date = row.get('publish_date', '未知日期')
+                    abstract = row.get('abstract', '')
+                    issue_vol = row.get('issue_volume', '')
+                    
+                    st.markdown(f"### [{title}]({link})")
+                    issue_text = f" | 🏷️ **Issue:** {issue_vol}" if issue_vol else ""
+                    st.caption(f"👤 **Author:** {author} | 📄 **Journal:** {journal}{issue_text} | 📅 **Date:** {pub_date}")
+                    st.write(abstract)
+                    st.divider()
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Biblioapp v1.0 (Powered by Turso & Crossref)")
