@@ -400,12 +400,45 @@ if app_mode == "📚 Monoreader":
 elif app_mode == "🎓 Biblioapp":
     st.header("🎓 Biblioapp：學術文獻與出版追蹤")
     
+    # 1. 側邊欄：文獻類型切換
     with st.sidebar:
         st.subheader("文獻篩選")
-        st.info("這裡之後會加入出版年份、出版社/期刊等過濾器")
+        biblio_type = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed")
+        st.markdown("---")
+        
+        # 這裡未來會從資料庫撈出實際的出版社與期刊清單
+        if biblio_type == "📚 出版專書":
+            publisher_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press"])
+            
+        else:
+            journal_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "PRISM: Theory and Modern Chinese Literature", "positions: asia critique"])
+            # 若選擇了特定期刊，出現期號選單
+            if journal_filter != "總覽 (依日期遞減)":
+                issue_filter = st.selectbox("選擇期號：", ["全部期號", "Vol. 21, No. 1", "Vol. 20, No. 2"])
+
+    # 2. 主畫面資料渲染
+    # df = fetch_biblio_data(biblio_type, publisher_journal_filter, ...) 
     
-    st.write("歡迎來到 Biblioapp！學術文獻資料庫已就緒。")
-    st.write("（接下來我們將在這裡實作從 `academic_pubs` 讀取資料的介面）")
-    
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Biblioapp v1.0 (Powered by Turso)")
+    if biblio_type == "📚 出版專書":
+        st.subheader(f"{publisher_filter} - 專書目錄")
+        # 模擬一本書佔一個欄目的排版
+        # for _, row in df.iterrows():
+        with st.container():
+            col_img, col_info = st.columns([2, 7])
+            with col_img:
+                st.image("https://mitpress.mit.edu/cover_placeholder.jpg", use_container_width=True)
+            with col_info:
+                st.markdown("### [The Atmospheric Politics of XYZ](https://...)")
+                st.caption("👤 **Author:** John Doe | 🏛️ **Publisher:** MIT Press | 📅 **Date:** 2026-05-15")
+                st.write("This book explores the intersection of environment and state governance...")
+            st.divider()
+
+    else:
+        st.subheader(f"{journal_filter} - 論文目錄")
+        # 期刊不顯示圖片，著重學術元資料
+        # for _, row in df.iterrows():
+        with st.container():
+            st.markdown("### [Leviathan and the Air: A New Perspective](https://...)")
+            st.caption("👤 **Author:** Jane Smith | 📄 **Journal:** PRISM | 🏷️ **Issue:** Vol. 21, No. 1 | 📅 **Date:** 2026-04-01")
+            st.write("An analysis of environmental elements as political actors in contemporary fiction...")
+            st.divider()
