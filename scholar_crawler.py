@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import libsql_client
+from bs4 import BeautifulSoup
 
 # ==========================================
 # 1. 取得環境變數
@@ -10,106 +11,130 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # ==========================================
-# 2. Crossref API 官方授權爬蟲
+# 2. 爬蟲模組：MIT Press (Crossref API)
 # ==========================================
 def crawl_mit_press_crossref():
-    print("🔍 準備透過 Crossref API 擷取 MIT Press 新書...")
-    
-    # MIT Press 在 Crossref 的專屬 Member ID 是 281
+    print("🔍 [MIT Press] 準備透過 Crossref API 擷取...")
     url = "https://api.crossref.org/members/281/works"
-    
-    # 設定檢索參數：過濾出「書籍 (book)」，並依據出版時間「降冪 (desc)」排序，抓取最新 20 筆
-    params = {
-        "filter": "type:book",
-        "sort": "published",
-        "order": "desc",
-        "rows": 20
-    }
-    
-    # 宣告 User-Agent (進入 Crossref 的 Polite Pool 禮貌通道，加速回應)
-    headers = {
-        "User-Agent": "BiblioappCloud/1.0 (mailto:admin@monoreader.cloud)"
-    }
+    params = {"filter": "type:book", "sort": "published", "order": "desc", "rows": 15}
+    headers = {"User-Agent": "BiblioappCloud/1.0"}
     
     records = []
-    
     try:
         res = requests.get(url, params=params, headers=headers, timeout=15)
         res.raise_for_status()
-        data = res.json()
-        
-        items = data.get("message", {}).get("items", [])
-        print(f"📂 成功透過 API 取得 {len(items)} 筆 MIT Press 出版紀錄，開始解析 JSON...")
+        items = res.json().get("message", {}).get("items", [])
         
         for item in items:
-            try:
-                # 1. 標題
-                title = item.get("title", ["未命名書籍"])[0]
-                
-                # 2. 作者群 (Crossref 提供陣列格式，自動組合名與姓)
-                authors_list = item.get("author", [])
-                author_names = []
-                for a in authors_list:
-                    given = a.get("given", "")
-                    family = a.get("family", "")
-                    author_names.append(f"{given} {family}".strip())
-                author = ", ".join(author_names) if author_names else "MIT Press"
-                
-                # 3. 出版日期 (Crossref 的 date-parts 通常是 [YYYY, MM, DD])
-                pub_date = "未知日期"
-                date_parts = item.get("published", {}).get("date-parts", [[]])[0]
-                if len(date_parts) >= 2:
-                    pub_date = f"{date_parts[0]}-{date_parts[1]:02d}"
-                elif len(date_parts) == 1:
-                    pub_date = str(date_parts[0])
-                    
-                # 4. 識別碼 (優先使用 ISBN，去除橫線；若無則使用 DOI)
-                doi = item.get("DOI", "")
-                isbn_list = item.get("ISBN", [])
-                isbn_raw = isbn_list[0] if isbn_list else ""
-                isbn_clean = re.sub(r'[^0-9X]', '', str(isbn_raw))
-                identifier = isbn_clean if isbn_clean else doi
-                
-                # 5. 永久連結 (優先使用 DOI Link)
-                link = item.get("URL", f"https://doi.org/{doi}")
-                
-                # 6. 摘要 (Crossref 會帶有 <jats:p> 等 XML 標籤，需要正則清除)
-                raw_abstract = item.get("abstract", "")
-                abstract = re.sub(r'<[^>]+>', '', raw_abstract) if raw_abstract else "（官方暫無提供數位摘要）"
-                
-                # 7. 書封圖片 (利用 Open Library 的免費 API，根據 ISBN 自動獲取高畫質封面)
-                # 若無 ISBN，則給予一張預設的佔位圖片
-                if isbn_clean:
-                    image_url = f"https://covers.openlibrary.org/b/isbn/{isbn_clean}-L.jpg"
-                else:
-                    image_url = "https://mitpress.mit.edu/wp-content/themes/university_press_theme/img/lazy-load-image.jpg"
-                
-                records.append({
-                    "type": "Book",
-                    "title": title,
-                    "author": author,
-                    "publisher_journal": "MIT Press",
-                    "issue_volume": "",
-                    "identifier": identifier,
-                    "publish_date": pub_date,
-                    "abstract": abstract[:600] + "..." if len(abstract) > 600 else abstract,
-                    "link": link,
-                    "image": image_url
-                })
-            except Exception as item_e:
-                print(f"⚠️ 解析單筆 JSON 時發生錯誤: {item_e}")
-                
+            title = item.get("title", ["未命名書籍"])[0]
+            authors_list = item.get("author", [])
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or "MIT Press"
+            
+            date_parts = item.get("published", {}).get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            doi = item.get("DOI", "")
+            isbn_list = item.get("ISBN", [])
+            isbn_clean = re.sub(r'[^0-9X]', '', str(isbn_list[0])) if isbn_list else ""
+            identifier = isbn_clean if isbn_clean else doi
+            
+            link = item.get("URL", f"https://doi.org/{doi}")
+            raw_abstract = item.get("abstract", "")
+            abstract = re.sub(r'<[^>]+>', '', raw_abstract) if raw_abstract else "（官方暫無提供數位摘要）"
+            image_url = f"https://covers.openlibrary.org/b/isbn/{isbn_clean}-L.jpg" if isbn_clean else ""
+
+            records.append({
+                "type": "Book", "title": title, "author": author,
+                "publisher_journal": "MIT Press", "issue_volume": "",
+                "identifier": identifier, "publish_date": pub_date,
+                "abstract": abstract[:600] + "..." if len(abstract) > 600 else abstract,
+                "link": link, "image": image_url
+            })
     except Exception as e:
-        print(f"❌ API 請求失敗: {e}")
+        print(f"❌ [MIT Press] 擷取失敗: {e}")
+    return records
+
+# ==========================================
+# 3. 爬蟲模組：青土社 (網頁 HTML 解析)
+# ==========================================
+def crawl_seidosha():
+    print("🔍 [青土社] 準備擷取 新刊/雜誌...")
+    url = "https://www.seidosha.co.jp/"
+    records = []
+    
+    try:
+        # 青土社網站沒有嚴格防禦，直接使用 requests 即可
+        res = requests.get(url, timeout=15)
+        res.encoding = 'utf-8' # 確保日文編碼正確
+        soup = BeautifulSoup(res.text, "html.parser")
+        
+        # 鎖定「新刊・雜誌」的區塊
+        new_mag_section = soup.find("div", id="new_mag")
+        if not new_mag_section:
+            print("⚠️ [青土社] 找不到新刊區塊。")
+            return records
+            
+        items = new_mag_section.find_all("div", class_="col-link-items")
+        print(f"📂 [青土社] 發現 {len(items)} 筆新刊，開始解析...")
+        
+        for item in items:
+            a_tag = item.find("a")
+            if not a_tag: continue
+            
+            # 1. 連結
+            raw_link = a_tag.get("href", "")
+            link = f"https://www.seidosha.co.jp{raw_link.lstrip('.')}"
+            
+            # 2. 圖片 (包含 ISBN 檔名)
+            img_tag = item.find("img")
+            raw_img = img_tag.get("src", "") if img_tag else ""
+            image_url = f"https://www.seidosha.co.jp{raw_img}" if raw_img else ""
+            
+            # 3. 提取 ISBN 作為 identifier
+            identifier = link
+            isbn_match = re.search(r'(\d{13})\.jpg', raw_img)
+            if isbn_match:
+                identifier = isbn_match.group(1)
+                
+            # 4. 標題與作者
+            title_tag = item.find("h3", class_="h5")
+            title = title_tag.get_text(strip=True) if title_tag else "未命名書籍"
+            
+            author_tag = item.find("p", class_="author")
+            author = author_tag.get_text(strip=True) if author_tag else "青土社"
+            
+            # 5. 出版日期 (將 2026年5月27日 轉換為 2026-05-27)
+            date_tag = item.find("p", class_="date")
+            pub_date = date_tag.get_text(strip=True) if date_tag else ""
+            pub_date = pub_date.replace("年", "-").replace("月", "-").replace("日", "")
+            
+            # 6. 分類邏輯 (若是雜誌則歸類為 Journal，否則為 Book)
+            pub_type = "Journal" if "ユリイカ" in title or "現代思想" in title else "Book"
+            
+            records.append({
+                "type": pub_type,
+                "title": title,
+                "author": author,
+                "publisher_journal": "青土社",
+                "issue_volume": "",
+                "identifier": identifier,
+                "publish_date": pub_date,
+                "abstract": "（此為青土社新刊目錄擷取，無詳細摘要）",
+                "link": link,
+                "image": image_url
+            })
+    except Exception as e:
+        print(f"❌ [青土社] 擷取發生錯誤: {e}")
         
     return records
 
 # ==========================================
-# 3. 寫入 Turso 資料庫 (防重複寫入)
+# 4. 寫入 Turso 資料庫
 # ==========================================
 def save_to_db(items):
+    if not items: return
     if not TURSO_DATABASE_URL or not TURSO_TOKEN:
-        print("❌ 錯誤：找不到 TURSO_DATABASE_URL 或 Token，請檢查環境變數。")
+        print("❌ 錯誤：找不到 TURSO_DATABASE_URL 或 Token。")
         return
         
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
@@ -124,7 +149,7 @@ def save_to_db(items):
             ON CONFLICT(identifier) DO UPDATE SET 
                 title=excluded.title,
                 author=excluded.author,
-                abstract=excluded.abstract,
+                publish_date=excluded.publish_date,
                 image=excluded.image;
             """
             client.execute(sql, [
@@ -133,16 +158,22 @@ def save_to_db(items):
                 item["abstract"], item["link"], item["image"]
             ])
             success_count += 1
-        print(f"✅ 成功處理與寫入 {success_count} 筆 MIT Press 書目！")
+        print(f"✅ 成功寫入/更新 {success_count} 筆文獻！")
     except Exception as e:
         print(f"❌ 寫入資料庫時發生錯誤: {e}")
     finally:
         client.close()
 
 if __name__ == "__main__":
-    books = crawl_mit_press_crossref()
-    if books:
-        print(f"📥 準備將 {len(books)} 筆資料寫入資料庫...")
-        save_to_db(books)
-    else:
-        print("⚠️ 未解析到任何書籍。")
+    all_records = []
+    
+    # 執行 MIT Press 爬蟲
+    mit_books = crawl_mit_press_crossref()
+    all_records.extend(mit_books)
+    
+    # 執行青土社爬蟲
+    seidosha_books = crawl_seidosha()
+    all_records.extend(seidosha_books)
+    
+    print(f"📥 爬蟲執行完畢，總計取得 {len(all_records)} 筆資料，準備寫入資料庫...")
+    save_to_db(all_records)
