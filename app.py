@@ -485,7 +485,7 @@ elif app_mode == "🎓 Biblioapp":
                         with col_img:
                             img_url = row.get('image')
                             if pd.notna(img_url) and str(img_url).startswith("http"):
-                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:160px; border-radius:4px; object-fit:cover; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x200/2b2b2b/FFFFFF?text=No+Cover';">'''
+                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio: 2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
                                 st.markdown(img_html, unsafe_allow_html=True)
                             else: st.info("無封面圖影")
                         with col_info:
