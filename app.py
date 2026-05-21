@@ -253,6 +253,17 @@ with st.sidebar:
     st.divider()
 
 # ==========================================
+# 🌟 Biblioapp 專屬刪除函數 (加入在 app_mode 判斷式之前)
+# ==========================================
+def delete_biblio_db(pub_id):
+    try:
+        db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id])
+        st.cache_data.clear()
+        st.toast("🗑️ 該筆文獻已從雲端徹底刪除！")
+    except Exception as e:
+        st.error(f"刪除失敗: {e}")
+
+# ==========================================
 # 模組一：📚 Monoreader
 # ==========================================
 if app_mode == "📚 Monoreader":
@@ -384,17 +395,6 @@ if app_mode == "📚 Monoreader":
                 col_space, col_page, col_space2 = st.columns([1, 2, 1])
                 with col_page:
                     st.selectbox("📄 選擇頁數 (跳轉至)：", range(1, total_pages + 1), index=st.session_state.mono_page - 1, key="mono_page_selector", on_change=update_mono_page)
-
-# ==========================================
-# 🌟 Biblioapp 專屬刪除函數 (加入在 app_mode 判斷式之前)
-# ==========================================
-def delete_biblio_db(pub_id):
-    try:
-        db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id])
-        st.cache_data.clear()
-        st.toast("🗑️ 該筆文獻已從雲端徹底刪除！")
-    except Exception as e:
-        st.error(f"刪除失敗: {e}")
 
 # ==========================================
 # 模組二：🎓 Biblioapp
