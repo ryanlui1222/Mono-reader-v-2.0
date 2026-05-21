@@ -145,47 +145,10 @@ def delete_biblio_db(pub_id):
 # ==========================================
 # 🌟 三引擎文獻手動匯入 (LibraryThing > Google > OpenLibrary)
 # ==========================================
-# ==========================================
-# 🌟 三引擎文獻手動匯入 (加入嚴格驗證與 Cloudflare 繞過)
-# ==========================================
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     
-    # 引擎一：LibraryThing Talpa API (加上防幻覺與代理)
-    try:
-        talpa_url = f"https://www.librarything.com/api/talpa.php?search={clean_isbn}"
-        if "LIBRARYTHING_TOKEN" in st.secrets:
-            talpa_url += f"&token={st.secrets['LIBRARYTHING_TOKEN']}"
-            
-        res = requests.get(talpa_url, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            if "response" in data and "resultlist" in data["response"]:
-                results = data["response"]["resultlist"]
-                if len(results) > 0:
-                    info = results[0]
-                    # 🚨 嚴格防禦：確認 Talpa 真的有找到這個 ISBN，而不是亂猜
-                    if clean_isbn in info.get("isbns", []):
-                        author_raw = info.get("author", "未知作者")
-                        author = ", ".join(author_raw) if isinstance(author_raw, list) else str(author_raw)
-                        
-                        img_url = ""
-                        if "LIBRARYTHING_TOKEN" in st.secrets:
-                            # 🛡️ 破解 Cloudflare：使用 wsrv.nl 代理伺服器
-                            raw_cover = f"covers.librarything.com/devkey/{st.secrets['LIBRARYTHING_TOKEN']}/large/isbn/{clean_isbn}"
-                            img_url = f"https://wsrv.nl/?url={raw_cover}"
-                            
-                        return {
-                            "type": "Book", "title": info.get("title", "未命名書籍"), "author": author,
-                            "publisher_journal": "手動加入", "issue_volume": "",
-                            "identifier": clean_isbn, "publish_date": str(info.get("date", datetime.utcnow().strftime("%Y-%m-%d"))),
-                            "abstract": "（透過 LibraryThing 匯入，官方暫無摘要）",
-                            "link": info.get("url", f"https://www.librarything.com/isbn/{clean_isbn}"), "image": img_url, "is_bookmarked": 1
-                        }
-    except Exception as e:
-        print(f"LibraryThing (Talpa) API 檢索失敗: {e}")
-
-    # 引擎二：Google Books API (最穩定的學術備援)
+    # 引擎一：Google Books API (最穩定的學術備援)
     try:
         url = f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}"
         res = requests.get(url, timeout=10)
@@ -205,7 +168,7 @@ def fetch_book_by_isbn(isbn):
                 }
     except: pass
 
-    # 引擎三：Open Library API
+    # 引擎二：Open Library API
     try:
         ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
         ol_res = requests.get(ol_url, timeout=10)
@@ -224,7 +187,7 @@ def fetch_book_by_isbn(isbn):
     except: pass
     
     return None
-
+    
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
