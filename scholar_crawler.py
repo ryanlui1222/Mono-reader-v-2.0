@@ -1,22 +1,18 @@
 import os
 import re
 import requests
-import cloudscraper
 import libsql_client
 import urllib.parse
 from bs4 import BeautifulSoup
 
 # ==========================================
-# 1. 取得環境變數與金鑰
+# 1. 取得環境變數
 # ==========================================
 TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
-# 👇 請在這裡填入您的 LibraryThing Developer Key
-LIBRARYTHING_DEV_KEY = "76ad10cb98ef8ae73566f59629496032"
-
 # ==========================================
-# 🌟 智慧封面搜尋引擎 (五重降落傘)
+# 🌟 智慧封面搜尋引擎 (強化學術雙引擎 + 降噪技術)
 # ==========================================
 def get_best_cover(isbn, title, author, publisher):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -29,18 +25,7 @@ def get_best_cover(isbn, title, author, publisher):
                 return img_url
         except: pass
 
-    # --- 2. LibraryThing API (使用 wsrv.nl 破解 Cloudflare 防盜鏈) ---
-    if LIBRARYTHING_DEV_KEY and LIBRARYTHING_DEV_KEY != "請貼上您的Key" and isbn:
-        raw_lt_url = f"covers.librarything.com/devkey/{LIBRARYTHING_DEV_KEY}/large/isbn/{isbn}"
-        proxy_url = f"https://wsrv.nl/?url={raw_lt_url}"
-        try:
-            res = requests.get(proxy_url, timeout=8)
-            # 確保代理伺服器回傳的是真正的圖片 (過濾透明圖)
-            if res.status_code == 200 and len(res.content) > 500:
-                return proxy_url
-        except: pass
-
-    # --- 3. Google Books API (寬鬆搜尋) ---
+    # --- 2. Google Books API (精準 ISBN 搜尋) ---
     if isbn:
         try:
             res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={isbn}", timeout=5)
@@ -51,11 +36,15 @@ def get_best_cover(isbn, title, author, publisher):
                 if best: return best.replace("http://", "https://")
         except: pass
 
-    # --- 4. Google Books API (書名盲搜) ---
+    # --- 3. Google Books API (智慧降噪書名搜尋) ---
+    # 學術書名常有副標題，如 "Terracene: A Cultural History..."，冒號後面的雜訊容易導致搜尋失敗。
     try:
-        short_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
-        query = urllib.parse.quote(short_title)
-        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5)
+        # 降噪：只取冒號前的字串，並移除特殊符號
+        clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
+        
+        # 將乾淨的書名與作者的第一個單字組合，進行強力盲搜
+        search_query = urllib.parse.quote(f"{clean_title} {author.split(',')[0]}")
+        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={search_query}", timeout=5)
         data = res.json()
         if "items" in data:
             img_links = data["items"][0].get("volumeInfo", {}).get("imageLinks", {})
@@ -63,7 +52,7 @@ def get_best_cover(isbn, title, author, publisher):
             if best: return best.replace("http://", "https://")
     except: pass
 
-    # --- 5. Open Library ---
+    # --- 4. Open Library (最終備用) ---
     if isbn:
         try:
             ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json"
@@ -109,7 +98,6 @@ def fetch_from_crossref(member_id, publisher_name):
             isbn_clean = re.sub(r'[^0-9X]', '', str(isbn_list[0])) if isbn_list else ""
             link = item.get("URL", f"https://doi.org/{item.get('DOI', '')}")
             
-            # 傳入強化的封面搜尋引擎
             image_url = get_best_cover(isbn_clean, title, author, publisher_name)
             
             records.append({
