@@ -13,7 +13,7 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # 👇 請在這裡填入您的 LibraryThing Developer Key
-LIBRARYTHING_DEV_KEY = "請貼上您的Key"
+LIBRARYTHING_DEV_KEY = "76ad10cb98ef8ae73566f59629496032"
 
 # ==========================================
 # 🌟 智慧封面搜尋引擎 (五重降落傘)
@@ -30,7 +30,7 @@ def get_best_cover(isbn, title, author, publisher):
         except: pass
 
     # --- 2. LibraryThing API (官方封面介面) ---
-    if LIBRARYTHING_DEV_KEY and LIBRARYTHING_DEV_KEY != "請貼上您的Key" and isbn:
+    if LIBRARYTHING_DEV_KEY and LIBRARYTHING_DEV_KEY != "76ad10cb98ef8ae73566f59629496032" and isbn:
         lt_url = f"http://covers.librarything.com/devkey/{LIBRARYTHING_DEV_KEY}/large/isbn/{isbn}"
         try:
             res = requests.get(lt_url, timeout=5)
