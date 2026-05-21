@@ -9,9 +9,52 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 介面基礎設定
+# 1. 介面基礎設定 & 全域 CSS 注入
 # ==========================================
 st.set_page_config(page_title="Monoreader Cloud", page_icon="📚", layout="wide", initial_sidebar_state="expanded")
+
+# 注入 memoof.me 風格的 CSS 樣式
+st.markdown("""
+<style>
+.memoof-cover img {
+    width: 100%;
+    height: 240px;
+    object-fit: cover;
+    border-radius: 2px;
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease-in-out;
+}
+.memoof-cover img:hover {
+    transform: scale(1.03);
+}
+.memoof-meta {
+    margin-top: 10px;
+    text-align: left;
+}
+.memoof-title {
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.3;
+    color: #E2E8F0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: 36px;
+}
+.memoof-author {
+    font-size: 12px;
+    color: #94A3B8;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* 調整按鈕大小與間距，使其更融入畫廊 */
+.stButton button { margin-top: 5px; }
+</style>
+""", unsafe_allow_html=True)
 
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/", "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -34,7 +77,7 @@ def get_source_link(source_name):
     return SOURCE_URLS.get(base_name, "#")
 
 # ==========================================
-# 2. 狀態管理 (雙模組獨立頁碼)
+# 2. 狀態管理
 # ==========================================
 if 'mono_page' not in st.session_state: st.session_state.mono_page = 1
 if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
@@ -118,10 +161,9 @@ def toggle_biblio_bookmark_db(pub_id, current_state):
     except Exception as e: st.error(f"操作失敗: {e}")
 
 # ==========================================
-# 4. 外部解析器 (Google Books API)
+# 4. 外部解析器 (API 升級版)
 # ==========================================
 def fetch_external_article(url):
-    # (原本的 Monoreader 文章解析邏輯保留)
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
         res = scraper.get(url, timeout=15)
@@ -144,10 +186,12 @@ def fetch_external_article(url):
     except: return None
 
 def fetch_book_by_isbn(isbn):
-    """利用 Google Books API 透過 ISBN 抓取完整書籍資訊與封面"""
+    """雙引擎 ISBN 檢索：先查 Google Books (寬鬆比對)，失敗再查 Open Library"""
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
-    url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{clean_isbn}"
+    
+    # 引擎一：Google Books API (修正為寬鬆搜尋)
     try:
+        url = f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}"
         res = requests.get(url, timeout=10)
         if res.status_code == 200:
             data = res.json()
@@ -158,10 +202,10 @@ def fetch_book_by_isbn(isbn):
                 publisher = info.get("publisher", "手動匯入")
                 pub_date = info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d"))
                 abstract = info.get("description", "（無摘要）")
-                # 取得最大解析度圖片，並轉為 https
+                
                 img_links = info.get("imageLinks", {})
                 img_url = img_links.get("thumbnail") or img_links.get("smallThumbnail", "")
-                img_url = img_url.replace("http://", "https://")
+                img_url = img_url.replace("http://", "https://") if img_url else f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"
                 link = info.get("infoLink", f"https://books.google.com/books?vid=ISBN{clean_isbn}")
                 
                 return {
@@ -171,7 +215,32 @@ def fetch_book_by_isbn(isbn):
                     "abstract": abstract[:600] + "..." if len(abstract) > 600 else abstract,
                     "link": link, "image": img_url, "is_bookmarked": 1
                 }
-    except Exception as e: print(f"Google Books API 檢索失敗: {e}")
+    except: pass
+    
+    # 引擎二：Open Library API (備用降落傘)
+    try:
+        ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
+        ol_res = requests.get(ol_url, timeout=10)
+        ol_data = ol_res.json()
+        if f"ISBN:{clean_isbn}" in ol_data:
+            info = ol_data[f"ISBN:{clean_isbn}"]
+            title = info.get("title", "未命名書籍")
+            authors = [a.get("name", "") for a in info.get("authors", [])]
+            author = ", ".join(authors) if authors else "未知作者"
+            publisher = info.get("publishers", [{"name": "手動匯入"}])[0].get("name", "手動匯入")
+            pub_date = info.get("publish_date", datetime.utcnow().strftime("%Y-%m-%d"))
+            img_url = info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg")
+            link = info.get("url", f"https://openlibrary.org/isbn/{clean_isbn}")
+            
+            return {
+                "type": "Book", "title": title, "author": author,
+                "publisher_journal": publisher, "issue_volume": "",
+                "identifier": clean_isbn, "publish_date": pub_date,
+                "abstract": "（透過 Open Library 匯入，無詳細摘要）",
+                "link": link, "image": img_url, "is_bookmarked": 1
+            }
+    except: pass
+    
     return None
 
 # ==========================================
@@ -327,7 +396,7 @@ elif app_mode == "🎓 Biblioapp":
         
         # --- ISBN 手動匯入區塊 ---
         with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
-            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780262049948")
+            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
             if st.button("檢索並加入書架", use_container_width=True):
                 if isbn_input:
                     with st.spinner("正在呼叫 Google Books API..."):
@@ -360,7 +429,7 @@ elif app_mode == "🎓 Biblioapp":
     df_pubs = fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter)
     
     # ==========================================
-    # 畫廊視圖：待讀書架 (Grid UI)
+    # 畫廊視圖：待讀書架 (memoof.me 風格)
     # ==========================================
     if biblio_view_mode == "🔖 待讀書架":
         st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
@@ -373,22 +442,23 @@ elif app_mode == "🎓 Biblioapp":
             for idx, row in df_pubs.iterrows():
                 with cols[idx % 5]:
                     img_url = row.get('image')
-                    # 若無圖，給予高質感的 CSS 漸層假圖
                     if not img_url or not str(img_url).startswith("http"):
                         img_url = "https://via.placeholder.com/150x220/2b2b2b/FFFFFF?text=No+Cover"
                         
-                    # 使用 HTML/CSS 精準控制高度與文字截斷
+                    # 應用 memoof.me 風格的 HTML
                     st.markdown(f'''
-                    <div style="text-align: center; margin-bottom: 10px;">
-                        <a href="{row.get('link', '#')}" target="_blank">
-                            <img src="{img_url}" style="width: 100%; height: 240px; object-fit: cover; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.4);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x220/2b2b2b/FFFFFF?text=No+Cover';">
+                    <div class="memoof-book">
+                        <a href="{row.get('link', '#')}" target="_blank" class="memoof-cover">
+                            <img src="{img_url}" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x220/2b2b2b/FFFFFF?text=No+Cover';">
                         </a>
-                        <div style="font-size: 14px; font-weight: bold; margin-top: 10px; line-height: 1.3; height: 36px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{row.get('title', '未命名')}</div>
-                        <div style="font-size: 12px; color: #888; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{row.get('author', '')}</div>
+                        <div class="memoof-meta">
+                            <div class="memoof-title" title="{row.get('title', '未命名')}">{row.get('title', '未命名')}</div>
+                            <div class="memoof-author" title="{row.get('author', '')}">{row.get('author', '')}</div>
+                        </div>
                     </div>
                     ''', unsafe_allow_html=True)
                     st.button("🗑️ 移除", key=f"del_bib_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
-                    st.write("") # 增加底部間距
+                    st.write("") 
 
     # ==========================================
     # 列表視圖：文獻探索 (List UI)
@@ -414,7 +484,7 @@ elif app_mode == "🎓 Biblioapp":
                         with col_img:
                             img_url = row.get('image')
                             if pd.notna(img_url) and str(img_url).startswith("http"):
-                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:180px; border-radius:6px; object-fit:cover; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x200?text=No+Cover';">'''
+                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:160px; border-radius:4px; object-fit:cover; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x200/2b2b2b/FFFFFF?text=No+Cover';">'''
                                 st.markdown(img_html, unsafe_allow_html=True)
                             else: st.info("無封面圖影")
                         with col_info:
