@@ -16,23 +16,53 @@ TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 # ==========================================
 def fetch_from_crossref(member_id, publisher_name):
     print(f"🔍 [Crossref] 準備擷取 {publisher_name} 新書...")
-    url = f"https://api.crossref.org/members/{member_id}/works"
-    params = {"filter": "type:book", "sort": "published", "order": "desc", "rows": 20}
+    
+    # 增加 monograph (專書) 類型，這是大學出版社最常用的新書格式
+    types_to_fetch = ["book", "monograph"]
     headers = {"User-Agent": "BiblioappCloud/1.0 (mailto:admin@monoreader.cloud)"}
+    all_items = []
+    
+    # 針對兩種書籍類型分別發送請求
+    for t in types_to_fetch:
+        url = f"https://api.crossref.org/members/{member_id}/works"
+        params = {"filter": f"type:{t}", "sort": "published", "order": "desc", "rows": 15}
+        try:
+            res = requests.get(url, params=params, headers=headers, timeout=15)
+            if res.status_code == 200:
+                all_items.extend(res.json().get("message", {}).get("items", []))
+        except Exception as e:
+            print(f"⚠️ 取得 {t} 失敗: {e}")
+            
+    # 建立日期排序輔助函數
+    def get_sort_date(item):
+        # 優先讀取 issued (發行日)，其次為實體或線上出版日
+        date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
+        parts = date_obj.get("date-parts", [[0]])[0]
+        year = parts[0] if len(parts) > 0 and parts[0] else 0
+        month = parts[1] if len(parts) > 1 and parts[1] else 1
+        return (year, month)
+
+    # 將抓回來的書目依照日期降冪排序，並取最新 20 筆
+    all_items.sort(key=get_sort_date, reverse=True)
+    top_items = all_items[:20]
     
     records = []
-    try:
-        res = requests.get(url, params=params, headers=headers, timeout=15)
-        res.raise_for_status()
-        items = res.json().get("message", {}).get("items", [])
-        
-        for item in items:
+    for item in top_items:
+        try:
             title = item.get("title", ["未命名書籍"])[0]
             authors_list = item.get("author", [])
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or publisher_name
             
-            date_parts = item.get("published", {}).get("date-parts", [[]])[0]
-            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            # 安全提取出版日期
+            date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
+            date_parts = date_obj.get("date-parts", [[]])[0]
+            
+            if len(date_parts) >= 2:
+                pub_date = f"{date_parts[0]}-{date_parts[1]:02d}"
+            elif len(date_parts) == 1 and date_parts[0]:
+                pub_date = str(date_parts[0])
+            else:
+                pub_date = "未知日期"
             
             doi = item.get("DOI", "")
             isbn_list = item.get("ISBN", [])
@@ -53,10 +83,10 @@ def fetch_from_crossref(member_id, publisher_name):
                 "abstract": abstract[:600] + "..." if len(abstract) > 600 else abstract,
                 "link": link, "image": image_url
             })
-    except Exception as e:
-        print(f"❌ [{publisher_name}] 擷取失敗: {e}")
+        except Exception as e:
+            print(f"⚠️ 解析單本書籍時發生錯誤: {e}")
+            
     return records
-
 # ==========================================
 # 3. 爬蟲模組 B：青土社 (網頁 HTML 解析)
 # ==========================================
