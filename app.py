@@ -364,4 +364,11 @@ elif app_mode == "🎓 Biblioapp":
             with col_page:
                 st.selectbox(
                     "📄 選擇頁數 (跳轉至)：", range(1, total_pages + 1), 
-                    index=st.session_state.biblio_page -
+                    index=st.session_state.biblio_page - 1, 
+                    key="biblio_page_selector", 
+                    on_change=update_biblio_page
+                )
+                st.caption(f"目前顯示第 {st.session_state.biblio_page} 頁，共 {total_pages} 頁")
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Monoreader Cloud v3.3 (Powered by Turso)")
