@@ -386,6 +386,17 @@ if app_mode == "📚 Monoreader":
                     st.selectbox("📄 選擇頁數 (跳轉至)：", range(1, total_pages + 1), index=st.session_state.mono_page - 1, key="mono_page_selector", on_change=update_mono_page)
 
 # ==========================================
+# 🌟 Biblioapp 專屬刪除函數 (加入在 app_mode 判斷式之前)
+# ==========================================
+def delete_biblio_db(pub_id):
+    try:
+        db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id])
+        st.cache_data.clear()
+        st.toast("🗑️ 該筆文獻已從雲端徹底刪除！")
+    except Exception as e:
+        st.error(f"刪除失敗: {e}")
+
+# ==========================================
 # 模組二：🎓 Biblioapp
 # ==========================================
 elif app_mode == "🎓 Biblioapp":
@@ -395,14 +406,15 @@ elif app_mode == "🎓 Biblioapp":
         biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架"], on_change=reset_biblio_page)
         st.markdown("---")
         
-        # --- ISBN 手動匯入區塊 ---
         with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
             if st.button("檢索並加入書架", use_container_width=True):
                 if isbn_input:
-                    with st.spinner("正在呼叫 Google Books API..."):
+                    with st.spinner("正在呼叫書籍 API..."):
                         book_data = fetch_book_by_isbn(isbn_input)
                         if book_data:
+                            # 🌟 強制將手動輸入的書籍歸類為「手動加入」
+                            book_data['publisher_journal'] = "手動加入"
                             try:
                                 sql = """
                                 INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked)
@@ -423,22 +435,22 @@ elif app_mode == "🎓 Biblioapp":
             biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed", on_change=reset_biblio_page)
             db_type = "Book" if "專書" in biblio_type_label else "Journal"
             if db_type == "Book":
-                active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press", "青土社"], on_change=reset_biblio_page)
+                # 🌟 新增「手動加入」板塊
+                active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press", "青土社", "手動加入"], on_change=reset_biblio_page)
             else:
                 active_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "青土社 (雜誌)", "PRISM: Theory and Modern Chinese Literature"], on_change=reset_biblio_page)
 
     df_pubs = fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter)
     
     # ==========================================
-    # 畫廊視圖：待讀書架 (memoof.me 風格)
+    # 畫廊視圖：待讀書架
     # ==========================================
     if biblio_view_mode == "🔖 待讀書架":
         st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
         st.markdown("---")
         if df_pubs.empty:
-            st.info("您的待讀書架目前是空的。請在文獻探索中點擊收藏，或在左側透過 ISBN 手動加入。")
+            st.info("您的待讀書架目前是空的。")
         else:
-            # 建立 5 欄網格排版
             cols = st.columns(5)
             for idx, row in df_pubs.iterrows():
                 with cols[idx % 5]:
@@ -446,7 +458,6 @@ elif app_mode == "🎓 Biblioapp":
                     if not img_url or not str(img_url).startswith("http"):
                         img_url = "https://via.placeholder.com/150x220/2b2b2b/FFFFFF?text=No+Cover"
                         
-                    # 應用 memoof.me 風格的 HTML
                     st.markdown(f'''
                     <div class="memoof-book">
                         <a href="{row.get('link', '#')}" target="_blank" class="memoof-cover">
@@ -458,11 +469,19 @@ elif app_mode == "🎓 Biblioapp":
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
-                    st.button("🗑️ 移除", key=f"del_bib_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
+                    
+                    # 🌟 橫排雙按鈕：取消收藏 vs 徹底刪除 (附確認)
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        st.button("💔 移除", key=f"unmark_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
+                    with btn_col2:
+                        with st.popover("🗑️ 刪除"):
+                            st.write("確定抹除此書？")
+                            st.button("✅ 確定", key=f"del_grid_{row['id']}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.write("") 
 
     # ==========================================
-    # 列表視圖：文獻探索 (List UI)
+    # 列表視圖：文獻探索
     # ==========================================
     else:
         st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
@@ -485,7 +504,7 @@ elif app_mode == "🎓 Biblioapp":
                         with col_img:
                             img_url = row.get('image')
                             if pd.notna(img_url) and str(img_url).startswith("http"):
-                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio: 2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
+                                img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
                                 st.markdown(img_html, unsafe_allow_html=True)
                             else: st.info("無封面圖影")
                         with col_info:
@@ -494,6 +513,10 @@ elif app_mode == "🎓 Biblioapp":
                             st.write(row.get('abstract', ''))
                         with col_btn:
                             st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
+                            # 🌟 列表區的徹底刪除
+                            with st.popover("🗑️ 刪除"):
+                                st.write("確定抹除此書？")
+                                st.button("✅ 確定", key=f"del_list_{row['id']}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     else:
                         col_info, col_btn = st.columns([8, 1])
                         with col_info:
@@ -503,6 +526,9 @@ elif app_mode == "🎓 Biblioapp":
                             st.write(row.get('abstract', ''))
                         with col_btn:
                             st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
+                            with st.popover("🗑️ 刪除"):
+                                st.write("確定抹除此論文？")
+                                st.button("✅ 確定", key=f"del_list_jour_{row['id']}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
 
             if total_pages > 1:
@@ -511,4 +537,4 @@ elif app_mode == "🎓 Biblioapp":
                     st.selectbox("📄 選擇頁數 (跳轉至)：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.4 (Bookshelf Edition)")
+st.sidebar.caption("Monoreader Cloud v3.5 (Bookshelf & LibThing Edition)")
