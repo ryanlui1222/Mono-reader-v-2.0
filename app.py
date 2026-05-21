@@ -18,9 +18,10 @@ st.markdown("""
 <style>
 .memoof-cover img {
     width: 100%;
-    height: 240px;
-    object-fit: cover;
-    border-radius: 2px;
+    aspect-ratio: 2 / 3; /* 強制維持標準書籍 2:3 比例 */
+    object-fit: contain; /* 保證不裁切圖片 */
+    background-color: #1E1E1E; /* 圖片不夠寬時，用深色背景襯托 */
+    border-radius: 4px;
     box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
     transition: transform 0.2s ease-in-out;
 }
