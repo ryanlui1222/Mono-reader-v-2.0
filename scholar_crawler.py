@@ -29,17 +29,18 @@ def get_best_cover(isbn, title, author, publisher):
                 return img_url
         except: pass
 
-    # --- 2. LibraryThing API (官方封面介面) ---
-    if LIBRARYTHING_DEV_KEY and LIBRARYTHING_DEV_KEY != "76ad10cb98ef8ae73566f59629496032" and isbn:
-        lt_url = f"http://covers.librarything.com/devkey/{LIBRARYTHING_DEV_KEY}/large/isbn/{isbn}"
+    # --- 2. LibraryThing API (使用 wsrv.nl 破解 Cloudflare 防盜鏈) ---
+    if LIBRARYTHING_DEV_KEY and LIBRARYTHING_DEV_KEY != "請貼上您的Key" and isbn:
+        raw_lt_url = f"covers.librarything.com/devkey/{LIBRARYTHING_DEV_KEY}/large/isbn/{isbn}"
+        proxy_url = f"https://wsrv.nl/?url={raw_lt_url}"
         try:
-            res = requests.get(lt_url, timeout=5)
-            # 排除 1x1 像素的假圖片 (小於 100 bytes)
-            if res.status_code == 200 and len(res.content) > 100:
-                return lt_url
+            res = requests.get(proxy_url, timeout=8)
+            # 確保代理伺服器回傳的是真正的圖片 (過濾透明圖)
+            if res.status_code == 200 and len(res.content) > 500:
+                return proxy_url
         except: pass
 
-    # --- 3. Google Books API (ISBN 搜尋) ---
+    # --- 3. Google Books API (寬鬆搜尋) ---
     if isbn:
         try:
             res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={isbn}", timeout=5)
@@ -50,9 +51,8 @@ def get_best_cover(isbn, title, author, publisher):
                 if best: return best.replace("http://", "https://")
         except: pass
 
-    # --- 4. Google Books API (極端暴力盲搜：僅用書名前半段) ---
+    # --- 4. Google Books API (書名盲搜) ---
     try:
-        # 去掉副標題，去掉特殊符號，只留下最核心的英文字
         short_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
         query = urllib.parse.quote(short_title)
         res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5)
@@ -63,7 +63,7 @@ def get_best_cover(isbn, title, author, publisher):
             if best: return best.replace("http://", "https://")
     except: pass
 
-    # --- 5. Open Library (最終備用) ---
+    # --- 5. Open Library ---
     if isbn:
         try:
             ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json"
