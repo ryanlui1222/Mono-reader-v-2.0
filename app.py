@@ -25,7 +25,8 @@ SOURCE_URLS = {
     "BIE別的": "https://www.biede.com/", "Sabukaru": "https://sabukaru.online/articles", 
     "TripleAmpersand": "https://tripleampersand.org/", "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/", "VERSE": "https://www.verse.com.tw/",
-    "界面文化": "https://www.jiemian.com/lists/130.html", "Radii": "https://radii.co/"
+    "界面文化": "https://www.jiemian.com/lists/130.html", "Radii": "https://radii.co/",
+    "Duke Arts & Humanities": "https://today.duke.edu/topics/arts-&-humanities",
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
