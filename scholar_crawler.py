@@ -12,17 +12,71 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # ==========================================
+# 🌟 新增：智慧封面搜尋引擎 (Hybrid Cover Finder)
+# ==========================================
+def get_best_cover(isbn, publisher, book_url):
+    """
+    透過三層降落傘機制，為學術書籍尋找最高品質的封面圖片。
+    """
+    # ------------------------------------------------
+    # 第一層：破解出版社 CDN (MIT Press 專屬特快車)
+    # ------------------------------------------------
+    if publisher == "MIT Press" and isbn:
+        # MIT Press 的圖片伺服器規則非常固定
+        return f"https://mit-press-new-us.imgix.net/covers/{isbn}.jpg"
+
+    # ------------------------------------------------
+    # 第二層：Google Books API (速度快、新書覆蓋率高)
+    # ------------------------------------------------
+    if isbn:
+        try:
+            google_api = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+            res = requests.get(google_api, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if "items" in data and len(data["items"]) > 0:
+                    img_links = data["items"][0].get("volumeInfo", {}).get("imageLinks", {})
+                    # 優先拿大圖，沒有就拿縮圖，並把 http 改為 https 避免前端報錯
+                    best_img = img_links.get("thumbnail") or img_links.get("smallThumbnail")
+                    if best_img:
+                        return best_img.replace("http://", "https://")
+        except Exception:
+            pass # 默默失敗，進入第三層
+
+    # ------------------------------------------------
+    # 第三層：單點網頁解析 (抓取社群分享用 og:image)
+    # ------------------------------------------------
+    if book_url and "doi.org" not in book_url: # 若 Crossref 給的是實際網址而非 DOI 轉址
+        try:
+            # 偽裝成一般瀏覽器單點突擊
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            res = requests.get(book_url, headers=headers, timeout=8)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
+                og_img = soup.find("meta", property="og:image")
+                if og_img and og_img.get("content"):
+                    return og_img["content"]
+        except Exception:
+            pass
+            
+    # ------------------------------------------------
+    # 第四層：最終防線 (Open Library)
+    # ------------------------------------------------
+    if isbn:
+        return f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg"
+        
+    return ""
+
+# ==========================================
 # 2. 爬蟲模組 A：Crossref API (適用 MIT & Duke)
 # ==========================================
 def fetch_from_crossref(member_id, publisher_name):
     print(f"🔍 [Crossref] 準備擷取 {publisher_name} 新書...")
     
-    # 增加 monograph (專書) 類型，這是大學出版社最常用的新書格式
     types_to_fetch = ["book", "monograph"]
     headers = {"User-Agent": "BiblioappCloud/1.0 (mailto:admin@monoreader.cloud)"}
     all_items = []
     
-    # 針對兩種書籍類型分別發送請求
     for t in types_to_fetch:
         url = f"https://api.crossref.org/members/{member_id}/works"
         params = {"filter": f"type:{t}", "sort": "published", "order": "desc", "rows": 15}
@@ -33,16 +87,13 @@ def fetch_from_crossref(member_id, publisher_name):
         except Exception as e:
             print(f"⚠️ 取得 {t} 失敗: {e}")
             
-    # 建立日期排序輔助函數
     def get_sort_date(item):
-        # 優先讀取 issued (發行日)，其次為實體或線上出版日
         date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
         parts = date_obj.get("date-parts", [[0]])[0]
         year = parts[0] if len(parts) > 0 and parts[0] else 0
         month = parts[1] if len(parts) > 1 and parts[1] else 1
         return (year, month)
 
-    # 將抓回來的書目依照日期降冪排序，並取最新 20 筆
     all_items.sort(key=get_sort_date, reverse=True)
     top_items = all_items[:20]
     
@@ -53,7 +104,6 @@ def fetch_from_crossref(member_id, publisher_name):
             authors_list = item.get("author", [])
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or publisher_name
             
-            # 安全提取出版日期
             date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
             date_parts = date_obj.get("date-parts", [[]])[0]
             
@@ -73,8 +123,8 @@ def fetch_from_crossref(member_id, publisher_name):
             raw_abstract = item.get("abstract", "")
             abstract = re.sub(r'<[^>]+>', '', raw_abstract) if raw_abstract else "（官方暫無提供數位摘要）"
             
-            # 使用 Open Library 自動補齊書封
-            image_url = f"https://covers.openlibrary.org/b/isbn/{isbn_clean}-L.jpg" if isbn_clean else ""
+            # 🌟 呼叫全新的智慧封面搜尋引擎
+            image_url = get_best_cover(isbn_clean, publisher_name, link)
 
             records.append({
                 "type": "Book", "title": title, "author": author,
@@ -87,6 +137,7 @@ def fetch_from_crossref(member_id, publisher_name):
             print(f"⚠️ 解析單本書籍時發生錯誤: {e}")
             
     return records
+
 # ==========================================
 # 3. 爬蟲模組 B：青土社 (網頁 HTML 解析)
 # ==========================================
