@@ -518,7 +518,8 @@ def main():
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
         ("https://radii.co/feed", "Radii", 15, True),
         ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
-        ("https://fnmnl.tv/feed/", "FNMNL", 15, False)               # 音樂/街頭快訊
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
+        ("https://today.duke.edu/topics/arts-&-humanities/rss", "Duke Arts & Humanities", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
