@@ -1,6 +1,5 @@
 import os
 import re
-import urllib.parse
 import requests
 import cloudscraper
 import libsql_client
@@ -19,7 +18,7 @@ TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 # ==========================================
 def get_best_cover(isbn, publisher, book_url):
     """
-    透過三層降落傘機制，為學術書籍尋找最高品質的封面圖片。
+    透過四層降落傘機制，為學術書籍尋找最高品質的封面圖片。
     """
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
@@ -35,11 +34,12 @@ def get_best_cover(isbn, publisher, book_url):
         except: pass
 
     # ------------------------------------------------
-    # 第二層：Google Books API (速度快、新書覆蓋率高)
+    # 第二層：Google Books API (修正為寬鬆比對，提升命中率)
     # ------------------------------------------------
     if isbn:
         try:
-            google_api = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+            # 移除 q=isbn: 前綴，讓 Google 引擎全文檢索，解決舊書抓不到的問題
+            google_api = f"https://www.googleapis.com/books/v1/volumes?q={isbn}"
             res = requests.get(google_api, timeout=5)
             if res.status_code == 200:
                 data = res.json()
@@ -55,7 +55,7 @@ def get_best_cover(isbn, publisher, book_url):
     # ------------------------------------------------
     if book_url:
         try:
-            # 必須使用 cloudscraper 來跟隨 DOI 轉址，並擊穿大學出版社的學術防火牆
+            # 使用 cloudscraper 跟隨 DOI 轉址，並擊穿大學出版社的學術防火牆
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
             res = scraper.get(book_url, timeout=12)
             
@@ -94,6 +94,7 @@ def get_best_cover(isbn, publisher, book_url):
 def fetch_from_crossref(member_id, publisher_name):
     print(f"🔍 [Crossref] 準備擷取 {publisher_name} 新書...")
     
+    # 同時抓取 book 與 monograph，避免漏掉學術專書
     types_to_fetch = ["book", "monograph"]
     headers = {"User-Agent": "BiblioappCloud/1.0 (mailto:admin@monoreader.cloud)"}
     all_items = []
@@ -108,6 +109,7 @@ def fetch_from_crossref(member_id, publisher_name):
         except Exception as e:
             print(f"⚠️ 取得 {t} 失敗: {e}")
             
+    # 依照精準日期排序
     def get_sort_date(item):
         date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
         parts = date_obj.get("date-parts", [[0]])[0]
@@ -116,7 +118,7 @@ def fetch_from_crossref(member_id, publisher_name):
         return (year, month)
 
     all_items.sort(key=get_sort_date, reverse=True)
-    top_items = all_items[:20]
+    top_items = all_items[:20] # 取最新的 20 筆
     
     records = []
     for item in top_items:
@@ -250,6 +252,8 @@ def save_to_db(items):
 
 if __name__ == "__main__":
     all_records = []
+    
+    # 執行所有爬蟲模組
     all_records.extend(fetch_from_crossref("281", "MIT Press"))            
     all_records.extend(fetch_from_crossref("73", "Duke University Press")) 
     all_records.extend(crawl_seidosha())                                   
