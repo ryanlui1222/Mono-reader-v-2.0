@@ -148,7 +148,17 @@ def delete_biblio_db(pub_id):
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     
-    # 引擎一：Google Books API (最穩定的學術備援)
+    # 🌟 預先驗證 Syndetics 是否有高畫質圖片
+    best_cover = ""
+    if clean_isbn:
+        syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
+        try:
+            syn_res = requests.get(syndetics_url, timeout=5)
+            if syn_res.status_code == 200 and len(syn_res.content) > 100:
+                best_cover = syndetics_url
+        except: pass
+
+    # 引擎一：Google Books API (獲取元資料)
     try:
         url = f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}"
         res = requests.get(url, timeout=10)
@@ -156,9 +166,14 @@ def fetch_book_by_isbn(isbn):
             data = res.json()
             if "items" in data and len(data["items"]) > 0:
                 info = data["items"][0].get("volumeInfo", {})
-                img_links = info.get("imageLinks", {})
-                img_url = img_links.get("thumbnail") or img_links.get("smallThumbnail", "")
-                img_url = img_url.replace("http://", "https://") if img_url else f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"
+                
+                # 🌟 圖片攔截：優先使用 Syndetics，若無則降級使用 Google 或 Open Library
+                img_url = best_cover
+                if not img_url:
+                    img_links = info.get("imageLinks", {})
+                    fallback_img = img_links.get("thumbnail") or img_links.get("smallThumbnail", "")
+                    img_url = fallback_img.replace("http://", "https://") if fallback_img else f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"
+                
                 return {
                     "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", ["未知作者"])),
                     "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "",
@@ -168,7 +183,7 @@ def fetch_book_by_isbn(isbn):
                 }
     except: pass
 
-    # 引擎二：Open Library API
+    # 引擎二：Open Library API (獲取元資料)
     try:
         ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
         ol_res = requests.get(ol_url, timeout=10)
@@ -176,13 +191,17 @@ def fetch_book_by_isbn(isbn):
         if f"ISBN:{clean_isbn}" in ol_data:
             info = ol_data[f"ISBN:{clean_isbn}"]
             authors = [a.get("name", "") for a in info.get("authors", [])]
+            
+            # 🌟 圖片攔截
+            img_url = best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg")
+            
             return {
                 "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(authors) if authors else "未知作者",
                 "publisher_journal": info.get("publishers", [{"name": "手動匯入"}])[0].get("name", "手動加入"), "issue_volume": "",
                 "identifier": clean_isbn, "publish_date": info.get("publish_date", datetime.utcnow().strftime("%Y-%m-%d")),
                 "abstract": "（透過 Open Library 匯入，無詳細摘要）",
                 "link": info.get("url", f"https://openlibrary.org/isbn/{clean_isbn}"), 
-                "image": info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "is_bookmarked": 1
+                "image": img_url, "is_bookmarked": 1
             }
     except: pass
     
