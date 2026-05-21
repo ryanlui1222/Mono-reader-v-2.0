@@ -12,12 +12,22 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # ==========================================
-# 🌟 智慧封面搜尋引擎 (強化學術雙引擎 + 降噪技術)
+# 🌟 智慧封面搜尋引擎 (Syndetics 優先制)
 # ==========================================
 def get_best_cover(isbn, title, author, publisher):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+    # --- 1. Syndetics (機構級圖書館資料庫 - 絕對優先) ---
+    if isbn:
+        syndetics_url = f"https://syndetics.com/index.aspx?isbn={isbn}/lc.jpg&client=test"
+        try:
+            res = requests.get(syndetics_url, headers=headers, timeout=5)
+            # 關鍵防呆：過濾掉找不到圖片時回傳的 1x1 透明 GIF (通常約 43 bytes)
+            if res.status_code == 200 and len(res.content) > 100:
+                return syndetics_url
+        except: pass
     
-    # --- 1. MIT Press 專屬 CDN ---
+    # --- 2. MIT Press 專屬 CDN (次優先) ---
     if publisher == "MIT Press" and isbn:
         img_url = f"https://mit-press-new-us.imgix.net/covers/{isbn}.jpg"
         try:
@@ -25,7 +35,7 @@ def get_best_cover(isbn, title, author, publisher):
                 return img_url
         except: pass
 
-    # --- 2. Google Books API (精準 ISBN 搜尋) ---
+    # --- 3. Google Books API (精準 ISBN 搜尋) ---
     if isbn:
         try:
             res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={isbn}", timeout=5)
@@ -36,13 +46,9 @@ def get_best_cover(isbn, title, author, publisher):
                 if best: return best.replace("http://", "https://")
         except: pass
 
-    # --- 3. Google Books API (智慧降噪書名搜尋) ---
-    # 學術書名常有副標題，如 "Terracene: A Cultural History..."，冒號後面的雜訊容易導致搜尋失敗。
+    # --- 4. Google Books API (智慧降噪書名搜尋：解決 Duke 沒有 ISBN 的問題) ---
     try:
-        # 降噪：只取冒號前的字串，並移除特殊符號
         clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
-        
-        # 將乾淨的書名與作者的第一個單字組合，進行強力盲搜
         search_query = urllib.parse.quote(f"{clean_title} {author.split(',')[0]}")
         res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={search_query}", timeout=5)
         data = res.json()
@@ -52,7 +58,7 @@ def get_best_cover(isbn, title, author, publisher):
             if best: return best.replace("http://", "https://")
     except: pass
 
-    # --- 4. Open Library (最終備用) ---
+    # --- 5. Open Library (最終備用) ---
     if isbn:
         try:
             ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json"
@@ -61,7 +67,6 @@ def get_best_cover(isbn, title, author, publisher):
         except: pass
 
     return ""
-
 # ==========================================
 # 3. 爬蟲核心
 # ==========================================
