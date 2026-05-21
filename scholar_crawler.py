@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import libsql_client
+from bs4 import BeautifulSoup
 from datetime import datetime
 
 # ==========================================
@@ -11,12 +12,12 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # ==========================================
-# 2. 共用的 API 爬蟲邏輯 (避免重複程式碼)
+# 2. 爬蟲模組 A：Crossref API (適用 MIT & Duke)
 # ==========================================
 def fetch_from_crossref(member_id, publisher_name):
-    print(f"🔍 準備透過 Crossref API 擷取 {publisher_name}...")
+    print(f"🔍 [Crossref] 準備擷取 {publisher_name} 新書...")
     url = f"https://api.crossref.org/members/{member_id}/works"
-    params = {"filter": "type:book", "sort": "published", "order": "desc", "rows": 15}
+    params = {"filter": "type:book", "sort": "published", "order": "desc", "rows": 20}
     headers = {"User-Agent": "BiblioappCloud/1.0 (mailto:admin@monoreader.cloud)"}
     
     records = []
@@ -57,11 +58,73 @@ def fetch_from_crossref(member_id, publisher_name):
     return records
 
 # ==========================================
-# 3. 寫入 Turso 資料庫
+# 3. 爬蟲模組 B：青土社 (網頁 HTML 解析)
+# ==========================================
+def crawl_seidosha():
+    print("🔍 [青土社] 準備擷取 新刊/雜誌...")
+    url = "https://www.seidosha.co.jp/"
+    records = []
+    
+    try:
+        res = requests.get(url, timeout=15)
+        res.encoding = 'utf-8'
+        soup = BeautifulSoup(res.text, "html.parser")
+        
+        new_mag_section = soup.find("div", id="new_mag")
+        if not new_mag_section: return records
+            
+        items = new_mag_section.find_all("div", class_="col-link-items")
+        for item in items:
+            a_tag = item.find("a")
+            if not a_tag: continue
+            
+            raw_link = a_tag.get("href", "")
+            link = f"https://www.seidosha.co.jp{raw_link.lstrip('.')}"
+            
+            img_tag = item.find("img")
+            raw_img = img_tag.get("src", "") if img_tag else ""
+            image_url = f"https://www.seidosha.co.jp{raw_img}" if raw_img else ""
+            
+            identifier = link
+            isbn_match = re.search(r'(\d{13})\.jpg', raw_img)
+            if isbn_match:
+                identifier = isbn_match.group(1)
+                
+            title_tag = item.find("h3", class_="h5")
+            title = title_tag.get_text(strip=True) if title_tag else "未命名書籍"
+            
+            author_tag = item.find("p", class_="author")
+            author = author_tag.get_text(strip=True) if author_tag else "青土社"
+            
+            date_tag = item.find("p", class_="date")
+            pub_date = date_tag.get_text(strip=True) if date_tag else ""
+            pub_date = pub_date.replace("年", "-").replace("月", "-").replace("日", "")
+            
+            # 分類邏輯 (若是ユリイカ或現代思想則為 Journal)
+            pub_type = "Journal" if "ユリイカ" in title or "現代思想" in title else "Book"
+            
+            records.append({
+                "type": pub_type, "title": title, "author": author,
+                "publisher_journal": "青土社", "issue_volume": "",
+                "identifier": identifier, "publish_date": pub_date,
+                "abstract": "（此為青土社新刊目錄擷取，無詳細摘要）",
+                "link": link, "image": image_url
+            })
+    except Exception as e:
+        print(f"❌ [青土社] 擷取發生錯誤: {e}")
+    return records
+
+# ==========================================
+# 4. 寫入 Turso 資料庫
 # ==========================================
 def save_to_db(items):
-    if not TURSO_DATABASE_URL or not TURSO_TOKEN: return
+    if not items: return
+    if not TURSO_DATABASE_URL or not TURSO_TOKEN:
+        print("❌ 錯誤：找不到 TURSO_DATABASE_URL 或 Token。")
+        return
+        
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+    success_count = 0
     try:
         for item in items:
             sql = """
@@ -69,22 +132,26 @@ def save_to_db(items):
             (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(identifier) DO UPDATE SET 
-                title=excluded.title, author=excluded.author, image=excluded.image;
+                title=excluded.title, author=excluded.author, 
+                publish_date=excluded.publish_date, image=excluded.image;
             """
             client.execute(sql, [
                 item["type"], item["title"], item["author"], item["publisher_journal"], 
                 item["issue_volume"], item["identifier"], item["publish_date"], 
                 item["abstract"], item["link"], item["image"]
             ])
+            success_count += 1
+        print(f"✅ 成功寫入/更新 {success_count} 筆文獻！")
+    except Exception as e:
+        print(f"❌ 寫入資料庫時發生錯誤: {e}")
     finally:
         client.close()
 
 if __name__ == "__main__":
     all_records = []
-    # Member ID 281 = MIT Press
-    all_records.extend(fetch_from_crossref("281", "MIT Press"))
-    # Member ID 73 = Duke University Press
-    all_records.extend(fetch_from_crossref("73", "Duke University Press"))
+    all_records.extend(fetch_from_crossref("281", "MIT Press"))            # MIT Press
+    all_records.extend(fetch_from_crossref("73", "Duke University Press")) # Duke Univ Press
+    all_records.extend(crawl_seidosha())                                   # 青土社
     
-    print(f"📥 總計取得 {len(all_records)} 筆資料，準備寫入...")
+    print(f"📥 總計取得 {len(all_records)} 筆資料，準備寫入資料庫...")
     save_to_db(all_records)
