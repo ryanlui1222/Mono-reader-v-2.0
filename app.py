@@ -17,25 +17,18 @@ st.set_page_config(page_title="Monoreader Cloud", page_icon="📚", layout="wide
 st.markdown("""
 <style>
 .memoof-cover img {
-    width: 100%;
-    aspect-ratio: 2 / 3; 
-    object-fit: contain; 
-    background-color: #1E1E1E; 
-    border-radius: 4px;
-    box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
-    transition: transform 0.2s ease-in-out;
+    width: 100%; aspect-ratio: 2 / 3; object-fit: contain; 
+    background-color: #1E1E1E; border-radius: 4px;
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s ease-in-out;
 }
 .memoof-cover img:hover { transform: scale(1.03); }
 .memoof-meta { margin-top: 10px; text-align: left; }
 .memoof-title {
-    font-size: 14px; font-weight: bold; line-height: 1.3;
-    color: #E2E8F0; display: -webkit-box; -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; height: 36px;
+    font-size: 14px; font-weight: bold; line-height: 1.3; color: #E2E8F0; 
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; 
+    overflow: hidden; text-overflow: ellipsis; height: 36px;
 }
-.memoof-author {
-    font-size: 12px; color: #94A3B8; margin-top: 4px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+.memoof-author { font-size: 12px; color: #94A3B8; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stButton button { margin-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
@@ -56,16 +49,13 @@ SOURCE_URLS = {
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
-def get_source_link(source_name):
-    base_name = source_name.split(" (")[0]
-    return SOURCE_URLS.get(base_name, "#")
+def get_source_link(source_name): return SOURCE_URLS.get(source_name.split(" (")[0], "#")
 
 # ==========================================
-# 2. 狀態管理
+# 2. 狀態管理與資料庫函數
 # ==========================================
 if 'mono_page' not in st.session_state: st.session_state.mono_page = 1
 if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
-
 def reset_mono_page(): st.session_state.mono_page = 1
 def reset_biblio_page(): st.session_state.biblio_page = 1
 def update_mono_page(): 
@@ -73,28 +63,20 @@ def update_mono_page():
 def update_biblio_page(): 
     if "biblio_page_selector" in st.session_state: st.session_state.biblio_page = st.session_state.biblio_page_selector
 
-# ==========================================
-# 3. 資料庫與所有功能函數
-# ==========================================
 @st.cache_resource
-def init_connection():
-    return libsql_client.create_client_sync(url=st.secrets["TURSO_DATABASE_URL"], auth_token=st.secrets["TURSO_AUTH_TOKEN"])
+def init_connection(): return libsql_client.create_client_sync(url=st.secrets["TURSO_DATABASE_URL"], auth_token=st.secrets["TURSO_AUTH_TOKEN"])
 db = init_connection()
 
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     sql, args = "SELECT * FROM articles WHERE 1=1", []
     if search_query:
-        sql += " AND (Title LIKE ? OR Summary LIKE ?)"
-        args.extend([f"%{search_query}%", f"%{search_query}%"])
-        if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
-            sql += " AND Source = ?"; args.append(source_filter)
+        sql += " AND (Title LIKE ? OR Summary LIKE ?)"; args.extend([f"%{search_query}%", f"%{search_query}%"])
+        if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽": sql += " AND Source = ?"; args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫": sql += " AND is_bookmarked = 1"
     else:
-        if view_mode in ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊"]:
-            sql += " AND SortDate >= ?"; args.append((datetime.utcnow() - timedelta(hours=24)).isoformat())
-        elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽":
-            sql += " AND Source = ?"; args.append(source_filter)
+        if view_mode in ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊"]: sql += " AND SortDate >= ?"; args.append((datetime.utcnow() - timedelta(hours=24)).isoformat())
+        elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽": sql += " AND Source = ?"; args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫": sql += " AND is_bookmarked = 1"
     sql += " ORDER BY SortDate DESC LIMIT 500"
     res = db.execute(sql, args)
@@ -107,214 +89,173 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 @st.cache_data(ttl=600)
 def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總覽"):
     sql, args = "SELECT * FROM academic_pubs WHERE 1=1", []
+    # 🌟 資料庫檢索分流
     if view_mode == "🔖 待讀書架":
-        sql += " AND is_bookmarked = 1"
+        sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
+    elif view_mode == "🔗 網址備存":
+        sql += " AND type = 'Web Link'"
     else:
-        sql += " AND type = ?"
-        args.append(pub_type)
-        if source_filter != "總覽 (依日期遞減)":
-            sql += " AND publisher_journal = ?"; args.append(source_filter)
+        sql += " AND type = ?"; args.append(pub_type)
+        if source_filter != "總覽 (依日期遞減)": sql += " AND publisher_journal = ?"; args.append(source_filter)
     sql += " ORDER BY publish_date DESC LIMIT 500"
     res = db.execute(sql, args)
     if not res.rows: return pd.DataFrame()
     return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows])
 
 def toggle_bookmark_db(link, current_state):
-    try:
-        db.execute("UPDATE articles SET is_bookmarked = ? WHERE Link = ?", [0 if current_state else 1, link])
-        st.cache_data.clear(); st.toast("書籤狀態已更新！")
+    try: db.execute("UPDATE articles SET is_bookmarked = ? WHERE Link = ?", [0 if current_state else 1, link]); st.cache_data.clear(); st.toast("書籤更新！")
     except Exception as e: st.error(f"操作失敗: {e}")
-
 def delete_article_db(link):
-    try:
-        db.execute("DELETE FROM articles WHERE Link = ?", [link])
-        st.cache_data.clear(); st.toast("🗑️ 文章已抹除！")
+    try: db.execute("DELETE FROM articles WHERE Link = ?", [link]); st.cache_data.clear(); st.toast("🗑️ 文章已抹除！")
     except Exception as e: st.error(f"刪除失敗: {e}")
-
 def toggle_biblio_bookmark_db(pub_id, current_state):
-    try:
-        db.execute("UPDATE academic_pubs SET is_bookmarked = ? WHERE id = ?", [0 if current_state else 1, pub_id])
-        st.cache_data.clear(); st.toast("書架狀態已更新！")
+    try: db.execute("UPDATE academic_pubs SET is_bookmarked = ? WHERE id = ?", [0 if current_state else 1, pub_id]); st.cache_data.clear(); st.toast("書架狀態更新！")
     except Exception as e: st.error(f"操作失敗: {e}")
-
 def delete_biblio_db(pub_id):
-    try:
-        db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id])
-        st.cache_data.clear(); st.toast("🗑️ 文獻已徹底刪除！")
+    try: db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id]); st.cache_data.clear(); st.toast("🗑️ 紀錄已徹底刪除！")
     except Exception as e: st.error(f"刪除失敗: {e}")
 
 # ==========================================
-# 🛡️ 輔助函數：多語系智能下載與 Base64 轉換器
+# 🌟 Biblioapp 手動檢索：語系分流、Base64 與網頁備存引擎
 # ==========================================
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
     try:
         scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
-        if source == "douban":
-            headers["Referer"] = "https://book.douban.com/"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        if source == "douban": headers["Referer"] = "https://book.douban.com/"
         res = scraper.get(img_url, headers=headers, timeout=10)
         if res.status_code == 200 and len(res.content) > 500:
-            encoded_str = base64.b64encode(res.content).decode('utf-8')
-            content_type = res.headers.get('Content-Type', 'image/jpeg')
-            return f"data:{content_type};base64,{encoded_str}"
+            return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
     except: pass
     return img_url
 
 def fetch_google_fallback(isbn):
     try:
-        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-        res = requests.get(url, timeout=5)
-        data = res.json()
-        if "items" in data and len(data["items"]) > 0:
-            info = data["items"][0].get("volumeInfo", {})
-            img = info.get("imageLinks", {}).get("thumbnail", "")
-            if img:
-                img = img.replace("http://", "https://")
+        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}", timeout=5).json()
+        if "items" in res and len(res["items"]) > 0:
+            info = res["items"][0].get("volumeInfo", {})
+            img = info.get("imageLinks", {}).get("thumbnail", "").replace("http://", "https://")
             return {
-                "type": "Book",
-                "title": info.get("title", "未命名書籍"),
-                "author": ", ".join(info.get("authors", ["未知作者"])),
-                "publisher_journal": info.get("publisher", "手動加入"),
-                "issue_volume": "",
-                "identifier": isbn,
+                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", [])),
+                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": info.get("description", "（無摘要）")[:600],
-                "link": info.get("infoLink", f"https://books.google.com/books?vid=ISBN{isbn}"),
-                "image": get_secure_image_base64(img, "google"),
-                "is_bookmarked": 1
+                "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
+                "image": get_secure_image_base64(img, "google"), "is_bookmarked": 1
             }
     except: pass
     return None
 
 def fetch_openbd(isbn):
     try:
-        url = f"https://api.openbd.jp/v1/get?isbn={isbn}"
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        if data and data[0]:
-            info = data[0].get("summary", {})
-            img_url = info.get("cover", "")
-            if not img_url:
-                img_url = f"https://www.hanmoto.com/bd/img/{isbn}.jpg"
-                img_base64 = get_secure_image_base64(img_url, "hanmoto")
-            else:
-                img_base64 = get_secure_image_base64(img_url, "openbd")
-            
+        res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10).json()
+        if res and res[0]:
+            info = res[0].get("summary", {})
+            img_url = get_secure_image_base64(info.get("cover", ""), "openbd") if info.get("cover") else get_secure_image_base64(f"https://www.hanmoto.com/bd/img/{isbn}.jpg", "hanmoto")
             return {
-                "type": "Book",
-                "title": info.get("title", "未命名書籍"),
-                "author": info.get("author", "未知作者"),
-                "publisher_journal": info.get("publisher", "手動加入"),
-                "issue_volume": "",
-                "identifier": isbn,
-                "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": "（日文出版品目錄，無詳細摘要）",
-                "link": f"https://www.hanmoto.com/bd/isbn/{isbn}",
-                "image": img_base64,
-                "is_bookmarked": 1
+                "type": "Book", "title": info.get("title", "未命名"), "author": info.get("author", "未知"),
+                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")), "abstract": "（日文出版品）",
+                "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "is_bookmarked": 1
             }
     except: pass
     return fetch_google_fallback(isbn)
 
 def fetch_douban(isbn):
     url = f"https://book.douban.com/isbn/{isbn}/"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
-        res = scraper.get(url, headers=headers, timeout=10)
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        res = scraper.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            title_tag = soup.find("span", property="v:itemreviewed")
-            title = title_tag.text.strip() if title_tag else "未知書名"
-            
-            img_url = ""
+            title = soup.find("span", property="v:itemreviewed").text.strip() if soup.find("span", property="v:itemreviewed") else "未知"
             mainpic = soup.find("div", id="mainpic")
-            if mainpic and mainpic.find("img"):
-                img_url = mainpic.find("img").get("src", "")
-            if img_url:
-                img_url = img_url.replace("/s/public/", "/l/public/")
-                img_url = get_secure_image_base64(img_url, "douban")
-                
-            author = "未知作者"
+            img_url = get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban") if mainpic and mainpic.find("img") else ""
             author_span = soup.find("span", string=re.compile("作者"))
-            if author_span and author_span.find_next("a"):
-                author = author_span.find_next("a").text.strip()
-                
-            publisher = "手動加入"
+            author = author_span.find_next("a").text.strip() if author_span and author_span.find_next("a") else "未知"
             pub_span = soup.find("span", string=re.compile("出版社"))
-            if pub_span and pub_span.next_sibling:
-                publisher = pub_span.next_sibling.strip().replace(":", "").strip()
-                
-            abstract = "（無摘要）"
-            intro_div = soup.find("div", class_="intro")
-            if intro_div:
-                abstract = intro_div.text.strip().replace("\n", " ")
-                
+            publisher = pub_span.next_sibling.strip().replace(":", "").strip() if pub_span and pub_span.next_sibling else "手動加入"
+            intro = soup.find("div", class_="intro")
+            abstract = intro.text.strip().replace("\n", " ") if intro else "（無摘要）"
             return {
-                "type": "Book",
-                "title": title,
-                "author": author,
-                "publisher_journal": publisher,
-                "issue_volume": "",
-                "identifier": isbn,
-                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "abstract": abstract[:600],
-                "link": url,
-                "image": img_url,
-                "is_bookmarked": 1
+                "type": "Book", "title": title, "author": author, "publisher_journal": publisher, "issue_volume": "", 
+                "identifier": isbn, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600], "link": url, "image": img_url, "is_bookmarked": 1
             }
     except: pass
     return fetch_google_fallback(isbn)
 
-# ==========================================
-# 🌟 語系分流手動匯入大腦
-# ==========================================
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: return None
+    if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): return fetch_openbd(clean_isbn)
+    elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): return fetch_douban(clean_isbn)
     
-    # 智慧語系路由分流
-    if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"):
-        return fetch_openbd(clean_isbn)
-    elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"):
-        return fetch_douban(clean_isbn)
-        
-    # 歐美書籍原有 Syndetics + 備援機制
     best_cover = ""
-    if clean_isbn:
-        syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
-        try:
-            syn_res = requests.get(syndetics_url, timeout=5)
-            if syn_res.status_code == 200 and len(syn_res.content) > 100:
-                best_cover = syndetics_url
-        except: pass
+    try:
+        syn_res = requests.get(f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test", timeout=5)
+        if syn_res.status_code == 200 and len(syn_res.content) > 100: best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
+    except: pass
 
     res = fetch_google_fallback(clean_isbn)
     if res:
         if best_cover: res["image"] = best_cover
         return res
-
+        
     try:
-        ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
-        ol_res = requests.get(ol_url, timeout=5)
-        ol_data = ol_res.json()
+        ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
             info = ol_data[f"ISBN:{clean_isbn}"]
             authors = [a.get("name", "") for a in info.get("authors", [])]
-            img_url = best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg")
-            
             return {
-                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(authors) if authors else "未知作者",
-                "publisher_journal": info.get("publishers", [{"name": "手動匯入"}])[0].get("name", "手動加入"), "issue_volume": "",
+                "type": "Book", "title": info.get("title", "未命名"), "author": ", ".join(authors) or "未知",
+                "publisher_journal": info.get("publishers", [{"name": "手動加入"}])[0].get("name", "手動加入"), "issue_volume": "",
                 "identifier": clean_isbn, "publish_date": info.get("publish_date", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": "（透過 Open Library 匯入，無詳細摘要）",
-                "link": info.get("url", f"https://openlibrary.org/isbn/{clean_isbn}"), 
-                "image": img_url, "is_bookmarked": 1
+                "abstract": "（Open Library 匯入）", "link": info.get("url", ""), 
+                "image": best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "is_bookmarked": 1
             }
     except: pass
-    
+    return None
+
+# 🌟 新增：萬能網址備存解剖器
+def fetch_book_by_url(url):
+    if not url.startswith("http"): return None
+    try:
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        res = scraper.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+        res.encoding = res.apparent_encoding
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            og_title = soup.find('meta', property='og:title')
+            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
+            title = title.split('|')[0].split(' - ')[0].strip()
+            
+            author = "未知作者"
+            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author') or soup.find('meta', name='citation_author')
+            if author_meta and author_meta.get('content'):
+                author = author_meta['content'].strip()
+            else:
+                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
+                    p_text = p.get_text(strip=True)
+                    if p_text and len(p_text) < 50:
+                        author = p_text
+                        break
+                        
+            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
+            abstract = og_desc['content'] if og_desc and og_desc.get('content') else "（透過外部網址備存導入）"
+            
+            url_hash = f"url_{id(url)}"
+            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})', url)
+            if match: url_hash = f"amazon_{match.group(1) or match.group(2)}"
+
+            return {
+                "type": "Web Link", # 標記為獨立的 Web Link 類型
+                "title": title, "author": author, "publisher_journal": "網址備存", "issue_volume": "",
+                "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600], "link": url, "image": "", "is_bookmarked": 1
+            }
+    except: pass
     return None
 
 def fetch_external_article(url):
@@ -338,65 +279,6 @@ def fetch_external_article(url):
         if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
         return {"Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, "Published": "手動收藏", "Summary": final_summary, "Image": img_url, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1}
     except: return None
-
-def fetch_book_by_url(url):
-    """當 ISBN 萬一失效時的保底機制：直接解剖出版社或 Amazon 網頁的 HTML 標籤"""
-    if not url.startswith("http"):
-        return None
-    try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        res = scraper.get(url, headers=headers, timeout=12)
-        res.encoding = res.apparent_encoding
-        
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            
-            # 1. 智慧擷取書名 (優先抓取標準的 og:title)
-            og_title = soup.find('meta', property='og:title')
-            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
-            # 降噪：切除網頁結尾常見的出版社名稱 (如 " | Duke University Press")
-            title = title.split('|')[0].split(' - ')[0].strip()
-            
-            # 2. 智慧擷取作者
-            author = "未知作者 (網址備存)"
-            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author') or soup.find('meta', name='citation_author')
-            if author_meta and author_meta.get('content'):
-                author = author_meta['content'].strip()
-            else:
-                # 針對 Amazon 或部分出版社的備用文字搜尋
-                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
-                    p_text = p.get_text(strip=True)
-                    if p_text and len(p_text) < 50:
-                        author = p_text
-                        break
-            
-            # 3. 智慧擷取簡介 / 摘要
-            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
-            abstract = og_desc['content'] if og_desc and og_desc.get('content') else "（透過外部網址備存導入）"
-            
-            # 生成一個基於網址唯一性的 identifier，避免重覆錄入
-            url_hash = f"url_{id(url)}"
-            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})', url)
-            if match:  # 如果是 Amazon 網址，自動萃取 ASIN 碼作為唯一鍵
-                url_hash = f"amazon_{match.group(1) or match.group(2)}"
-
-            return {
-                "type": "Book",
-                "title": title,
-                "author": author,
-                "publisher_journal": "手動加入",
-                "issue_volume": "",
-                "identifier": url_hash,
-                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "abstract": abstract[:600],
-                "link": url,
-                "image": "", # 備存模式採輕量化，不強求封面圖
-                "is_bookmarked": 1
-            }
-    except Exception as e:
-        print(f"網址備存解析失敗: {e}")
-    return None
 
 # ==========================================
 # 5. 側邊欄總開關
@@ -541,7 +423,8 @@ elif app_mode == "🎓 Biblioapp":
     st.header("🎓 Biblioapp：學術文獻與出版追蹤")
     
     with st.sidebar:
-        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架"], on_change=reset_biblio_page)
+        # 🌟 加入第三分頁：網址備存
+        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "🔗 網址備存"], on_change=reset_biblio_page)
         st.markdown("---")
         
         with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
@@ -557,13 +440,13 @@ elif app_mode == "🎓 Biblioapp":
                                 db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
                                 st.cache_data.clear(); st.success(f"✅ 已將《{book_data['title']}》加入書架！")
                             except Exception as e: st.error(f"寫入失敗: {e}")
-                        else: st.error("❌ 找不到該 ISBN。請檢查是否有輸入錯誤。")
+                        else: st.error("❌ 找不到該 ISBN。請嘗試下方的網址備存功能。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
-                    
-        # === 🌟 新增：當 ISBN 查無資料時的網址備存快充入口 ===
+        
+        # 🌟 新增：網址強制備存輸入區
         with st.expander("📥 網址備存匯入 (當 ISBN 失敗時)", expanded=False):
             backup_url_input = st.text_input("貼上出版社或 Amazon 網址：", placeholder="https://...", key="backup_url_field")
-            if st.button("網頁解析並加入書架", use_container_width=True, key="backup_url_btn"):
+            if st.button("網頁解析並加入備存", use_container_width=True, key="backup_url_btn"):
                 if backup_url_input:
                     with st.spinner("正在探測網頁元資料..."):
                         url_book_data = fetch_book_by_url(backup_url_input)
@@ -572,7 +455,7 @@ elif app_mode == "🎓 Biblioapp":
                                 sql = """
                                 INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) 
-                                ON CONFLICT(identifier) DO UPDATE SET is_bookmarked=1, title=excluded.title;
+                                ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
                                 """
                                 db.execute(sql, [
                                     url_book_data['type'], url_book_data['title'], url_book_data['author'], 
@@ -581,7 +464,7 @@ elif app_mode == "🎓 Biblioapp":
                                     url_book_data['abstract'], url_book_data['link'], url_book_data['image']
                                 ])
                                 st.cache_data.clear()
-                                st.success(f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至手動加入清單！")
+                                st.success(f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至「網址備存」清單！")
                             except Exception as e: 
                                 st.error(f"寫入資料庫失敗: {e}")
                         else:
@@ -589,7 +472,6 @@ elif app_mode == "🎓 Biblioapp":
                 else:
                     st.warning("⚠️ 請輸入有效的網址。")
         st.markdown("---")
-
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
@@ -604,8 +486,8 @@ elif app_mode == "🎓 Biblioapp":
 
     df_pubs = fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter)
     
-# ==========================================
-    # 畫廊視圖：待讀書架 (新增：多語系智慧排序與分頁機制)
+    # ==========================================
+    # 畫廊視圖：待讀書架 (包含排序與分頁)
     # ==========================================
     if biblio_view_mode == "🔖 待讀書架":
         if df_pubs.empty:
@@ -613,43 +495,30 @@ elif app_mode == "🎓 Biblioapp":
             st.markdown("---")
             st.info("您的待讀書架目前是空的。請在文獻探索中點擊收藏，或在左側透過 ISBN 手動加入。")
         else:
-            # 1. 🌟 新增：多語系智慧排序介面
             col_title, col_sort = st.columns([3, 1])
             with col_title:
                 st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
             with col_sort:
                 bib_sort_mode = st.selectbox(
                     "🔀 書架排序方式：", 
-                    ["預設 (依發行日期)", "英文首字母 (A-Z)", "日文五十音", "漢字筆劃/部首"],
+                    ["預設 (依加入順序)", "英文首字母 (A-Z)", "日文五十音", "漢字筆劃/部首"],
                     key="bib_bookshelf_sort"
                 )
             st.markdown("---")
 
-            # 2. 🌟 執行排序邏輯 (利用 Unicode 物理編碼特性精準分流)
             if bib_sort_mode == "英文首字母 (A-Z)":
                 df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower())
-            elif bib_sort_mode == "日文五十音":
-                # Unicode 中平假名(3040-309F)與片假名(30A0-30FF)原生即為五十音順序
-                df_pubs = df_pubs.sort_values(by='title')
-            elif bib_sort_mode == "漢字筆劃/部首":
-                # Unicode CJK 統一漢字區塊 (4E00-9FFF) 原生即按康熙部首與筆劃數排列
+            elif bib_sort_mode in ["日文五十音", "漢字筆劃/部首"]:
                 df_pubs = df_pubs.sort_values(by='title')
 
-            # 3. 🌟 新增：書架專屬分頁機制 (採高質感 3列 × 5欄 = 15本 排版)
             PER_PAGE_GRID = 15
             total_grid_pages = math.ceil(len(df_pubs) / PER_PAGE_GRID)
-            
-            if 'bib_grid_page' not in st.session_state:
-                st.session_state.bib_grid_page = 1
-                
-            # 防溢出安全檢查
-            if st.session_state.bib_grid_page > total_grid_pages:
-                st.session_state.bib_grid_page = max(1, total_grid_pages)
+            if 'bib_grid_page' not in st.session_state: st.session_state.bib_grid_page = 1
+            if st.session_state.bib_grid_page > total_grid_pages: st.session_state.bib_grid_page = max(1, total_grid_pages)
                 
             start_grid_idx = (st.session_state.bib_grid_page - 1) * PER_PAGE_GRID
             df_grid_page = df_pubs.iloc[start_grid_idx:start_grid_idx + PER_PAGE_GRID]
 
-            # 4. 渲染 5 欄網格畫廊
             cols = st.columns(5)
             for idx, row in df_grid_page.reset_index(drop=True).iterrows():
                 with cols[idx % 5]:
@@ -668,7 +537,6 @@ elif app_mode == "🎓 Biblioapp":
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
-                    
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1: 
                         st.button("💔 移除", key=f"unmark_{row['id']}_{idx}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
@@ -678,21 +546,52 @@ elif app_mode == "🎓 Biblioapp":
                             st.button("✅ 確定", key=f"del_grid_{row['id']}_{idx}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.write("") 
 
-            # 5. 🌟 新增：書架底部頁碼切換器
             if total_grid_pages > 1:
                 st.write("")
                 col_space, col_page, col_space2 = st.columns([1, 2, 1])
                 with col_page:
-                    chosen_grid_page = st.selectbox(
-                        "📄 跳轉書架頁數：", 
-                        range(1, total_grid_pages + 1), 
-                        index=st.session_state.bib_grid_page - 1, 
-                        key="bib_grid_page_selector"
-                    )
+                    chosen_grid_page = st.selectbox("📄 跳轉書架頁數：", range(1, total_grid_pages + 1), index=st.session_state.bib_grid_page - 1, key="bib_grid_page_selector")
                     if chosen_grid_page != st.session_state.bib_grid_page:
                         st.session_state.bib_grid_page = chosen_grid_page
                         st.rerun()
-                        
+
+    # ==========================================
+    # 🌟 新增視圖：網址備存專屬列表
+    # ==========================================
+    elif biblio_view_mode == "🔗 網址備存":
+        st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
+        st.caption("這裡存放了當 ISBN 掃描失敗時，透過網址強制解剖擷取的備用書籍資料。")
+        st.markdown("---")
+        
+        if df_pubs.empty:
+            st.info("目前沒有任何網址備存資料。請在左側側邊欄貼上網址匯入。")
+        else:
+            PER_PAGE = 20
+            total_pages = math.ceil(len(df_pubs) / PER_PAGE)
+            if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
+            start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
+            
+            for _, row in df_pubs.iloc[start_idx:start_idx + PER_PAGE].iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([8, 1])
+                    with col_info:
+                        st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
+                        st.caption(f"👤 **Author:** {row.get('author')} | 🌐 **Source:** 網址備存 | 📅 **Date Added:** {row.get('publish_date')}")
+                        st.write(row.get('abstract', ''))
+                    with col_btn:
+                        with st.popover("🗑️ 刪除"):
+                            st.write("確定抹除此紀錄？")
+                            st.button("✅ 確定", key=f"del_web_{row['id']}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
+
+            if total_pages > 1:
+                col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                with col_page:
+                    st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
+
+    # ==========================================
+    # 列表視圖：文獻探索
+    # ==========================================
     else:
         st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
         st.markdown("---")
@@ -712,7 +611,6 @@ elif app_mode == "🎓 Biblioapp":
                         col_img, col_info, col_btn = st.columns([2, 6, 1])
                         with col_img:
                             img_url = row.get('image')
-                            # 修改：支援 data:image (Base64) 顯示
                             if pd.notna(img_url) and (str(img_url).startswith("http") or str(img_url).startswith("data:")):
                                 img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
                                 st.markdown(img_html, unsafe_allow_html=True)
@@ -746,4 +644,4 @@ elif app_mode == "🎓 Biblioapp":
                     st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.6 (Multi-Language Router Edition)")
+st.sidebar.caption("Monoreader Cloud v4.0 (Multilingual Router & Web Archive Edition)")
