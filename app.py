@@ -114,6 +114,44 @@ def toggle_biblio_bookmark_db(pub_id, current_state):
 def delete_biblio_db(pub_id):
     try: db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id]); st.cache_data.clear(); st.toast("🗑️ 紀錄已徹底刪除！")
     except Exception as e: st.error(f"刪除失敗: {e}")
+# ==========================================
+# 🌟 新增：自定義網站資源管理函數
+# ==========================================
+def fetch_custom_resources(module_name):
+    res = db.execute("SELECT * FROM custom_resources WHERE module = ? ORDER BY added_date DESC", [module_name])
+    return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows]) if res.rows else pd.DataFrame()
+
+def add_custom_resource(module_name, url):
+    if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
+    try:
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        res = scraper.get(url, timeout=10)
+        res.encoding = res.apparent_encoding
+        title = "未命名網站"
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            og_title = soup.find('meta', property='og:title')
+            if og_title and og_title.get('content'): title = og_title['content']
+            elif soup.find('title'): title = soup.find('title').get_text().strip()
+        
+        db.execute("INSERT INTO custom_resources (module, title, url, added_date) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title=excluded.title", 
+                   [module_name, title, url, datetime.utcnow().isoformat()])
+        st.cache_data.clear()
+        return True, f"✅ 成功加入並自動擷取標題：{title}"
+    except Exception as e:
+        return False, f"❌ 發生錯誤: {e}"
+
+def update_custom_resource(res_id, new_title):
+    try:
+        db.execute("UPDATE custom_resources SET title = ? WHERE id = ?", [new_title, res_id])
+        st.cache_data.clear(); st.toast("✏️ 網站名稱已更新！")
+    except Exception as e: st.error(f"更新失敗: {e}")
+
+def delete_custom_resource(res_id):
+    try:
+        db.execute("DELETE FROM custom_resources WHERE id = ?", [res_id])
+        st.cache_data.clear(); st.toast("🗑️ 網站已從清單中移除！")
+    except Exception as e: st.error(f"刪除失敗: {e}")
 
 # ==========================================
 # 🌟 Biblioapp 手動檢索：語系分流、Base64 與網頁備存引擎
@@ -375,11 +413,36 @@ if app_mode == "📚 Monoreader":
     if view_mode == "⏳ 未來典藏":
         st.subheader("⏳ 未來典藏 (Future Archive)")
         st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
+        
+        # 🌟 主畫面直接輸入區
+        with st.container():
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                new_res_url = st.text_input("新增網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="mono_res_input")
+            with col2:
+                if st.button("➕ 擷取並加入", use_container_width=True, key="mono_res_btn"):
+                    if new_res_url:
+                        with st.spinner("擷取標題中..."):
+                            success, msg = add_custom_resource("monoreader", new_res_url)
+                            if success: st.success(msg)
+                            else: st.error(msg)
         st.markdown("---")
-        st.markdown("### 🇨🇳 異常漫畫研究中心\n🔗 **[前往官網探索](https://search.bilibili.com/all?keyword=異常漫畫研究中心)**<br>", unsafe_allow_html=True)
-        st.markdown("### 🌍 AQNB\n🔗 **[前往官網探索](https://www.aqnb.com/)**<br>", unsafe_allow_html=True)
-        st.markdown("### 🇯🇵 TOKION\n🔗 **[前往官網探索](https://tokion.jp/)**<br>", unsafe_allow_html=True)
-        st.markdown("### 🇨🇳 歪腦 Wainao\n🔗 **[前往官網探索](https://www.wainao.me/)**", unsafe_allow_html=True)
+
+        # 🌟 動態讀取與編輯選單
+        df_res = fetch_custom_resources("monoreader")
+        if df_res.empty:
+            st.info("目前沒有任何記錄。請在上方輸入網址。")
+        else:
+            for _, row in df_res.iterrows():
+                col_link, col_action = st.columns([7, 1])
+                with col_link:
+                    st.markdown(f"### 🔗 **[{row['title']}]({row['url']})**")
+                with col_action:
+                    with st.popover("⚙️ 管理"):
+                        edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_{row['id']}")
+                        st.button("💾 儲存修改", key=f"save_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title), use_container_width=True)
+                        st.button("🗑️ 刪除網站", key=f"del_{row['id']}", on_click=delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
 
     else:
         df = fetch_data(view_mode, selected_source, search_input)
@@ -451,7 +514,7 @@ elif app_mode == "🎓 Biblioapp":
     
     with st.sidebar:
         # 🌟 加入第三分頁：網址備存
-        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "🔗 網址備存"], on_change=reset_biblio_page)
+        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
         st.markdown("---")
         
         with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
@@ -615,6 +678,41 @@ elif app_mode == "🎓 Biblioapp":
                 col_space, col_page, col_space2 = st.columns([1, 2, 1])
                 with col_page:
                     st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
+
+    # ==========================================
+    # 🌟 新增視圖：可用資源 (學術資料庫與外部網站)
+    # ==========================================
+    elif biblio_view_mode == "🌐 可用資源":
+        st.subheader("🌐 可用資源 (Academic Resources)")
+        st.caption("收集常用的學術資料庫、檢索系統或出版社官方網站。")
+        
+        with st.container():
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                new_bib_url = st.text_input("新增資料庫/網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="bib_res_input")
+            with col2:
+                if st.button("➕ 擷取並加入", use_container_width=True, key="bib_res_btn"):
+                    if new_bib_url:
+                        with st.spinner("擷取標題中..."):
+                            success, msg = add_custom_resource("biblioapp", new_bib_url)
+                            if success: st.success(msg)
+                            else: st.error(msg)
+        st.markdown("---")
+
+        df_res = fetch_custom_resources("biblioapp")
+        if df_res.empty:
+            st.info("目前沒有任何記錄。請在上方輸入網址。")
+        else:
+            for _, row in df_res.iterrows():
+                col_link, col_action = st.columns([7, 1])
+                with col_link:
+                    st.markdown(f"### 🔗 **[{row['title']}]({row['url']})**")
+                with col_action:
+                    with st.popover("⚙️ 管理"):
+                        edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_bib_{row['id']}")
+                        st.button("💾 儲存修改", key=f"save_bib_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title), use_container_width=True)
+                        st.button("🗑️ 刪除網站", key=f"del_bib_{row['id']}", on_click=delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
 
     # ==========================================
     # 列表視圖：文獻探索
