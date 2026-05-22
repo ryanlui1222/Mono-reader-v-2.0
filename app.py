@@ -123,23 +123,39 @@ def fetch_custom_resources(module_name):
 
 def add_custom_resource(module_name, url):
     if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
+    
+    title = "未命名網站"
     try:
         scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        res = scraper.get(url, timeout=10)
+        res = scraper.get(url, timeout=15)
         res.encoding = res.apparent_encoding
-        title = "未命名網站"
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
-            og_title = soup.find('meta', property='og:title')
-            if og_title and og_title.get('content'): title = og_title['content']
-            elif soup.find('title'): title = soup.find('title').get_text().strip()
+            
+            # 🌟 參照 fetch_book_by_url 的深度標題擷取邏輯
+            if soup.find('meta', property='og:title'): 
+                title = soup.find('meta', property='og:title').get('content')
+            elif soup.find('meta', attrs={'name': 'twitter:title'}): 
+                title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
+            elif soup.find('title'): 
+                title = soup.find('title').get_text()
+                
+            # 標題去噪 (去除 " | 首頁" 等無意義後綴)
+            if title and title != "未命名網站":
+                title = title.split('|')[0].split(' - ')[0].strip()
+            else:
+                title = "未命名網站"
+                
+    except Exception as e:
+        print(f"⚠️ 標題擷取失敗 ({e})，轉為手動命名模式。")
         
+    try:
         db.execute("INSERT INTO custom_resources (module, title, url, added_date) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title=excluded.title", 
                    [module_name, title, url, datetime.utcnow().isoformat()])
         st.cache_data.clear()
-        return True, f"✅ 成功加入並自動擷取標題：{title}"
+        return True, f"✅ 已成功加入清單！(若名稱不如預期，請點擊右側管理修改)"
     except Exception as e:
-        return False, f"❌ 發生錯誤: {e}"
+        return False, f"❌ 資料庫寫入錯誤: {e}"
 
 def update_custom_resource(res_id, new_title):
     try:
@@ -436,7 +452,9 @@ if app_mode == "📚 Monoreader":
             for _, row in df_res.iterrows():
                 col_link, col_action = st.columns([7, 1])
                 with col_link:
-                    st.markdown(f"### 🔗 **[{row['title']}]({row['url']})**")
+                    # 🌟 還原為您原本的兩行式經典排版
+                    st.markdown(f"### {row['title']}")
+                    st.markdown(f"🔗 **[前往官網探索]({row['url']})**")
                 with col_action:
                     with st.popover("⚙️ 管理"):
                         edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_{row['id']}")
@@ -706,7 +724,9 @@ elif app_mode == "🎓 Biblioapp":
             for _, row in df_res.iterrows():
                 col_link, col_action = st.columns([7, 1])
                 with col_link:
-                    st.markdown(f"### 🔗 **[{row['title']}]({row['url']})**")
+                    # 🌟 還原為您原本的兩行式經典排版
+                    st.markdown(f"### {row['title']}")
+                    st.markdown(f"🔗 **[前往資料庫]({row['url']})**")
                 with col_action:
                     with st.popover("⚙️ 管理"):
                         edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_bib_{row['id']}")
