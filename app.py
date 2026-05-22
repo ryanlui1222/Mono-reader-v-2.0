@@ -515,17 +515,56 @@ elif app_mode == "🎓 Biblioapp":
 
     df_pubs = fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter)
     
+# ==========================================
+    # 畫廊視圖：待讀書架 (新增：多語系智慧排序與分頁機制)
+    # ==========================================
     if biblio_view_mode == "🔖 待讀書架":
-        st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
-        st.markdown("---")
         if df_pubs.empty:
+            st.subheader("🔖 待讀書架 (共 0 本)")
+            st.markdown("---")
             st.info("您的待讀書架目前是空的。請在文獻探索中點擊收藏，或在左側透過 ISBN 手動加入。")
         else:
+            # 1. 🌟 新增：多語系智慧排序介面
+            col_title, col_sort = st.columns([3, 1])
+            with col_title:
+                st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
+            with col_sort:
+                bib_sort_mode = st.selectbox(
+                    "🔀 書架排序方式：", 
+                    ["預設 (依發行日期)", "英文首字母 (A-Z)", "日文五十音", "漢字筆劃/部首"],
+                    key="bib_bookshelf_sort"
+                )
+            st.markdown("---")
+
+            # 2. 🌟 執行排序邏輯 (利用 Unicode 物理編碼特性精準分流)
+            if bib_sort_mode == "英文首字母 (A-Z)":
+                df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower())
+            elif bib_sort_mode == "日文五十音":
+                # Unicode 中平假名(3040-309F)與片假名(30A0-30FF)原生即為五十音順序
+                df_pubs = df_pubs.sort_values(by='title')
+            elif bib_sort_mode == "漢字筆劃/部首":
+                # Unicode CJK 統一漢字區塊 (4E00-9FFF) 原生即按康熙部首與筆劃數排列
+                df_pubs = df_pubs.sort_values(by='title')
+
+            # 3. 🌟 新增：書架專屬分頁機制 (採高質感 3列 × 5欄 = 15本 排版)
+            PER_PAGE_GRID = 15
+            total_grid_pages = math.ceil(len(df_pubs) / PER_PAGE_GRID)
+            
+            if 'bib_grid_page' not in st.session_state:
+                st.session_state.bib_grid_page = 1
+                
+            # 防溢出安全檢查
+            if st.session_state.bib_grid_page > total_grid_pages:
+                st.session_state.bib_grid_page = max(1, total_grid_pages)
+                
+            start_grid_idx = (st.session_state.bib_grid_page - 1) * PER_PAGE_GRID
+            df_grid_page = df_pubs.iloc[start_grid_idx:start_grid_idx + PER_PAGE_GRID]
+
+            # 4. 渲染 5 欄網格畫廊
             cols = st.columns(5)
-            for idx, row in df_pubs.iterrows():
+            for idx, row in df_grid_page.reset_index(drop=True).iterrows():
                 with cols[idx % 5]:
                     img_url = row.get('image')
-                    # 修改：支援 data:image (Base64) 顯示
                     if not img_url or (not str(img_url).startswith("http") and not str(img_url).startswith("data:")):
                         img_url = "https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover"
                         
@@ -540,14 +579,31 @@ elif app_mode == "🎓 Biblioapp":
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
+                    
                     btn_col1, btn_col2 = st.columns(2)
-                    with btn_col1: st.button("💔 移除", key=f"unmark_{row['id']}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
+                    with btn_col1: 
+                        st.button("💔 移除", key=f"unmark_{row['id']}_{idx}", on_click=toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
                     with btn_col2:
                         with st.popover("🗑️ 刪除"):
                             st.write("確定抹除此書？")
-                            st.button("✅ 確定", key=f"del_grid_{row['id']}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
+                            st.button("✅ 確定", key=f"del_grid_{row['id']}_{idx}", on_click=delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.write("") 
 
+            # 5. 🌟 新增：書架底部頁碼切換器
+            if total_grid_pages > 1:
+                st.write("")
+                col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                with col_page:
+                    chosen_grid_page = st.selectbox(
+                        "📄 跳轉書架頁數：", 
+                        range(1, total_grid_pages + 1), 
+                        index=st.session_state.bib_grid_page - 1, 
+                        key="bib_grid_page_selector"
+                    )
+                    if chosen_grid_page != st.session_state.bib_grid_page:
+                        st.session_state.bib_grid_page = chosen_grid_page
+                        st.rerun()
+                        
     else:
         st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
         st.markdown("---")
