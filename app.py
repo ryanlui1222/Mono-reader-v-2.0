@@ -46,6 +46,7 @@ SOURCE_URLS = {
     "TripleAmpersand": "https://tripleampersand.org/", "WIRED.jp": "https://wired.jp/",
     "CINRA": "https://www.cinra.net/", "VERSE": "https://www.verse.com.tw/",
     "界面文化": "https://www.jiemian.com/lists/130.html", "Radii": "https://radii.co/",
+    "Duke Arts & Humanities": "https://today.duke.edu/arts-humanities",
     "Asian Review of Books": "https://asianreviewofbooks.com/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
