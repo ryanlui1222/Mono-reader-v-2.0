@@ -118,15 +118,6 @@ def delete_biblio_db(pub_id):
 # ==========================================
 # 🌟 Biblioapp 手動檢索：語系分流、Base64 與網頁備存引擎
 # ==========================================
-def convert_isbn10_to_13(isbn10):
-    """將 Amazon 的 10 碼 ASIN 轉換為標準的 13 碼 ISBN"""
-    isbn10 = str(isbn10).upper().replace("-", "")
-    if len(isbn10) != 10 or not re.match(r'^\d{9}[\dX]$', isbn10): 
-        return None
-    prefix = "978" + isbn10[:-1]
-    check = sum((int(d) if i % 2 == 0 else int(d) * 3) for i, d in enumerate(prefix))
-    return prefix + str((10 - (check % 10)) % 10)
-
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
@@ -227,64 +218,76 @@ def fetch_book_by_isbn(isbn):
     except: pass
     return None
 
-# 🌟 新增：萬能網址備存解剖器 (支援 Amazon 攔截轉換)
+# ==========================================
+# 🌟 萬能網址備存解剖器 (Facebook/Twitter 預覽偽裝版)
+# ==========================================
 def fetch_book_by_url(url):
     if not url.startswith("http"): return None
     
-    # === 🛡️ 獨家破解：Amazon 網址反向攔截 ===
-    if "amazon." in url:
-        match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
-        if match:
-            asin = match.group(1) or match.group(2) or match.group(3)
-            # 如果 ASIN 看起來像 ISBN-10，將其轉換為 ISBN-13 並交由主引擎處理
-            isbn13 = convert_isbn10_to_13(asin)
-            if isbn13:
-                print(f"🔄 偵測到 Amazon 網址，轉換為 ISBN-13: {isbn13}，轉交智能大腦...")
-                book_data = fetch_book_by_isbn(isbn13)
-                if book_data:
-                    # 覆寫部分資料，讓它適應網址備存區
-                    book_data['type'] = "Web Link"
-                    book_data['publisher_journal'] = "Amazon 轉換"
-                    book_data['link'] = url
-                    return book_data
-
-    # === 🌐 常規大學出版社或一般網頁解析 ===
+    # 🛡️ 核心破解：偽裝成 Facebook 的官方預覽爬蟲
+    # 各大網站(含 Amazon)為了能在社交媒體產生分享預覽卡片，會在防火牆「白名單」無條件放行此 User-Agent
+    headers = {
+        "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+    
     try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        res = scraper.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+        # 既然已被白名單放行，我們直接用原生 requests 即可擊穿防護
+        res = requests.get(url, headers=headers, timeout=12)
         res.encoding = res.apparent_encoding
+        
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
             
-            og_title = soup.find('meta', property='og:title')
-            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
-            title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').strip()
+            # 1. 擷取分享書名 (Twitter Card > Open Graph > 網頁 Title)
+            title = ""
+            if soup.find('meta', property='og:title'): title = soup.find('meta', property='og:title').get('content')
+            elif soup.find('meta', attrs={'name': 'twitter:title'}): title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
+            elif soup.find('title'): title = soup.find('title').get_text()
+            title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').strip() if title else "未命名書籍"
             
+            # 2. 擷取分享預覽圖 (Open Graph > Twitter Card)
+            img_url = ""
+            if soup.find('meta', property='og:image'): img_url = soup.find('meta', property='og:image').get('content')
+            elif soup.find('meta', attrs={'name': 'twitter:image'}): img_url = soup.find('meta', attrs={'name': 'twitter:image'}).get('content')
+            
+            # 如果有圖片，透過 Base64 轉換器安全下載 (避免被再次防盜鏈阻擋)
+            if img_url: 
+                img_url = get_secure_image_base64(img_url, "social_preview")
+            
+            # 3. 擷取作者 / 網站名稱
             author = "未知作者"
-            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author') or soup.find('meta', name='citation_author')
+            author_meta = soup.find('meta', property='article:author') or soup.find('meta', name='twitter:creator') or soup.find('meta', property='og:site_name')
             if author_meta and author_meta.get('content'):
-                author = author_meta['content'].strip()
-            else:
-                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
-                    p_text = p.get_text(strip=True)
-                    if p_text and len(p_text) < 50:
-                        author = p_text
-                        break
-                        
-            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
-            abstract = og_desc['content'] if og_desc and og_desc.get('content') else "（透過外部網址備存導入）"
+                author = author_meta.get('content').strip()
             
+            # 4. 擷取分享摘要
+            abstract = "（無摘要）"
+            desc_meta = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'twitter:description'}) or soup.find('meta', attrs={'name': 'description'})
+            if desc_meta and desc_meta.get('content'):
+                abstract = desc_meta.get('content').strip().replace("\n", " ")
+            
+            # 5. 產生唯一識別碼 (處理 Amazon 重複貼上問題)
             url_hash = f"url_{id(url)}"
-            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})', url)
-            if match: url_hash = f"amazon_{match.group(1) or match.group(2)}"
+            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
+            if match: url_hash = f"amazon_{match.group(1) or match.group(2) or match.group(3)}"
 
             return {
                 "type": "Web Link", 
-                "title": title, "author": author, "publisher_journal": "網址備存", "issue_volume": "",
-                "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "abstract": abstract[:600], "link": url, "image": "", "is_bookmarked": 1
+                "title": title, 
+                "author": author, 
+                "publisher_journal": "網址預覽備存", 
+                "issue_volume": "",
+                "identifier": url_hash, 
+                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600], 
+                "link": url, 
+                "image": img_url, 
+                "is_bookmarked": 1
             }
-    except: pass
+    except Exception as e:
+        print(f"網址備存解析失敗: {e}")
+        
     return None
     
 def fetch_external_article(url):
