@@ -1,6 +1,8 @@
 import os
 import re
 import requests
+import cloudscraper
+import base64
 import libsql_client
 import urllib.parse
 from bs4 import BeautifulSoup
@@ -12,63 +14,98 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
 
 # ==========================================
-# 🌟 智慧封面搜尋引擎 (Syndetics 優先制)
+# 🛡️ 安全圖片下載器 (支援 Base64 轉換)
+# ==========================================
+def get_secure_image_base64(img_url, source=""):
+    if not img_url: return ""
+    if str(img_url).startswith("data:image"): return img_url
+    try:
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
+        if source == "douban": headers["Referer"] = "https://book.douban.com/"
+            
+        res = scraper.get(img_url, headers=headers, timeout=10)
+        if res.status_code == 200 and len(res.content) > 500:
+            encoded_str = base64.b64encode(res.content).decode('utf-8')
+            content_type = res.headers.get('Content-Type', 'image/jpeg')
+            return f"data:{content_type};base64,{encoded_str}"
+    except: pass
+    return img_url
+
+# ==========================================
+# 🌟 智慧封面搜尋引擎 (支援語系分流與 Syndetics)
 # ==========================================
 def get_best_cover(isbn, title, author, publisher):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper()) if isbn else ""
 
-    # --- 1. Syndetics (機構級圖書館資料庫 - 絕對優先) ---
-    if isbn:
-        syndetics_url = f"https://syndetics.com/index.aspx?isbn={isbn}/lc.jpg&client=test"
+    # --- 1. 日文與華文出版品分流 ---
+    if clean_isbn:
+        if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"):
+            try:
+                res = requests.get(f"https://api.openbd.jp/v1/get?isbn={clean_isbn}", timeout=5).json()
+                if res and res[0] and res[0].get("summary", {}).get("cover"):
+                    return get_secure_image_base64(res[0]["summary"]["cover"], "openbd")
+            except: pass
+            return get_secure_image_base64(f"https://www.hanmoto.com/bd/img/{clean_isbn}.jpg", "hanmoto")
+            
+        elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"):
+            try:
+                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+                res = scraper.get(f"https://book.douban.com/isbn/{clean_isbn}/", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+                if res.status_code == 200:
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    mainpic = soup.find("div", id="mainpic")
+                    if mainpic and mainpic.find("img"):
+                        return get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban")
+            except: pass
+
+    # --- 2. 歐美出版品：Syndetics 優先 ---
+    if clean_isbn:
+        syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
         try:
             res = requests.get(syndetics_url, headers=headers, timeout=5)
-            # 關鍵防呆：過濾掉找不到圖片時回傳的 1x1 透明 GIF (通常約 43 bytes)
             if res.status_code == 200 and len(res.content) > 100:
                 return syndetics_url
         except: pass
     
-    # --- 2. MIT Press 專屬 CDN (次優先) ---
-    if publisher == "MIT Press" and isbn:
-        img_url = f"https://mit-press-new-us.imgix.net/covers/{isbn}.jpg"
+    # --- 3. MIT Press 專屬 CDN ---
+    if publisher == "MIT Press" and clean_isbn:
+        img_url = f"https://mit-press-new-us.imgix.net/covers/{clean_isbn}.jpg"
         try:
             if requests.head(img_url, headers=headers, timeout=5).status_code == 200:
                 return img_url
         except: pass
 
-    # --- 3. Google Books API (精準 ISBN 搜尋) ---
-    if isbn:
+    # --- 4. Google Books (精準搜尋與降噪盲搜) ---
+    if clean_isbn:
         try:
-            res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={isbn}", timeout=5)
-            data = res.json()
-            if "items" in data:
-                img_links = data["items"][0].get("volumeInfo", {}).get("imageLinks", {})
-                best = img_links.get("thumbnail") or img_links.get("smallThumbnail")
-                if best: return best.replace("http://", "https://")
+            res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}", timeout=5).json()
+            if "items" in res:
+                img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
+                if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
         except: pass
 
-    # --- 4. Google Books API (智慧降噪書名搜尋：解決 Duke 沒有 ISBN 的問題) ---
     try:
-        clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
-        search_query = urllib.parse.quote(f"{clean_title} {author.split(',')[0]}")
-        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={search_query}", timeout=5)
-        data = res.json()
-        if "items" in data:
-            img_links = data["items"][0].get("volumeInfo", {}).get("imageLinks", {})
-            best = img_links.get("thumbnail") or img_links.get("smallThumbnail")
-            if best: return best.replace("http://", "https://")
+        short_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
+        query = urllib.parse.quote(f"{short_title} {author.split(',')[0]}")
+        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5).json()
+        if "items" in res:
+            img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
+            if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
     except: pass
 
     # --- 5. Open Library (最終備用) ---
-    if isbn:
+    if clean_isbn:
         try:
-            ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json"
-            if requests.get(ol_url, timeout=5).json():
-                return f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg"
+            if requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json", timeout=5).json():
+                return f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"
         except: pass
 
     return ""
+
 # ==========================================
-# 3. 爬蟲核心
+# 3. 爬蟲核心與資料庫寫入
 # ==========================================
 def fetch_from_crossref(member_id, publisher_name):
     print(f"🔍 [Crossref] 正在擷取 {publisher_name}...")
@@ -106,10 +143,8 @@ def fetch_from_crossref(member_id, publisher_name):
             image_url = get_best_cover(isbn_clean, title, author, publisher_name)
             
             records.append({
-                "type": "Book", "title": title, "author": author,
-                "publisher_journal": publisher_name, "issue_volume": "",
-                "identifier": isbn_clean or link, "publish_date": pub_date,
-                "abstract": "（API 擷取資訊）", "link": link, "image": image_url
+                "type": "Book", "title": title, "author": author, "publisher_journal": publisher_name, "issue_volume": "",
+                "identifier": isbn_clean or link, "publish_date": pub_date, "abstract": "（API 擷取資訊）", "link": link, "image": image_url
             })
         return records
     except Exception as e:
@@ -139,16 +174,12 @@ def crawl_seidosha():
             records.append({
                 "type": "Journal" if "ユリイカ" in title or "現代思想" in title else "Book",
                 "title": title, "author": item.find("p", class_="author").get_text(strip=True) or "青土社",
-                "publisher_journal": "青土社", "issue_volume": "",
-                "identifier": identifier, "publish_date": "2026-05", 
+                "publisher_journal": "青土社", "issue_volume": "", "identifier": identifier, "publish_date": "2026-05", 
                 "abstract": "（青土社新刊）", "link": link, "image": image_url
             })
         return records
     except: return []
 
-# ==========================================
-# 4. 寫入資料庫
-# ==========================================
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
     for item in items:
