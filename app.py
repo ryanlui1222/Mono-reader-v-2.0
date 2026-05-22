@@ -118,6 +118,15 @@ def delete_biblio_db(pub_id):
 # ==========================================
 # 🌟 Biblioapp 手動檢索：語系分流、Base64 與網頁備存引擎
 # ==========================================
+def convert_isbn10_to_13(isbn10):
+    """將 Amazon 的 10 碼 ASIN 轉換為標準的 13 碼 ISBN"""
+    isbn10 = str(isbn10).upper().replace("-", "")
+    if len(isbn10) != 10 or not re.match(r'^\d{9}[\dX]$', isbn10): 
+        return None
+    prefix = "978" + isbn10[:-1]
+    check = sum((int(d) if i % 2 == 0 else int(d) * 3) for i, d in enumerate(prefix))
+    return prefix + str((10 - (check % 10)) % 10)
+
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
