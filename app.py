@@ -339,6 +339,65 @@ def fetch_external_article(url):
         return {"Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, "Published": "手動收藏", "Summary": final_summary, "Image": img_url, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1}
     except: return None
 
+def fetch_book_by_url(url):
+    """當 ISBN 萬一失效時的保底機制：直接解剖出版社或 Amazon 網頁的 HTML 標籤"""
+    if not url.startswith("http"):
+        return None
+    try:
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        res = scraper.get(url, headers=headers, timeout=12)
+        res.encoding = res.apparent_encoding
+        
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            
+            # 1. 智慧擷取書名 (優先抓取標準的 og:title)
+            og_title = soup.find('meta', property='og:title')
+            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
+            # 降噪：切除網頁結尾常見的出版社名稱 (如 " | Duke University Press")
+            title = title.split('|')[0].split(' - ')[0].strip()
+            
+            # 2. 智慧擷取作者
+            author = "未知作者 (網址備存)"
+            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author') or soup.find('meta', name='citation_author')
+            if author_meta and author_meta.get('content'):
+                author = author_meta['content'].strip()
+            else:
+                # 針對 Amazon 或部分出版社的備用文字搜尋
+                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
+                    p_text = p.get_text(strip=True)
+                    if p_text and len(p_text) < 50:
+                        author = p_text
+                        break
+            
+            # 3. 智慧擷取簡介 / 摘要
+            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
+            abstract = og_desc['content'] if og_desc and og_desc.get('content') else "（透過外部網址備存導入）"
+            
+            # 生成一個基於網址唯一性的 identifier，避免重覆錄入
+            url_hash = f"url_{id(url)}"
+            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})', url)
+            if match:  # 如果是 Amazon 網址，自動萃取 ASIN 碼作為唯一鍵
+                url_hash = f"amazon_{match.group(1) or match.group(2)}"
+
+            return {
+                "type": "Book",
+                "title": title,
+                "author": author,
+                "publisher_journal": "手動加入",
+                "issue_volume": "",
+                "identifier": url_hash,
+                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600],
+                "link": url,
+                "image": "", # 備存模式採輕量化，不強求封面圖
+                "is_bookmarked": 1
+            }
+    except Exception as e:
+        print(f"網址備存解析失敗: {e}")
+    return None
+
 # ==========================================
 # 5. 側邊欄總開關
 # ==========================================
@@ -500,7 +559,37 @@ elif app_mode == "🎓 Biblioapp":
                             except Exception as e: st.error(f"寫入失敗: {e}")
                         else: st.error("❌ 找不到該 ISBN。請檢查是否有輸入錯誤。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
+                    
+        # === 🌟 新增：當 ISBN 查無資料時的網址備存快充入口 ===
+        with st.expander("📥 網址備存匯入 (當 ISBN 失敗時)", expanded=False):
+            backup_url_input = st.text_input("貼上出版社或 Amazon 網址：", placeholder="https://...", key="backup_url_field")
+            if st.button("網頁解析並加入書架", use_container_width=True, key="backup_url_btn"):
+                if backup_url_input:
+                    with st.spinner("正在探測網頁元資料..."):
+                        url_book_data = fetch_book_by_url(backup_url_input)
+                        if url_book_data:
+                            try:
+                                sql = """
+                                INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) 
+                                ON CONFLICT(identifier) DO UPDATE SET is_bookmarked=1, title=excluded.title;
+                                """
+                                db.execute(sql, [
+                                    url_book_data['type'], url_book_data['title'], url_book_data['author'], 
+                                    url_book_data['publisher_journal'], url_book_data['issue_volume'], 
+                                    url_book_data['identifier'], url_book_data['publish_date'], 
+                                    url_book_data['abstract'], url_book_data['link'], url_book_data['image']
+                                ])
+                                st.cache_data.clear()
+                                st.success(f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至手動加入清單！")
+                            except Exception as e: 
+                                st.error(f"寫入資料庫失敗: {e}")
+                        else:
+                            st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
+                else:
+                    st.warning("⚠️ 請輸入有效的網址。")
         st.markdown("---")
+
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
