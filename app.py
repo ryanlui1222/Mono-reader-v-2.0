@@ -218,18 +218,38 @@ def fetch_book_by_isbn(isbn):
     except: pass
     return None
 
-# 🌟 新增：萬能網址備存解剖器
+# 🌟 新增：萬能網址備存解剖器 (支援 Amazon 攔截轉換)
 def fetch_book_by_url(url):
     if not url.startswith("http"): return None
+    
+    # === 🛡️ 獨家破解：Amazon 網址反向攔截 ===
+    if "amazon." in url:
+        match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
+        if match:
+            asin = match.group(1) or match.group(2) or match.group(3)
+            # 如果 ASIN 看起來像 ISBN-10，將其轉換為 ISBN-13 並交由主引擎處理
+            isbn13 = convert_isbn10_to_13(asin)
+            if isbn13:
+                print(f"🔄 偵測到 Amazon 網址，轉換為 ISBN-13: {isbn13}，轉交智能大腦...")
+                book_data = fetch_book_by_isbn(isbn13)
+                if book_data:
+                    # 覆寫部分資料，讓它適應網址備存區
+                    book_data['type'] = "Web Link"
+                    book_data['publisher_journal'] = "Amazon 轉換"
+                    book_data['link'] = url
+                    return book_data
+
+    # === 🌐 常規大學出版社或一般網頁解析 ===
     try:
         scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
         res = scraper.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
         res.encoding = res.apparent_encoding
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
+            
             og_title = soup.find('meta', property='og:title')
             title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
-            title = title.split('|')[0].split(' - ')[0].strip()
+            title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').strip()
             
             author = "未知作者"
             author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author') or soup.find('meta', name='citation_author')
@@ -250,14 +270,14 @@ def fetch_book_by_url(url):
             if match: url_hash = f"amazon_{match.group(1) or match.group(2)}"
 
             return {
-                "type": "Web Link", # 標記為獨立的 Web Link 類型
+                "type": "Web Link", 
                 "title": title, "author": author, "publisher_journal": "網址備存", "issue_volume": "",
                 "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
                 "abstract": abstract[:600], "link": url, "image": "", "is_bookmarked": 1
             }
     except: pass
     return None
-
+    
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
