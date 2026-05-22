@@ -520,7 +520,7 @@ def main():
         ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
         ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
         ("https://today.duke.edu/topics/arts-&-humanities/rss", "Duke Arts & Humanities", 15, False),
-        ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False)
+        ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, True)
         
     ]
     
