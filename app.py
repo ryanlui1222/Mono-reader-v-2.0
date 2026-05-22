@@ -219,39 +219,66 @@ def fetch_book_by_isbn(isbn):
     return None
 
 # ==========================================
-# 🌟 萬能網址備存解剖器 (Facebook/Twitter 預覽偽裝版)
+# 🌟 萬能網址備存解剖器 (Amazon 攔截 + Facebook 預覽雙重引擎)
 # ==========================================
+def convert_isbn10_to_13(isbn10):
+    """將 Amazon 的 10 碼 ASIN 轉換為標準的 13 碼 ISBN"""
+    isbn10 = str(isbn10).upper().replace("-", "")
+    # 檢查是否為純數字+X組合 (排除 Kindle 電子書的 B0 開頭代碼)
+    if len(isbn10) != 10 or not re.match(r'^\d{9}[\dX]$', isbn10): 
+        return None
+    prefix = "978" + isbn10[:-1]
+    check = sum((int(d) if i % 2 == 0 else int(d) * 3) for i, d in enumerate(prefix))
+    return prefix + str((10 - (check % 10)) % 10)
+
 def fetch_book_by_url(url):
     if not url.startswith("http"): return None
     
-    # 🛡️ 核心破解：偽裝成 Facebook 的官方預覽爬蟲
-    # 各大網站(含 Amazon)為了能在社交媒體產生分享預覽卡片，會在防火牆「白名單」無條件放行此 User-Agent
+    # === 🛡️ 第一重防線：Amazon 網址反向攔截 (實體書) ===
+    if "amazon." in url:
+        match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
+        if match:
+            asin = match.group(1) or match.group(2) or match.group(3)
+            isbn13 = convert_isbn10_to_13(asin)
+            if isbn13:
+                # 成功轉換，轉交給主引擎去要高畫質書封
+                book_data = fetch_book_by_isbn(isbn13)
+                if book_data:
+                    # 覆寫部分資料以適應網址備存區
+                    book_data['type'] = "Web Link"
+                    book_data['publisher_journal'] = "Amazon 轉換"
+                    book_data['link'] = url
+                    return book_data
+
+    # === 🛡️ 第二重防線：Facebook 官方預覽爬蟲偽裝 (大學出版社/一般網頁/Kindle) ===
     headers = {
         "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
     
     try:
-        # 既然已被白名單放行，我們直接用原生 requests 即可擊穿防護
         res = requests.get(url, headers=headers, timeout=12)
         res.encoding = res.apparent_encoding
         
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
             
-            # 1. 擷取分享書名 (Twitter Card > Open Graph > 網頁 Title)
+            # 1. 擷取分享書名
             title = ""
             if soup.find('meta', property='og:title'): title = soup.find('meta', property='og:title').get('content')
             elif soup.find('meta', attrs={'name': 'twitter:title'}): title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
             elif soup.find('title'): title = soup.find('title').get_text()
             title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').strip() if title else "未命名書籍"
             
-            # 2. 擷取分享預覽圖 (Open Graph > Twitter Card)
+            # 防呆：如果連標題都沒抓到，說明偽裝失效，提早退出
+            if not title or title == "未命名書籍":
+                return None
+            
+            # 2. 擷取分享預覽圖
             img_url = ""
             if soup.find('meta', property='og:image'): img_url = soup.find('meta', property='og:image').get('content')
             elif soup.find('meta', attrs={'name': 'twitter:image'}): img_url = soup.find('meta', attrs={'name': 'twitter:image'}).get('content')
             
-            # 如果有圖片，透過 Base64 轉換器安全下載 (避免被再次防盜鏈阻擋)
             if img_url: 
                 img_url = get_secure_image_base64(img_url, "social_preview")
             
@@ -267,7 +294,7 @@ def fetch_book_by_url(url):
             if desc_meta and desc_meta.get('content'):
                 abstract = desc_meta.get('content').strip().replace("\n", " ")
             
-            # 5. 產生唯一識別碼 (處理 Amazon 重複貼上問題)
+            # 5. 產生唯一識別碼
             url_hash = f"url_{id(url)}"
             match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
             if match: url_hash = f"amazon_{match.group(1) or match.group(2) or match.group(3)}"
@@ -289,7 +316,6 @@ def fetch_book_by_url(url):
         print(f"網址備存解析失敗: {e}")
         
     return None
-
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
