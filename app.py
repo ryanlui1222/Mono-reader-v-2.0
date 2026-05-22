@@ -5,6 +5,7 @@ import math
 import re
 import requests
 import cloudscraper
+import base64
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -143,12 +144,144 @@ def delete_biblio_db(pub_id):
     except Exception as e: st.error(f"刪除失敗: {e}")
 
 # ==========================================
-# 🌟 三引擎文獻手動匯入 (LibraryThing > Google > OpenLibrary)
+# 🛡️ 輔助函數：多語系智能下載與 Base64 轉換器
+# ==========================================
+def get_secure_image_base64(img_url, source=""):
+    if not img_url: return ""
+    if str(img_url).startswith("data:image"): return img_url
+    try:
+        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
+        if source == "douban":
+            headers["Referer"] = "https://book.douban.com/"
+        res = scraper.get(img_url, headers=headers, timeout=10)
+        if res.status_code == 200 and len(res.content) > 500:
+            encoded_str = base64.b64encode(res.content).decode('utf-8')
+            content_type = res.headers.get('Content-Type', 'image/jpeg')
+            return f"data:{content_type};base64,{encoded_str}"
+    except: pass
+    return img_url
+
+def fetch_google_fallback(isbn):
+    try:
+        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+        res = requests.get(url, timeout=5)
+        data = res.json()
+        if "items" in data and len(data["items"]) > 0:
+            info = data["items"][0].get("volumeInfo", {})
+            img = info.get("imageLinks", {}).get("thumbnail", "")
+            if img:
+                img = img.replace("http://", "https://")
+            return {
+                "type": "Book",
+                "title": info.get("title", "未命名書籍"),
+                "author": ", ".join(info.get("authors", ["未知作者"])),
+                "publisher_journal": info.get("publisher", "手動加入"),
+                "issue_volume": "",
+                "identifier": isbn,
+                "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
+                "abstract": info.get("description", "（無摘要）")[:600],
+                "link": info.get("infoLink", f"https://books.google.com/books?vid=ISBN{isbn}"),
+                "image": get_secure_image_base64(img, "google"),
+                "is_bookmarked": 1
+            }
+    except: pass
+    return None
+
+def fetch_openbd(isbn):
+    try:
+        url = f"https://api.openbd.jp/v1/get?isbn={isbn}"
+        res = requests.get(url, timeout=10)
+        data = res.json()
+        if data and data[0]:
+            info = data[0].get("summary", {})
+            img_url = info.get("cover", "")
+            if not img_url:
+                img_url = f"https://www.hanmoto.com/bd/img/{isbn}.jpg"
+                img_base64 = get_secure_image_base64(img_url, "hanmoto")
+            else:
+                img_base64 = get_secure_image_base64(img_url, "openbd")
+            
+            return {
+                "type": "Book",
+                "title": info.get("title", "未命名書籍"),
+                "author": info.get("author", "未知作者"),
+                "publisher_journal": info.get("publisher", "手動加入"),
+                "issue_volume": "",
+                "identifier": isbn,
+                "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")),
+                "abstract": "（日文出版品目錄，無詳細摘要）",
+                "link": f"https://www.hanmoto.com/bd/isbn/{isbn}",
+                "image": img_base64,
+                "is_bookmarked": 1
+            }
+    except: pass
+    return fetch_google_fallback(isbn)
+
+def fetch_douban(isbn):
+    url = f"https://book.douban.com/isbn/{isbn}/"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    try:
+        res = scraper.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            title_tag = soup.find("span", property="v:itemreviewed")
+            title = title_tag.text.strip() if title_tag else "未知書名"
+            
+            img_url = ""
+            mainpic = soup.find("div", id="mainpic")
+            if mainpic and mainpic.find("img"):
+                img_url = mainpic.find("img").get("src", "")
+            if img_url:
+                img_url = img_url.replace("/s/public/", "/l/public/")
+                img_url = get_secure_image_base64(img_url, "douban")
+                
+            author = "未知作者"
+            author_span = soup.find("span", string=re.compile("作者"))
+            if author_span and author_span.find_next("a"):
+                author = author_span.find_next("a").text.strip()
+                
+            publisher = "手動加入"
+            pub_span = soup.find("span", string=re.compile("出版社"))
+            if pub_span and pub_span.next_sibling:
+                publisher = pub_span.next_sibling.strip().replace(":", "").strip()
+                
+            abstract = "（無摘要）"
+            intro_div = soup.find("div", class_="intro")
+            if intro_div:
+                abstract = intro_div.text.strip().replace("\n", " ")
+                
+            return {
+                "type": "Book",
+                "title": title,
+                "author": author,
+                "publisher_journal": publisher,
+                "issue_volume": "",
+                "identifier": isbn,
+                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600],
+                "link": url,
+                "image": img_url,
+                "is_bookmarked": 1
+            }
+    except: pass
+    return fetch_google_fallback(isbn)
+
+# ==========================================
+# 🌟 語系分流手動匯入大腦
 # ==========================================
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
+    if not clean_isbn: return None
     
-    # 🌟 預先驗證 Syndetics 是否有高畫質圖片
+    # 智慧語系路由分流
+    if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"):
+        return fetch_openbd(clean_isbn)
+    elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"):
+        return fetch_douban(clean_isbn)
+        
+    # 歐美書籍原有 Syndetics + 備援機制
     best_cover = ""
     if clean_isbn:
         syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
@@ -158,41 +291,18 @@ def fetch_book_by_isbn(isbn):
                 best_cover = syndetics_url
         except: pass
 
-    # 引擎一：Google Books API (獲取元資料)
-    try:
-        url = f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}"
-        res = requests.get(url, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            if "items" in data and len(data["items"]) > 0:
-                info = data["items"][0].get("volumeInfo", {})
-                
-                # 🌟 圖片攔截：優先使用 Syndetics，若無則降級使用 Google 或 Open Library
-                img_url = best_cover
-                if not img_url:
-                    img_links = info.get("imageLinks", {})
-                    fallback_img = img_links.get("thumbnail") or img_links.get("smallThumbnail", "")
-                    img_url = fallback_img.replace("http://", "https://") if fallback_img else f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"
-                
-                return {
-                    "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", ["未知作者"])),
-                    "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "",
-                    "identifier": clean_isbn, "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
-                    "abstract": info.get("description", "（無摘要）")[:600],
-                    "link": info.get("infoLink", f"https://books.google.com/books?vid=ISBN{clean_isbn}"), "image": img_url, "is_bookmarked": 1
-                }
-    except: pass
+    res = fetch_google_fallback(clean_isbn)
+    if res:
+        if best_cover: res["image"] = best_cover
+        return res
 
-    # 引擎二：Open Library API (獲取元資料)
     try:
         ol_url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
-        ol_res = requests.get(ol_url, timeout=10)
+        ol_res = requests.get(ol_url, timeout=5)
         ol_data = ol_res.json()
         if f"ISBN:{clean_isbn}" in ol_data:
             info = ol_data[f"ISBN:{clean_isbn}"]
             authors = [a.get("name", "") for a in info.get("authors", [])]
-            
-            # 🌟 圖片攔截
             img_url = best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg")
             
             return {
@@ -206,7 +316,7 @@ def fetch_book_by_isbn(isbn):
     except: pass
     
     return None
-    
+
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
@@ -306,7 +416,6 @@ if app_mode == "📚 Monoreader":
     else:
         df = fetch_data(view_mode, selected_source, search_input)
 
-        # 🌟 還原您原本精心設計的副標題與說明文字
         if view_mode == "✨ 全部來源總覽":
             st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
             st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
@@ -380,7 +489,7 @@ elif app_mode == "🎓 Biblioapp":
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
             if st.button("檢索並加入書架", use_container_width=True):
                 if isbn_input:
-                    with st.spinner("正在呼叫三重檢索 API..."):
+                    with st.spinner("正在呼叫多語系智能引擎..."):
                         book_data = fetch_book_by_isbn(isbn_input)
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
@@ -416,7 +525,8 @@ elif app_mode == "🎓 Biblioapp":
             for idx, row in df_pubs.iterrows():
                 with cols[idx % 5]:
                     img_url = row.get('image')
-                    if not img_url or not str(img_url).startswith("http"):
+                    # 修改：支援 data:image (Base64) 顯示
+                    if not img_url or (not str(img_url).startswith("http") and not str(img_url).startswith("data:")):
                         img_url = "https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover"
                         
                     st.markdown(f'''
@@ -457,7 +567,8 @@ elif app_mode == "🎓 Biblioapp":
                         col_img, col_info, col_btn = st.columns([2, 6, 1])
                         with col_img:
                             img_url = row.get('image')
-                            if pd.notna(img_url) and str(img_url).startswith("http"):
+                            # 修改：支援 data:image (Base64) 顯示
+                            if pd.notna(img_url) and (str(img_url).startswith("http") or str(img_url).startswith("data:")):
                                 img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
                                 st.markdown(img_html, unsafe_allow_html=True)
                             else: st.info("無封面圖影")
@@ -490,4 +601,4 @@ elif app_mode == "🎓 Biblioapp":
                     st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v3.5 (Bookshelf & LibThing Edition)")
+st.sidebar.caption("Monoreader Cloud v3.6 (Multi-Language Router Edition)")
