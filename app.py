@@ -289,7 +289,7 @@ def fetch_book_by_url(url):
         print(f"網址備存解析失敗: {e}")
         
     return None
-    
+
 def fetch_external_article(url):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     try:
