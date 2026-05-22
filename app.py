@@ -159,10 +159,11 @@ def add_custom_resource(module_name, url):
     except Exception as e:
         return False, f"❌ 資料庫寫入錯誤: {e}"
 
-def update_custom_resource(res_id, new_title):
+def update_custom_resource(res_id, new_title, new_comment=""):
     try:
-        db.execute("UPDATE custom_resources SET title = ? WHERE id = ?", [new_title, res_id])
-        st.cache_data.clear(); st.toast("✏️ 網站名稱已更新！")
+        # 新增 comment 欄位的更新
+        db.execute("UPDATE custom_resources SET title = ?, comment = ? WHERE id = ?", [new_title, new_comment, res_id])
+        st.cache_data.clear(); st.toast("✏️ 網站資訊與備註已更新！")
     except Exception as e: st.error(f"更新失敗: {e}")
 
 def delete_custom_resource(res_id):
@@ -454,13 +455,24 @@ if app_mode == "📚 Monoreader":
             for _, row in df_res.iterrows():
                 col_link, col_action = st.columns([7, 1])
                 with col_link:
-                    # 🌟 還原為您原本的兩行式經典排版
                     st.markdown(f"### {row['title']}")
                     st.markdown(f"🔗 **[前往官網探索]({row['url']})**")
+                    
+                    # 🌟 顯示備註內容 (如果有的話)
+                    comment_text = row.get('comment', '')
+                    if pd.notna(comment_text) and str(comment_text).strip() != "":
+                        st.info(f"{comment_text}")
+                        
                 with col_action:
                     with st.popover("⚙️ 管理"):
                         edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_{row['id']}")
-                        st.button("💾 儲存修改", key=f"save_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title), use_container_width=True)
+                        
+                        # 🌟 新增備註的多行輸入框
+                        current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                        edit_comment = st.text_area("編輯網站功能/內容介紹：", value=current_comment, key=f"edit_cmt_{row['id']}", height=100)
+                        
+                        # 傳入 edit_comment 參數
+                        st.button("💾 儲存修改", key=f"save_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
                         st.button("🗑️ 刪除網站", key=f"del_{row['id']}", on_click=delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
 
@@ -726,13 +738,24 @@ elif app_mode == "🎓 Biblioapp":
             for _, row in df_res.iterrows():
                 col_link, col_action = st.columns([7, 1])
                 with col_link:
-                    # 🌟 還原為您原本的兩行式經典排版
                     st.markdown(f"### {row['title']}")
                     st.markdown(f"🔗 **[前往資料庫]({row['url']})**")
+                    
+                    # 🌟 顯示備註內容 (如果有的話)
+                    comment_text = row.get('comment', '')
+                    if pd.notna(comment_text) and str(comment_text).strip() != "":
+                        st.info(f"{comment_text}")
+                        
                 with col_action:
                     with st.popover("⚙️ 管理"):
                         edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_bib_{row['id']}")
-                        st.button("💾 儲存修改", key=f"save_bib_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title), use_container_width=True)
+                        
+                        # 🌟 新增備註的多行輸入框
+                        current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                        edit_comment = st.text_area("編輯網站功能/內容介紹：", value=current_comment, key=f"edit_bib_cmt_{row['id']}", height=100)
+                        
+                        # 傳入 edit_comment 參數
+                        st.button("💾 儲存修改", key=f"save_bib_{row['id']}", on_click=update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
                         st.button("🗑️ 刪除網站", key=f"del_bib_{row['id']}", on_click=delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
 
