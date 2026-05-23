@@ -55,13 +55,19 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 @st.cache_data(ttl=600)
 def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總覽"):
     sql, args = "SELECT * FROM academic_pubs WHERE 1=1", []
+    
     if view_mode == "🔖 待讀書架":
         sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
     elif view_mode == "🔗 網址備存":
         sql += " AND type = 'Web Link'"
     else:
         sql += " AND type = ?"; args.append(pub_type)
-        if source_filter != "總覽 (依日期遞減)": sql += " AND publisher_journal = ?"; args.append(source_filter)
+        
+        if source_filter == "📥 剛匯入 (未收藏)":
+            sql += " AND is_bookmarked = 0"
+        elif source_filter != "總覽 (依日期遞減)": 
+            sql += " AND publisher_journal = ?"; args.append(source_filter)
+            
     sql += " ORDER BY publish_date DESC LIMIT 500"
     res = db.execute(sql, args)
     if not res.rows: return pd.DataFrame()
@@ -152,7 +158,7 @@ def fetch_google_fallback(isbn):
                 "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
                 "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
-                "image": get_secure_image_base64(img, "google"), "is_bookmarked": 1
+                "image": get_secure_image_base64(img, "google"), "is_bookmarked": 0
             }
     except: pass
     return None
@@ -167,7 +173,7 @@ def fetch_openbd(isbn):
                 "type": "Book", "title": info.get("title", "未命名"), "author": info.get("author", "未知"),
                 "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
                 "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")), "abstract": "（日文出版品）",
-                "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "is_bookmarked": 1
+                "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "is_bookmarked": 0
             }
     except: pass
     return fetch_google_fallback(isbn)
@@ -191,7 +197,7 @@ def fetch_douban(isbn):
             return {
                 "type": "Book", "title": title, "author": author, "publisher_journal": publisher, "issue_volume": "", 
                 "identifier": isbn, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "abstract": abstract[:600], "link": url, "image": img_url, "is_bookmarked": 1
+                "abstract": abstract[:600], "link": url, "image": img_url, "is_bookmarked": 0
             }
     except: pass
     return fetch_google_fallback(isbn)
@@ -223,7 +229,7 @@ def fetch_book_by_isbn(isbn):
                 "publisher_journal": info.get("publishers", [{"name": "手動加入"}])[0].get("name", "手動加入"), "issue_volume": "",
                 "identifier": clean_isbn, "publish_date": info.get("publish_date", datetime.utcnow().strftime("%Y-%m-%d")),
                 "abstract": "（Open Library 匯入）", "link": info.get("url", ""), 
-                "image": best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "is_bookmarked": 1
+                "image": best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "is_bookmarked": 0
             }
     except: pass
     return None
@@ -265,7 +271,7 @@ def fetch_book_by_url(url):
                 "type": "Web Link", "title": title, "author": author, "publisher_journal": "網頁備存", 
                 "issue_volume": "", "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
                 "abstract": abstract[:600] if abstract else "（透過外部網址備存導入）", "link": url, 
-                "image": img_url, "is_bookmarked": 1
+                "image": img_url, "is_bookmarked": 0
             }
     except Exception as e:
         print(f"網址備存解析失敗: {e}")
