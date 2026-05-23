@@ -200,28 +200,60 @@ def crawl_urbanomic_forthcoming():
     return books
 
 def crawl_utp():
-    """抓取東京大學出版會 RSS"""
-    print("🔍 [東京大学出版会] 準備擷取 RSS...")
-    url = "https://www.utp.or.jp/rss/news/"
-    feed = feedparser.parse(url)
+    """精準抓取東京大学出版会新刊網頁"""
+    print("🔍 [東京大学出版会] 準備擷取新刊清單...")
+    url = "https://www.utp.or.jp/search/new.html"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     books = []
     
-    for entry in feed.entries:
-        books.append({
-            "type": "Book",
-            "title": entry.title,
-            "author": "東京大学出版会",
-            "publisher_journal": "東京大学出版会",
-            "identifier": entry.link, # 🌟 補上 identifier
-            "link": entry.link,
-            "publish_date": entry.get("published", datetime.utcnow().strftime("%Y-%m-%d")),
-            "abstract": entry.get("summary", "無摘要"),
-            "image": "", # 🌟 補上 image，RSS 通常無獨立圖片欄位，交由前端預設圖
-            "is_manual": 0,
-            "category": "學術專著"
-        })
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        res.encoding = 'utf-8'
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 定位到書籍清單區塊
+        book_list = soup.find('div', class_='booklist')
+        if not book_list:
+            return books
+            
+        items = book_list.find_all('div', class_='item')
+        
+        for item in items:
+            # 1. 擷取標題與連結
+            ttl_tag = item.find('div', class_='ttl').find('a')
+            title = ttl_tag.get_text(strip=True) if ttl_tag else "未命名書籍"
+            raw_link = ttl_tag['href'] if ttl_tag else ""
+            link = f"https://www.utp.or.jp{raw_link}" if raw_link else url
+            
+            # 2. 擷取作者 (將多個作者/譯者透過空白組合，例如「塩野谷 祐一 著」)
+            author_tag = item.find('div', class_='author')
+            author = author_tag.get_text(separator=' ', strip=True) if author_tag else "東京大学出版会"
+            
+            # 3. 擷取封面圖片 (直接抓取 Amazon S3 上的圖檔網址)
+            img_tag = item.find('div', class_='image').find('img')
+            image_url = img_tag['src'] if img_tag else ""
+            
+            # 4. 自動判定文獻類型 (如果標題包含 "UP "，判定為雜誌/期刊)
+            pub_type = "Journal" if "UP " in title else "Book"
+            
+            books.append({
+                "type": pub_type,
+                "title": title,
+                "author": author,
+                "publisher_journal": "東京大学出版会",
+                "identifier": link, # 使用網址作為唯一識別碼
+                "link": link,
+                "publish_date": datetime.utcnow().strftime("%Y-%m"), # 列表頁無具體日期，預設寫入爬取當月
+                "abstract": "（東京大学出版会新刊）",
+                "image": image_url,
+                "is_manual": 0,
+                "category": "學術專著"
+            })
+    except Exception as e:
+        print(f"❌ 東京大学出版会 爬取失敗: {e}")
+        
     return books
-
+    
 def crawl_verso():
     """抓取 Verso Books Atom Feed"""
     print("🔍 [Verso Books] 準備擷取 Atom...")
