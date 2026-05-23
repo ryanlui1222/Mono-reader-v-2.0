@@ -5,6 +5,8 @@ import cloudscraper
 import base64
 import libsql_client
 import urllib.parse
+import feedparser
+from datetime import datetime
 from bs4 import BeautifulSoup
 
 # ==========================================
@@ -150,6 +152,97 @@ def fetch_from_crossref(member_id, publisher_name):
     except Exception as e:
         print(f"❌ [{publisher_name}] 擷取失敗: {e}")
         return []
+
+def crawl_urbanomic_forthcoming():
+    """精準抓取 Urbanomic Forthcoming 區塊書籍"""
+    url = "https://www.urbanomic.com/book/"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    books = []
+    
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 尋找所有書籍卡片 (Urbanomic 通常使用 article 或特定的 div class 包裝書籍)
+        # 此處使用通用的 article 標籤作為定位點，你可能需要根據實際 HTML 微調選擇器
+        book_cards = soup.find_all('article') 
+        
+        for card in book_cards:
+            text_content = card.get_text(separator=' ', strip=True).upper()
+            
+            # 嚴格攔截：只有卡片內文包含 FORTHCOMING 標籤的才處理
+            if "FORTHCOMING" in text_content:
+                # 擷取標題
+                title_tag = card.find(['h2', 'h3'])
+                title = title_tag.get_text(strip=True) if title_tag else "未命名書籍"
+                
+                # 擷取連結
+                link_tag = card.find('a', href=True)
+                link = link_tag['href'] if link_tag else url
+                
+                # 擷取預計出版年月 (從標籤中萃取，如 FORTHCOMING OCT 2026)
+                date_match = re.search(r'FORTHCOMING\s+([A-Z]{3}\s+\d{4})', text_content)
+                pub_date = date_match.group(1) if date_match else "即將出版"
+                
+                books.append({
+                    "type": "Book",
+                    "title": title,
+                    "author": "Urbanomic", # 需進階進入內頁爬取或透過正則分離標題下的作者名
+                    "publisher_journal": "Urbanomic",
+                    "link": link,
+                    "publish_date": pub_date,
+                    "abstract": "（即將出版之前瞻書目）",
+                    "is_manual": 0,
+                    "category": "學術專著"
+                })
+    except Exception as e:
+        print(f"Urbanomic 爬取失敗: {e}")
+        
+    return books
+
+def crawl_utp():
+    """抓取東京大學出版會 RSS"""
+    url = "https://www.utp.or.jp/rss/news/"
+    feed = feedparser.parse(url)
+    books = []
+    
+    for entry in feed.entries:
+        # UTP 的 RSS 常常混合了新聞與新書，可根據標題或連結特徵過濾
+        books.append({
+            "type": "Book",
+            "title": entry.title,
+            "author": "東京大学出版会", # RSS 通常缺乏精確作者欄位，預設為出版社
+            "publisher_journal": "東京大学出版会",
+            "link": entry.link,
+            "publish_date": entry.get("published", datetime.utcnow().strftime("%Y-%m-%d")),
+            "abstract": entry.get("summary", "無摘要"),
+            "is_manual": 0,
+            "category": "學術專著"
+        })
+    return books
+
+def crawl_verso():
+    """抓取 Verso Books Atom Feed"""
+    url = "https://www.versobooks.com/collections/catalog.atom"
+    feed = feedparser.parse(url)
+    books = []
+    
+    for entry in feed.entries:
+        # 萃取作者 (Verso 的 Atom 通常會包含 author 標籤)
+        author = entry.author if 'author' in entry else "Verso Books"
+        
+        books.append({
+            "type": "Book",
+            "title": entry.title,
+            "author": author,
+            "publisher_journal": "Verso Books",
+            "link": entry.link,
+            "publish_date": entry.get("published", datetime.utcnow().strftime("%Y-%m-%d")),
+            "abstract": BeautifulSoup(entry.get("summary", ""), "html.parser").get_text()[:300], # 清除 HTML 標籤
+            "is_manual": 0,
+            "category": "學術專著"
+        })
+    return books
 
 def crawl_seidosha():
     print("🔍 [青土社] 準備擷取...")
