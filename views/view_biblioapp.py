@@ -17,6 +17,11 @@ def render_page():
         biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
         st.markdown("---")
         
+        # 🌟 新增：全域搜尋列
+        st.subheader("🔍 全域搜尋")
+        bib_search_query = st.text_input("輸入關鍵字", placeholder="書名、作者、出版社或摘要...", label_visibility="collapsed", on_change=reset_biblio_page)
+        st.markdown("---")
+        
         with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
             if st.button("檢索並加入書架", use_container_width=True):
@@ -73,7 +78,13 @@ def render_page():
             else:
                 active_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "青土社 (雜誌)", "PRISM: Theory and Modern Chinese Literature"], on_change=reset_biblio_page)
 
-    df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter)
+    # 🌟 傳遞 search_query 變數至後端
+    df_pubs = core_utils.fetch_academic_pubs(
+        view_mode=biblio_view_mode, 
+        pub_type=db_type, 
+        source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter,
+        search_query=bib_search_query
+    )
     
     if biblio_view_mode == "🔖 待讀書架":
         if df_pubs.empty:
@@ -141,13 +152,29 @@ def render_page():
                         st.rerun()
 
     elif biblio_view_mode == "🔗 網址備存":
-        st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
-        st.caption("這裡存放了當 ISBN 掃描失敗時，透過網址強制解剖擷取的備用書籍資料。")
+        # 🌟 網址備存區域：新增排序選單
+        col_title, col_sort = st.columns([3, 1])
+        with col_title:
+            st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
+            st.caption("這裡存放了當 ISBN 掃描失敗時，透過網址強制解剖擷取的備用書籍資料。")
+        with col_sort:
+            web_sort_mode = st.selectbox(
+                "🔀 排序方式：", 
+                ["加入日期 (新到舊)", "加入日期 (舊到新)", "標題 (A-Z / 五十音)"],
+                key="web_link_sort",
+                on_change=reset_biblio_page
+            )
         st.markdown("---")
         
         if df_pubs.empty:
             st.info("目前沒有任何網址備存資料。請在左側側邊欄貼上網址匯入。")
         else:
+            # 🌟 執行 Pandas 排序 (預設的「新到舊」已由後端 SQL ORDER BY 處理完成)
+            if web_sort_mode == "加入日期 (舊到新)":
+                df_pubs = df_pubs.sort_values(by='publish_date', ascending=True)
+            elif web_sort_mode == "標題 (A-Z / 五十音)":
+                df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower(), ascending=True)
+
             PER_PAGE = 20
             total_pages = math.ceil(len(df_pubs) / PER_PAGE)
             if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
@@ -171,6 +198,7 @@ def render_page():
                 with col_page:
                     st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
 
+    # ... [下方 🌐 可用資源 與 🔍 文獻探索 區塊的代碼維持原樣，無需變動] ...
     elif biblio_view_mode == "🌐 可用資源":
         st.subheader("🌐 可用資源 (Academic Resources)")
         st.caption("收集常用的學術資料庫、檢索系統或出版社官方網站。")
