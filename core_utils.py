@@ -33,7 +33,7 @@ def get_source_link(source_name): return SOURCE_URLS.get(source_name.split(" (")
 def init_connection(): return libsql_client.create_client_sync(url=st.secrets["TURSO_DATABASE_URL"], auth_token=st.secrets["TURSO_AUTH_TOKEN"])
 db = init_connection()
 
-#@st.cache_data(ttl=600)
+@st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     sql, args = "SELECT * FROM articles WHERE 1=1", []
     if search_query:
