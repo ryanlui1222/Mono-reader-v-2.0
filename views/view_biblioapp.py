@@ -26,9 +26,9 @@ def render_page():
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
                             try:
-                                sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(identifier) DO UPDATE SET is_bookmarked=1, title=excluded.title, image=excluded.image;"
+                                sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
                                 core_utils.db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
-                                st.cache_data.clear(); st.success(f"✅ 已將《{book_data['title']}》加入書架！")
+                                st.cache_data.clear(); st.success(f"✅ 已將《{book_data['title']}》加入清單！")
                             except Exception as e: st.error(f"寫入失敗: {e}")
                         else: st.error("❌ 找不到該 ISBN。請嘗試下方的網址備存功能。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
@@ -43,7 +43,7 @@ def render_page():
                             try:
                                 sql = """
                                 INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) 
                                 ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
                                 """
                                 core_utils.db.execute(sql, [
@@ -69,7 +69,7 @@ def render_page():
             biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed", on_change=reset_biblio_page)
             db_type = "Book" if "專書" in biblio_type_label else "Journal"
             if db_type == "Book":
-                active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "MIT Press", "Duke University Press", "青土社", "手動加入"], on_change=reset_biblio_page)
+                active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "📥 剛匯入 (未收藏)", "MIT Press", "Duke University Press", "青土社", "手動加入"], on_change=reset_biblio_page)
             else:
                 active_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "青土社 (雜誌)", "PRISM: Theory and Modern Chinese Literature"], on_change=reset_biblio_page)
 
