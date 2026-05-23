@@ -23,7 +23,9 @@ SOURCE_URLS = {
     "CINRA": "https://www.cinra.net/", "VERSE": "https://www.verse.com.tw/",
     "界面文化": "https://www.jiemian.com/lists/130.html", "Radii": "https://radii.co/",
     "Duke Press": "https://dukeupress.wordpress.com/",
-    "Asian Review of Books": "https://asianreviewofbooks.com/"
+    "Asian Review of Books": "https://asianreviewofbooks.com/",
+    "The Comics Journal": "https://www.tcj.com/", "FNMNL": "https://fnmnl.tv/",
+    "触乐": "https://www.chuapp.com/tag/index/id/20369.html"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
