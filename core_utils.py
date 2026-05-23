@@ -63,8 +63,9 @@ def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總�
     else:
         sql += " AND type = ?"; args.append(pub_type)
         
-        if source_filter == "📥 剛匯入 (未收藏)":
-            sql += " AND is_bookmarked = 0"
+        # 🌟 直接透過 is_manual 欄位進行精確攔截
+        if source_filter == "手動加入":
+            sql += " AND is_manual = 1"
         elif source_filter != "總覽 (依日期遞減)": 
             sql += " AND publisher_journal = ?"; args.append(source_filter)
             
