@@ -428,11 +428,16 @@ def fetch_journal_from_crossref(issn, journal_name):
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
     for item in items:
-        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, identifier, publish_date, abstract, link, image)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # 🌟 補上 category 預設值，若該爬蟲沒有提供，則預設為 "未分類"
+        cat = item.get("category", "未分類")
+        
+        # 🌟 修改 SQL：加入 category 欄位。ON CONFLICT 時故意不更新 category 以保護使用者手動分類！
+        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, identifier, publish_date, abstract, link, image, category)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
+                 
         client.execute(sql, [item["type"], item["title"], item["author"], item["publisher_journal"], 
-                             item["identifier"], item["publish_date"], item["abstract"], item["link"], item["image"]])
+                             item["identifier"], item["publish_date"], item["abstract"], item["link"], item["image"], cat])
     client.close()
     print("✅ 資料庫更新完成。")
 
