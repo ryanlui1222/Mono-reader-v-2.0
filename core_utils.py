@@ -470,3 +470,35 @@ def add_url_backup(url_book_data):
         return True, f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至「網址備存」清單！"
     except Exception as e: 
         return False, f"寫入資料庫失敗: {e}"
+
+# (在 core_utils.py 裡新增)
+def fetch_media_by_url(url):
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    
+    try:
+        # 1. 解析豆瓣電影 (擅長華語/日本影視)
+        if "movie.douban.com" in url:
+            res = scraper.get(url, timeout=15)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            title = soup.find('span', property='v:itemreviewed').get_text(strip=True)
+            director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else ""
+            img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
+            # 轉換高畫質海報並轉為 Base64 (防止防盜鏈)
+            img_b64 = fetch_image_as_base64(img_url) if img_url else None
+            summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else ""
+            
+            return {"type": "Movie", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
+            
+        # 2. 解析 IMDb (全球電影首選)
+        elif "imdb.com/title/" in url:
+            # (省略詳細解析代碼，邏輯同上，抓取 og:title, og:image 等)
+            pass
+
+        # 3. 解析 Amazon 音樂/實體專輯
+        elif "amazon" in url:
+            # (利用類似 Biblioapp 的 Amazon 書籍抓取邏輯，抓取專輯名稱與封面)
+            pass
+            
+    except Exception as e:
+        print(f"Media 解析失敗: {e}")
+        return None
