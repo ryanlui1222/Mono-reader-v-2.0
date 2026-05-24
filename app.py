@@ -42,4 +42,4 @@ elif app_mode == "🎓 Biblioapp":
     view_biblioapp.render_page()
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v4.1 (Modular Architecture Edition)")
+st.sidebar.caption("Monoreader Cloud v4.2 (Modular Architecture Edition)")
