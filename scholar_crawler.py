@@ -369,38 +369,62 @@ def crawl_seidosha():
 # 新增：期刊專用 Crossref API 擷取器
 # ==========================================
 def fetch_journal_from_crossref(issn, journal_name):
-    print(f"🔍 [Crossref] 正在擷取期刊 {journal_name}...")
+    print(f"🔍 [Crossref] 正在擷取期刊 {journal_name} 最新一期...")
     url = f"https://api.crossref.org/journals/{issn}/works"
-    # 鎖定最新出版的 15 篇論文
-    params = {"sort": "published", "order": "desc", "rows": 15}
+    # 將 rows 拉高以確保能完整覆蓋一整期的文章數量
+    params = {"sort": "published", "order": "desc", "rows": 100}
     headers = {"User-Agent": "BiblioappCloud/1.0"}
     
     try:
         res = requests.get(url, params=params, headers=headers, timeout=15)
         items = res.json().get("message", {}).get("items", [])
+        if not items: return []
         
+        # 1. 確立最新期號基準
+        latest_item = items[0]
+        target_issue = latest_item.get("issue", "")
+        target_volume = latest_item.get("volume", "")
+        
+        date_obj = latest_item.get("issued") or latest_item.get("published-print") or latest_item.get("published-online") or {}
+        date_parts = date_obj.get("date-parts", [[]])[0]
+        target_ym = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else ""
+
         records = []
         for item in items:
+            # 2. 獲取當前迴圈文章的期號資訊
+            curr_issue = item.get("issue", "")
+            curr_vol = item.get("volume", "")
+            
+            c_date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
+            c_date_parts = c_date_obj.get("date-parts", [[]])[0]
+            curr_ym = f"{c_date_parts[0]}-{c_date_parts[1]:02d}" if len(c_date_parts) >= 2 else str(c_date_parts[0]) if c_date_parts else ""
+
+            # 3. 嚴格過濾：有期號則比對期號與卷號，無期號則比對出版年月
+            is_same_issue = False
+            if target_issue:
+                if curr_issue == target_issue and curr_vol == target_volume: is_same_issue = True
+            else:
+                if curr_ym == target_ym: is_same_issue = True
+            
+            if not is_same_issue: continue # 剔除不屬於最新期的舊文章
+
             title = item.get("title", ["未命名論文"])[0]
             authors_list = item.get("author", [])
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or journal_name
             
-            date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
-            date_parts = date_obj.get("date-parts", [[]])[0]
-            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
-            
-            issue_vol = item.get("issue", "")
+            # 組合前端顯示用的期號文字
+            issue_display = f"Vol. {curr_vol}, Issue {curr_issue}" if curr_vol and curr_issue else (f"Issue {curr_issue}" if curr_issue else curr_ym)
             link = item.get("URL", f"https://doi.org/{item.get('DOI', '')}")
             
             records.append({
-                "type": "Journal", "title": title, "author": author, "publisher_journal": journal_name, "issue_volume": issue_vol,
-                "identifier": item.get("DOI", link), "publish_date": pub_date, "abstract": "（API 期刊論文擷取）", "link": link, "image": ""
+                "type": "Journal", "title": title, "author": author, "publisher_journal": journal_name, "issue_volume": issue_display,
+                "identifier": item.get("DOI", link), "publish_date": curr_ym, "abstract": "（API 期刊論文擷取）", "link": link, "image": ""
             })
         return records
     except Exception as e:
         print(f"❌ [{journal_name}] 擷取失敗: {e}")
         return []
-
+        
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
     for item in items:
