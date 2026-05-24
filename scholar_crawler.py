@@ -457,5 +457,11 @@ if __name__ == "__main__":
     all_books.extend(fetch_journal_from_crossref("2201-1919", "Environmental Humanities"))
     all_books.extend(fetch_journal_from_crossref("1067-9847", "positions: asia critique"))
     all_books.extend(fetch_journal_from_crossref("0091-7729", "Science Fiction Studies"))
+    all_books.extend(fetch_journal_from_crossref("2768-3532", "Chinese literature and thought today"))
+    all_books.extend(fetch_journal_from_crossref("0190-3659", "boundary 2"))
+    all_books.extend(fetch_journal_from_crossref("1520-9857", "MCLC (Modern Chinese Literature and Culture)"))
+    all_books.extend(fetch_journal_from_crossref("1076-0962", "ISLE: Interdisciplinary Studies in Literature and Environment"))
+    all_books.extend(fetch_journal_from_crossref("2405-6472", "Journal of World Literature (JWL)"))
+    all_books.extend(fetch_journal_from_crossref("0010-4132", "Comparative Literature Studies (CLS)"))
     
     save_to_db(all_books)
