@@ -476,11 +476,17 @@ def add_url_backup(url_book_data):
 # ==========================================
 
 def insert_media_db(data):
-    """將影音資料寫入 Turso 資料庫"""
+    """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版)"""
     try:
+        # 🌟 使用 ON CONFLICT DO UPDATE，若網址重複則自動覆寫更新，不引發紅字崩潰
         sql = """
         INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(source_url) DO UPDATE SET 
+            title=excluded.title,
+            creator=excluded.creator,
+            cover_image=excluded.cover_image,
+            summary=excluded.summary;
         """
         args = [
             data.get('type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
@@ -490,8 +496,7 @@ def insert_media_db(data):
         db.execute(sql, args)
     except Exception as e:
         print(f"寫入 Media 資料庫失敗: {e}")
-        # 如果是 UNIQUE 衝突 (重複加入)，可以不理會或更新
-
+        
 def fetch_all_media():
     """從 Turso 資料庫讀取所有影音館資料"""
     try:
@@ -539,6 +544,40 @@ def fetch_media_by_url(user_input):
             og_desc = soup.find('meta', property='og:description')
             summary = og_desc['content'] if og_desc else "無劇情簡介"
             return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb 資料庫", "cover": img_b64, "url": url, "summary": summary}
+            
+        # 4. 🌟 解析 Apple Music (免費官方 API，免爬蟲、無阻擋、高畫質封面)
+        elif "music.apple.com" in url:
+            import re
+            import requests
+            
+            # 智慧判斷：優先找單曲 ID (?i=...)，若無則找專輯 ID (網址最後的數字)
+            track_match = re.search(r'[?&]i=(\d+)', url)
+            album_match = re.search(r'/(\d+)(?:\?|$)', url)
+            apple_id = track_match.group(1) if track_match else (album_match.group(1) if album_match else None)
+            
+            if apple_id:
+                # 呼叫 Apple 免費公開 API (免金鑰)
+                api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country=tw"
+                api_res = requests.get(api_url, timeout=10).json()
+                
+                if api_res['resultCount'] > 0:
+                    item = api_res['results'][0]
+                    # 判斷是專輯還是單曲
+                    is_track = item.get('wrapperType') == 'track'
+                    media_type = "🎵 單曲" if is_track else "🎵 專輯"
+                    
+                    title = item.get('trackName') if is_track else item.get('collectionName', '未知名稱')
+                    creator = item.get('artistName', '未知歌手')
+                    
+                    # 🌟 秘技：Apple 預設回傳 100x100 模糊封面，我們替換網址字串取得 600x600 高清版
+                    img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
+                    img_b64 = fetch_image_as_base64(img_url) if img_url else None
+                    
+                    summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**類型:** {item.get('primaryGenreName', '')}"
+                    
+                    return {"type": media_type, "title": title, "creator": creator, "cover": img_b64, "url": url, "summary": summary}
+            
+            return None # 若找不到 ID 則回傳失敗
 
         # 3. 解析 Amazon (音樂/實體專輯/數位版)
         # 3. 解析 Amazon (音樂/實體專輯/數位版) - 🌟 強化防彈版
