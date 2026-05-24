@@ -436,3 +436,37 @@ def update_biblio_category(pub_id, new_category):
         st.toast(f"🏷️ 分類已更新為：{new_category}")
     except Exception as e:
         st.error(f"分類更新失敗: {e}")
+
+# ==========================================
+# 手動新增與備存寫入防護模組 (MVC 隔離實作)
+# ==========================================
+def add_manual_book(book_data):
+    try:
+        sql = """
+        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
+        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;
+        """
+        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
+        st.cache_data.clear()
+        return True, f"✅ 已將《{book_data['title']}》加入清單！"
+    except Exception as e: 
+        return False, f"寫入失敗: {e}"
+
+def add_url_backup(url_book_data):
+    try:
+        sql = """
+        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
+        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
+        """
+        db.execute(sql, [
+            url_book_data['type'], url_book_data['title'], url_book_data['author'], 
+            url_book_data['publisher_journal'], url_book_data['issue_volume'], 
+            url_book_data['identifier'], url_book_data['publish_date'], 
+            url_book_data['abstract'], url_book_data['link'], url_book_data['image']
+        ])
+        st.cache_data.clear()
+        return True, f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至「網址備存」清單！"
+    except Exception as e: 
+        return False, f"寫入資料庫失敗: {e}"
