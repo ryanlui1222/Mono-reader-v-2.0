@@ -547,9 +547,6 @@ def fetch_media_by_url(user_input):
             
         # 4. 🌟 解析 Apple Music (免費官方 API，免爬蟲、無阻擋、高畫質封面)
         elif "music.apple.com" in url:
-            import re
-            import requests
-            
             # 智慧判斷：優先找單曲 ID (?i=...)，若無則找專輯 ID (網址最後的數字)
             track_match = re.search(r'[?&]i=(\d+)', url)
             album_match = re.search(r'/(\d+)(?:\?|$)', url)
