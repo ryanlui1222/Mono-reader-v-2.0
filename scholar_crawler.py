@@ -281,7 +281,7 @@ def crawl_verso():
     return books
     
 # ==========================================
-# 重構：青土社精細化目錄爬蟲 (支援《現代思想》與《ユリイカ》單篇萃取)
+# 重構：青土社精細化目錄爬蟲 (支援《現代思想》與《ユリイカ》單篇萃取與分家)
 # ==========================================
 def crawl_seidosha():
     print("🔍 [青土社] 準備擷取單期目錄...")
@@ -301,7 +301,12 @@ def crawl_seidosha():
             img_src = item.find("img").get("src", "")
             image_url = f"https://www.seidosha.co.jp{img_src}"
             
-            is_journal = "ユリイカ" in issue_title or "現代思想" in issue_title
+            # 🌟 精準分離期刊名稱
+            journal_name = ""
+            if "ユリイカ" in issue_title: journal_name = "ユリイカ"
+            elif "現代思想" in issue_title: journal_name = "現代思想"
+            
+            is_journal = bool(journal_name)
             
             if is_journal:
                 try:
@@ -309,16 +314,17 @@ def crawl_seidosha():
                     inner_res.encoding = 'utf-8'
                     inner_soup = BeautifulSoup(inner_res.text, "html.parser")
                     
-                    # 尋找內文目錄區塊並進行斷行拆解
-                    toc_area = inner_soup.find("div", class_=re.compile(r"detail|txt"))
-                    if toc_area:
-                        lines = toc_area.get_text(separator='\n').split('\n')
+                    # 🌟 鎖定內文區塊，排除上方定價與 ISBN 的 div
+                    info_area = inner_soup.find("div", class_="book-info-text")
+                    if info_area:
+                        lines = info_area.get_text(separator='\n').split('\n')
                         article_count = 0
                         for line in lines:
                             clean_line = line.strip()
-                            # 過濾無效標題或章節標記
-                            if len(clean_line) > 5 and not clean_line.startswith("■") and not clean_line.startswith("【"):
-                                parts = clean_line.split('／') # 青土社常以全形斜線分隔標題與作者
+                            
+                            # 🌟 嚴格過濾：必須包含全形斜線才視為目錄條目
+                            if '／' in clean_line:
+                                parts = clean_line.split('／')
                                 article_title = parts[0].strip()
                                 article_author = parts[1].strip() if len(parts) > 1 else "未知作者"
                                 
@@ -327,30 +333,30 @@ def crawl_seidosha():
                                     "type": "Journal",
                                     "title": article_title,
                                     "author": article_author,
-                                    "publisher_journal": "青土社 (雜誌)",
+                                    "publisher_journal": journal_name, # 寫入獨立的期刊名稱
                                     "issue_volume": issue_title, 
                                     "identifier": f"{link}_art_{article_count}",
-                                    "publish_date": datetime.utcnow().strftime("%Y-%m"),
+                                    "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
                                     "abstract": "（青土社單篇論文）",
                                     "link": link,
                                     "image": image_url
                                 })
                         if article_count > 0:
-                            continue # 目錄解析成功，跳過將整本存為一筆的備用邏輯
+                            continue 
                 except Exception as e:
                     print(f"⚠️ 青土社目錄擷取失敗，退回整本記錄模式: {e}")
 
-            # 若非期刊，或目錄解析失敗的備用方案
+            # 備用方案
             id_match = re.search(r'id=(\d+)', link)
             identifier = f"seidosha_{id_match.group(1)}" if id_match else link
             records.append({
                 "type": "Journal" if is_journal else "Book",
                 "title": issue_title, 
                 "author": item.find("p", class_="author").get_text(strip=True) or "青土社",
-                "publisher_journal": "青土社 (雜誌)" if is_journal else "青土社", 
+                "publisher_journal": journal_name if is_journal else "青土社", 
                 "issue_volume": issue_title if is_journal else "", 
                 "identifier": identifier, 
-                "publish_date": datetime.utcnow().strftime("%Y-%m"), 
+                "publish_date": datetime.utcnow().strftime("%Y-%m-%d"), 
                 "abstract": "（青土社新刊）", 
                 "link": link, 
                 "image": image_url
@@ -358,8 +364,7 @@ def crawl_seidosha():
         return records
     except Exception as e: 
         print(f"❌ [青土社] 錯誤: {e}")
-        return []
-        
+        return []        
 # ==========================================
 # 新增：期刊專用 Crossref API 擷取器
 # ==========================================
