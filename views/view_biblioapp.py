@@ -2,6 +2,7 @@ import streamlit as st
 import math
 import pandas as pd
 import core_utils
+from datetime import datetime
 
 def reset_biblio_page(): st.session_state.biblio_page = 1
 def update_biblio_page(): 
@@ -14,7 +15,8 @@ def render_page():
     st.header("🎓 Biblioapp：學術文獻與出版追蹤")
     
     with st.sidebar:
-        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
+        # 🌟 新增 📚 參考書目 節點
+        biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
         st.markdown("---")
         
         st.subheader("🔍 全域搜尋")
@@ -76,7 +78,6 @@ def render_page():
             
             if db_type == "Book":
                 active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "手動加入", "MIT Press", "Duke University Press", "青土社", "Urbanomic", "東京大学出版会", "Verso Books"], on_change=reset_biblio_page)
-                df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
             else:
                 st.subheader("選擇訂閱來源")
                 journal_options = [
@@ -99,21 +100,206 @@ def render_page():
                     
                     if clean_issues:
                         selected_issue = st.radio(f"{active_filter} 期號/版本：", clean_issues, on_change=reset_biblio_page)
-                        df_pubs = temp_df[temp_df['issue_volume'] == selected_issue]
                     else:
-                        df_pubs = temp_df
+                        selected_issue = None
                 else:
                     active_filter = selected_main
-                    df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
-                    
-    df_pubs = core_utils.fetch_academic_pubs(
-        view_mode=biblio_view_mode, 
-        pub_type=db_type, 
-        source_filter=active_filter,
-        search_query=bib_search_query
-    )
 
-    if biblio_view_mode == "🔖 待讀書架":
+    # 🌟 模組渲染區段
+    if biblio_view_mode == "📚 參考書目":
+        col_title, col_sort = st.columns([3, 1])
+        with col_title:
+            st.subheader("📚 參考書目與註釋管理")
+            st.caption("輸入 DOI 或 ISBN 擷取文獻元資料，並標註重要等級與個人備註，作為論文寫作的專屬引註庫。")
+        with col_sort:
+            ref_sort_mode = st.selectbox(
+                "🔀 排序方式：", 
+                ["最新加入", "重要等級 (高至低)", "出版日期 (新到舊)"],
+                key="ref_sort"
+            )
+        st.markdown("---")
+
+        with st.expander("➕ 新增參考文獻", expanded=False):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                ref_input = st.text_input("輸入 DOI (如 10.1215/...) 或 ISBN：", placeholder="自動擷取作者、期刊、期號...", key="ref_input_field")
+            with col2:
+                ref_importance = st.selectbox("重要等級：", ["🌟 核心文獻", "⭐ 重要參考", "📝 一般背景", "❓ 待評估"], key="ref_imp_sel")
+            
+            ref_notes = st.text_area("文獻備註 / 核心觀點摘要：", placeholder="輸入這篇文獻與你研究計畫的關聯性...", key="ref_notes_field")
+            
+            if st.button("擷取並加入參考庫", use_container_width=True, type="primary"):
+                if ref_input:
+                    with st.spinner("正在呼叫 API 擷取元資料..."):
+                        success, msg = core_utils.add_bibliography_reference(ref_input, ref_importance, ref_notes)
+                        if success:
+                            st.cache_data.clear()
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                else:
+                    st.warning("⚠️ 請輸入 DOI 或 ISBN。")
+        
+        st.markdown("---")
+        df_refs = core_utils.fetch_bibliography_references()
+        
+        if df_refs.empty:
+            st.info("目前沒有任何參考書目。請在上方輸入 DOI 或 ISBN 建立你的文獻庫。")
+        else:
+            if ref_sort_mode == "最新加入":
+                df_refs = df_refs.sort_values(by='added_date', ascending=False)
+            elif ref_sort_mode == "重要等級 (高至低)":
+                imp_map = {"🌟 核心文獻": 1, "⭐ 重要參考": 2, "📝 一般背景": 3, "❓ 待評估": 4}
+                df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(5)
+                df_refs = df_refs.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
+            elif ref_sort_mode == "出版日期 (新到舊)":
+                df_refs = df_refs.sort_values(by='publish_date', ascending=False)
+            
+            for _, row in df_refs.iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([8, 1])
+                    with col_info:
+                        st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
+                        meta_info = f"👤 **{row.get('author', '未知')}** | 🏛️ {row.get('publisher_journal', '')} {row.get('issue_volume', '')} | 📅 {row.get('publish_date', '')} | 🏷️ `{row.get('identifier', '')}`"
+                        st.caption(meta_info)
+                        st.markdown(f"**等級：** {row.get('importance', '未標記')}")
+                        if row.get('notes'):
+                            st.info(row.get('notes'))
+                    with col_btn:
+                        with st.popover("⚙️ 管理"):
+                            current_imp = row.get('importance')
+                            valid_imps = ["🌟 核心文獻", "⭐ 重要參考", "📝 一般背景", "❓ 待評估"]
+                            imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 3
+                            
+                            new_imp = st.selectbox("修改等級：", valid_imps, index=imp_idx, key=f"imp_{row['id']}")
+                            new_notes = st.text_area("修改備註：", value=row.get('notes', ''), key=f"note_{row['id']}")
+                            
+                            st.button("💾 儲存", key=f"save_ref_{row['id']}", on_click=core_utils.update_bibliography_reference, args=(row['id'], new_imp, new_notes), use_container_width=True)
+                            st.button("🗑️ 刪除", key=f"del_ref_{row['id']}", on_click=core_utils.delete_bibliography_reference, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
+
+    elif biblio_view_mode == "🔍 文獻探索":
+        df_pubs = core_utils.fetch_academic_pubs(
+            view_mode=biblio_view_mode, 
+            pub_type=db_type, 
+            source_filter=active_filter,
+            search_query=bib_search_query
+        )
+        
+        # 套用樹狀資料夾過濾
+        if db_type == "Journal" and active_filter != "總覽 (依日期遞減)" and 'selected_issue' in locals() and selected_issue:
+            df_pubs = df_pubs[df_pubs['issue_volume'] == selected_issue]
+
+        st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
+        st.markdown("---")
+        
+        if df_pubs.empty:
+            st.info("目前資料庫中沒有符合條件的書目。")
+        else:
+            if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
+                journals = df_pubs['publisher_journal'].dropna().unique()
+                
+                latest_dfs = []
+                for journal in journals:
+                    df_journal = df_pubs[df_pubs['publisher_journal'] == journal]
+                    if not df_journal.empty:
+                        latest_row = df_journal.iloc[0]
+                        latest_issue_vol = latest_row.get('issue_volume', '')
+                        latest_pub_date = latest_row.get('publish_date', '')
+                        
+                        if pd.notna(latest_issue_vol) and str(latest_issue_vol).strip() != "":
+                            latest_dfs.append(df_journal[df_journal['issue_volume'] == latest_issue_vol])
+                        else:
+                            latest_dfs.append(df_journal[df_journal['publish_date'] == latest_pub_date])
+                
+                if latest_dfs:
+                    df_aggregated = pd.concat(latest_dfs)
+                    
+                    PER_PAGE = 100
+                    total_pages = math.ceil(len(df_aggregated) / PER_PAGE)
+                    if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
+                    start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
+                    
+                    current_page_df = df_aggregated.iloc[start_idx:start_idx + PER_PAGE]
+                    current_rendering_journal = ""
+                    
+                    for _, row in current_page_df.iterrows():
+                        journal_name = row.get('publisher_journal', '未知期刊')
+                        
+                        if journal_name != current_rendering_journal:
+                            if current_rendering_journal != "":
+                                st.write("")
+                                st.divider()
+                                
+                            current_rendering_journal = journal_name
+                            issue_display = row.get('issue_volume', row.get('publish_date', ''))
+                            st.markdown(f"### 📖 {journal_name} (Latest | {issue_display})")
+                            
+                        col_text, col_btn = st.columns([15, 1])
+                        with col_text:
+                            doi_text = row.get('identifier', '無識別碼')
+                            pub_date = row.get('publish_date', '未知日期')
+                            issue_text = row.get('issue_volume', '')
+                            display_time = issue_text if pd.notna(issue_text) and issue_text else pub_date
+                            st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
+                        with col_btn:
+                            is_bk = bool(row.get('is_bookmarked', 0))
+                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
+
+                    if total_pages > 1:
+                        st.write("")
+                        col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                        with col_page:
+                            st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
+            
+            else:
+                PER_PAGE = 20
+                total_pages = math.ceil(len(df_pubs) / PER_PAGE)
+                if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
+                start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
+                
+                for _, row in df_pubs.iloc[start_idx:start_idx + PER_PAGE].iterrows():
+                    with st.container():
+                        is_bk = bool(row.get('is_bookmarked', 0))
+                        if db_type == "Book":
+                            col_img, col_info, col_btn = st.columns([2, 6, 1])
+                            with col_img:
+                                img_url = row.get('image')
+                                if pd.notna(img_url) and (str(img_url).startswith("http") or str(img_url).startswith("data:")):
+                                    img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
+                                    st.markdown(img_html, unsafe_allow_html=True)
+                                else: st.info("無封面圖影")
+                            with col_info:
+                                st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
+                                st.caption(f"👤 **Author:** {row.get('author')} | 🏛️ **Publisher:** {row.get('publisher_journal')} | 📅 **Date:** {row.get('publish_date')}")
+                                st.write(row.get('abstract', ''))
+                            with col_btn:
+                                st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
+                                with st.popover("🗑️ 刪除"):
+                                    st.write("確定抹除此書？")
+                                    st.button("✅ 確定", key=f"del_list_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
+                        else:
+                            col_info, col_btn = st.columns([8, 1])
+                            with col_info:
+                                st.markdown(f"### [{row.get('title', '未命名論文')}]({row.get('link', '#')})")
+                                issue_text = f" | 🏷️ **Issue:** {row.get('issue_volume')}" if row.get('issue_volume') else ""
+                                st.caption(f"👤 **Author:** {row.get('author')} | 📄 **Journal:** {row.get('publisher_journal')}{issue_text} | 📅 **Date:** {row.get('publish_date')}")
+                                st.write(row.get('abstract', ''))
+                            with col_btn:
+                                st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
+                                with st.popover("🗑️ 刪除"):
+                                    st.write("確定抹除此論文？")
+                                    st.button("✅ 確定", key=f"del_list_jour_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
+                        st.divider()
+
+                if total_pages > 1:
+                    col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                    with col_page:
+                        st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
+
+    elif biblio_view_mode == "🔖 待讀書架":
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_search_query)
         if df_pubs.empty:
             st.subheader("🔖 待讀書架 (共 0 本)")
             st.markdown("---")
@@ -179,6 +365,7 @@ def render_page():
                         st.rerun()
 
     elif biblio_view_mode == "🔗 網址備存":
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_search_query)
         col_title, col_sort = st.columns([3, 1])
         with col_title:
             st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
@@ -261,114 +448,3 @@ def render_page():
                         st.button("💾 儲存修改", key=f"save_bib_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
                         st.button("🗑️ 刪除網站", key=f"del_bib_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
-
-    else:
-        st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
-        st.markdown("---")
-        
-        if df_pubs.empty:
-            st.info("目前資料庫中沒有符合條件的書目。")
-        else:
-            if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
-                journals = df_pubs['publisher_journal'].dropna().unique()
-                
-                latest_dfs = []
-                for journal in journals:
-                    df_journal = df_pubs[df_pubs['publisher_journal'] == journal]
-                    if not df_journal.empty:
-                        latest_row = df_journal.iloc[0]
-                        latest_issue_vol = latest_row.get('issue_volume', '')
-                        latest_pub_date = latest_row.get('publish_date', '')
-                        
-                        if pd.notna(latest_issue_vol) and str(latest_issue_vol).strip() != "":
-                            latest_dfs.append(df_journal[df_journal['issue_volume'] == latest_issue_vol])
-                        else:
-                            latest_dfs.append(df_journal[df_journal['publish_date'] == latest_pub_date])
-                
-                if latest_dfs:
-                    df_aggregated = pd.concat(latest_dfs)
-                    
-                    # 期刊總覽區塊維持 100 筆分頁
-                    PER_PAGE = 100
-                    total_pages = math.ceil(len(df_aggregated) / PER_PAGE)
-                    if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
-                    start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
-                    
-                    current_page_df = df_aggregated.iloc[start_idx:start_idx + PER_PAGE]
-                    
-                    current_rendering_journal = ""
-                    
-                    for _, row in current_page_df.iterrows():
-                        journal_name = row.get('publisher_journal', '未知期刊')
-                        
-                        if journal_name != current_rendering_journal:
-                            if current_rendering_journal != "":
-                                st.write("")
-                                st.divider()
-                                
-                            current_rendering_journal = journal_name
-                            issue_display = row.get('issue_volume', row.get('publish_date', ''))
-                            st.markdown(f"### 📖 {journal_name} (Latest | {issue_display})")
-                            
-                        col_text, col_btn = st.columns([15, 1])
-                        with col_text:
-                            doi_text = row.get('identifier', '無識別碼')
-                            pub_date = row.get('publish_date', '未知日期')
-                            issue_text = row.get('issue_volume', '')
-                            display_time = issue_text if pd.notna(issue_text) and issue_text else pub_date
-                            st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
-                        with col_btn:
-                            is_bk = bool(row.get('is_bookmarked', 0))
-                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
-
-                    if total_pages > 1:
-                        st.write("")
-                        col_space, col_page, col_space2 = st.columns([1, 2, 1])
-                        with col_page:
-                            st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
-            
-            else:
-                # 🌟 恢復為 20 筆：適用於所有專書以及特定單一期刊詳細卡片模式
-                PER_PAGE = 20
-                total_pages = math.ceil(len(df_pubs) / PER_PAGE)
-                if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
-                start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
-                
-                for _, row in df_pubs.iloc[start_idx:start_idx + PER_PAGE].iterrows():
-                    with st.container():
-                        is_bk = bool(row.get('is_bookmarked', 0))
-                        if db_type == "Book":
-                            col_img, col_info, col_btn = st.columns([2, 6, 1])
-                            with col_img:
-                                img_url = row.get('image')
-                                if pd.notna(img_url) and (str(img_url).startswith("http") or str(img_url).startswith("data:")):
-                                    img_html = f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">'''
-                                    st.markdown(img_html, unsafe_allow_html=True)
-                                else: st.info("無封面圖影")
-                            with col_info:
-                                st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
-                                st.caption(f"👤 **Author:** {row.get('author')} | 🏛️ **Publisher:** {row.get('publisher_journal')} | 📅 **Date:** {row.get('publish_date')}")
-                                st.write(row.get('abstract', ''))
-                            with col_btn:
-                                st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
-                                with st.popover("🗑️ 刪除"):
-                                    st.write("確定抹除此書？")
-                                    st.button("✅ 確定", key=f"del_list_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
-                        else:
-                            col_info, col_btn = st.columns([8, 1])
-                            with col_info:
-                                st.markdown(f"### [{row.get('title', '未命名論文')}]({row.get('link', '#')})")
-                                issue_text = f" | 🏷️ **Issue:** {row.get('issue_volume')}" if row.get('issue_volume') else ""
-                                st.caption(f"👤 **Author:** {row.get('author')} | 📄 **Journal:** {row.get('publisher_journal')}{issue_text} | 📅 **Date:** {row.get('publish_date')}")
-                                st.write(row.get('abstract', ''))
-                            with col_btn:
-                                st.button("❤️ 已收" if is_bk else "🤍 收藏", key=f"bk_bib_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), use_container_width=True)
-                                with st.popover("🗑️ 刪除"):
-                                    st.write("確定抹除此論文？")
-                                    st.button("✅ 確定", key=f"del_list_jour_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
-                        st.divider()
-
-                if total_pages > 1:
-                    col_space, col_page, col_space2 = st.columns([1, 2, 1])
-                    with col_page:
-                        st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
