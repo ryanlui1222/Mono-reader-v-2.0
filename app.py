@@ -1,5 +1,5 @@
 import streamlit as st
-from views import view_monoreader, view_biblioapp
+from views import view_monoreader, view_biblioapp, view_mediavault
 
 # ==========================================
 # 1. 介面基礎設定 & 全域 CSS 注入
@@ -30,7 +30,13 @@ st.markdown("""
 # ==========================================
 with st.sidebar:
     st.title("☁️ Monoreader Cloud")
-    app_mode = st.radio("切換平台模組", ["📚 Monoreader", "🎓 Biblioapp"], index=0, label_visibility="collapsed")
+    # 🌟 在清單中新增 "🎬 Media Vault" 選項
+    app_mode = st.radio(
+        "切換平台模組", 
+        ["📚 Monoreader", "🎓 Biblioapp", "🎬 Media Vault"], 
+        index=0, 
+        label_visibility="collapsed"
+    )
     st.divider()
 
 # ==========================================
@@ -40,6 +46,8 @@ if app_mode == "📚 Monoreader":
     view_monoreader.render_page()
 elif app_mode == "🎓 Biblioapp":
     view_biblioapp.render_page()
+elif app_mode == "🎬 Media Vault":
+    view_mediavault.render_page()  # 🌟 導流至影音館純視圖
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v4.2 (Modular Architecture Edition)")
+st.sidebar.caption("Monoreader Cloud v4.3 (Modular Architecture Edition)")
