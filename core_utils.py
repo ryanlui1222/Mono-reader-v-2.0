@@ -306,3 +306,120 @@ def fetch_external_article(url):
         if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
         return {"Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, "Published": "手動收藏", "Summary": final_summary, "Image": img_url, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1}
     except: return None
+
+# ==========================================
+# 參考書目與註釋管理模組 (Bibliography)
+# ==========================================
+def init_bibliography_table():
+    """初始化參考書目專用資料表"""
+    try:
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS bibliography_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            identifier TEXT UNIQUE,
+            type TEXT,
+            title TEXT,
+            author TEXT,
+            publisher_journal TEXT,
+            issue_volume TEXT,
+            publish_date TEXT,
+            importance TEXT,
+            notes TEXT,
+            link TEXT,
+            added_date TEXT
+        )
+        """)
+    except Exception as e:
+        print(f"初始化參考書目表失敗: {e}")
+
+# 啟動時自動檢查建表
+init_bibliography_table()
+
+def fetch_doi_metadata(doi):
+    clean_doi = doi.replace("https://doi.org/", "").strip()
+    url = f"https://api.crossref.org/works/{clean_doi}"
+    try:
+        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=10)
+        if res.status_code == 200:
+            item = res.json().get("message", {})
+            title = item.get("title", ["未命名文獻"])[0]
+            authors_list = item.get("author", [])
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list])
+            
+            container = item.get("container-title", [""])[0]
+            publisher = item.get("publisher", "")
+            pub_journal = container if container else publisher
+            
+            vol = item.get("volume", "")
+            iss = item.get("issue", "")
+            issue_vol = f"Vol. {vol}, Issue {iss}" if vol and iss else (f"Issue {iss}" if iss else "")
+            
+            date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
+            date_parts = date_obj.get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            link = item.get("URL", f"https://doi.org/{clean_doi}")
+            
+            return {
+                "type": "Journal" if container else "Book",
+                "title": title, "author": author, "publisher_journal": pub_journal,
+                "issue_volume": issue_vol, "identifier": clean_doi, "publish_date": pub_date,
+                "link": link
+            }
+    except: pass
+    return None
+
+def add_bibliography_reference(input_val, importance, notes):
+    input_val = input_val.strip()
+    data = None
+    
+    # 判別輸入為 DOI 還是 ISBN
+    if input_val.startswith("10.") or "doi.org" in input_val:
+        data = fetch_doi_metadata(input_val)
+    else:
+        import re
+        clean_isbn = re.sub(r'[^0-9X]', '', input_val.upper())
+        if clean_isbn:
+            data = fetch_book_by_isbn(clean_isbn)
+            
+    if not data:
+        return False, "❌ 無法解析該 DOI 或 ISBN，請檢查格式或網路連線。"
+        
+    try:
+        sql = """
+        INSERT INTO bibliography_notes 
+        (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(identifier) DO UPDATE SET 
+        importance=excluded.importance, notes=excluded.notes;
+        """
+        db.execute(sql, [
+            data['identifier'], data['type'], data['title'], data['author'], 
+            data.get('publisher_journal', ''), data.get('issue_volume', ''), 
+            data.get('publish_date', ''), importance, notes, data.get('link', ''), 
+            datetime.utcnow().isoformat()
+        ])
+        return True, f"✅ 已成功將《{data['title']}》加入參考書目庫！"
+    except Exception as e:
+        return False, f"寫入資料庫失敗: {e}"
+
+def fetch_bibliography_references():
+    try:
+        res = db.execute("SELECT * FROM bibliography_notes ORDER BY added_date DESC")
+        return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows]) if res.rows else pd.DataFrame()
+    except:
+        return pd.DataFrame()
+
+def update_bibliography_reference(ref_id, importance, notes):
+    try:
+        db.execute("UPDATE bibliography_notes SET importance = ?, notes = ? WHERE id = ?", [importance, notes, ref_id])
+        st.cache_data.clear()
+        st.toast("✏️ 參考書目與備註已更新！")
+    except Exception as e: st.error(f"更新失敗: {e}")
+
+def delete_bibliography_reference(ref_id):
+    try:
+        db.execute("DELETE FROM bibliography_notes WHERE id = ?", [ref_id])
+        st.cache_data.clear()
+        st.toast("🗑️ 參考書目已移除！")
+    except Exception as e: st.error(f"刪除失敗: {e}")
