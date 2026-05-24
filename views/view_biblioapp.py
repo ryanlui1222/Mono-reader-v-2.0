@@ -124,7 +124,8 @@ def render_page():
             with col1:
                 ref_input = st.text_input("輸入 DOI (如 10.1215/...) 或 ISBN：", placeholder="自動擷取作者、期刊、期號...", key="ref_input_field")
             with col2:
-                ref_importance = st.selectbox("重要等級：", ["🌟 核心文獻", "⭐ 重要參考", "📝 一般背景", "❓ 待評估"], key="ref_imp_sel")
+                # 🌟 更新：新增參考文獻時的下拉選單改為新的分級
+                ref_importance = st.selectbox("重要等級：", ["S", "A", "A-", "B", "B-", "C", "C-"], key="ref_imp_sel")
             
             ref_notes = st.text_area("文獻備註 / 核心觀點摘要：", placeholder="輸入這篇文獻與你研究計畫的關聯性...", key="ref_notes_field")
             
@@ -150,8 +151,10 @@ def render_page():
             if ref_sort_mode == "最新加入":
                 df_refs = df_refs.sort_values(by='added_date', ascending=False)
             elif ref_sort_mode == "重要等級 (高至低)":
-                imp_map = {"🌟 核心文獻": 1, "⭐ 重要參考": 2, "📝 一般背景": 3, "❓ 待評估": 4}
-                df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(5)
+                # 🌟 更新：對應新分級的排序權重映射表
+                imp_map = {"S": 1, "A": 2, "A-": 3, "B": 4, "B-": 5, "C": 6, "C-": 7}
+                # 若遇到舊版標籤或未標記，預設給予最低權重 8
+                df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(8)
                 df_refs = df_refs.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
             elif ref_sort_mode == "出版日期 (新到舊)":
                 df_refs = df_refs.sort_values(by='publish_date', ascending=False)
@@ -169,8 +172,10 @@ def render_page():
                     with col_btn:
                         with st.popover("⚙️ 管理"):
                             current_imp = row.get('importance')
-                            valid_imps = ["🌟 核心文獻", "⭐ 重要參考", "📝 一般背景", "❓ 待評估"]
-                            imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 3
+                            # 🌟 更新：修改文獻時的下拉選單選項
+                            valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-"]
+                            # 若舊資料的標籤不在新清單內，預設顯示 "C-" (index 6)
+                            imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 6
                             
                             new_imp = st.selectbox("修改等級：", valid_imps, index=imp_idx, key=f"imp_{row['id']}")
                             new_notes = st.text_area("修改備註：", value=row.get('notes', ''), key=f"note_{row['id']}")
@@ -178,7 +183,7 @@ def render_page():
                             st.button("💾 儲存", key=f"save_ref_{row['id']}", on_click=core_utils.update_bibliography_reference, args=(row['id'], new_imp, new_notes), use_container_width=True)
                             st.button("🗑️ 刪除", key=f"del_ref_{row['id']}", on_click=core_utils.delete_bibliography_reference, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
-
+                
     elif biblio_view_mode == "🔍 文獻探索":
         df_pubs = core_utils.fetch_academic_pubs(
             view_mode=biblio_view_mode, 
