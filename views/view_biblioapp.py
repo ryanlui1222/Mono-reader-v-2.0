@@ -32,7 +32,13 @@ def render_page():
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
                             try:
-                                sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1) ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
+                            try:
+                                # 🌟 SQL 加入 category，並帶入預設值 "未分類"
+                                sql = """
+                                INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
+                                ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;
+                                """
                                 core_utils.db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
                                 st.cache_data.clear(); st.success(f"✅ 已將《{book_data['title']}》加入清單！")
                             except Exception as e: st.error(f"寫入失敗: {e}")
@@ -47,9 +53,11 @@ def render_page():
                         url_book_data = core_utils.fetch_book_by_url(backup_url_input)
                         if url_book_data:
                             try:
+                            try:
+                                # 🌟 SQL 加入 category，並帶入預設值 "未分類"
                                 sql = """
-                                INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1) 
+                                INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
                                 ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
                                 """
                                 core_utils.db.execute(sql, [
