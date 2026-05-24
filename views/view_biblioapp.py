@@ -32,7 +32,6 @@ def render_page():
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
                             try:
-                            try:
                                 # 🌟 SQL 加入 category，並帶入預設值 "未分類"
                                 sql = """
                                 INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
