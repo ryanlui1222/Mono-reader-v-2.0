@@ -541,20 +541,71 @@ def fetch_media_by_url(user_input):
             return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb 資料庫", "cover": img_b64, "url": url, "summary": summary}
 
         # 3. 解析 Amazon (音樂/實體專輯/數位版)
+        # 3. 解析 Amazon (音樂/實體專輯/數位版) - 🌟 強化防彈版
         elif "amazon" in url:
-            # Amazon 經常變換 DOM，用 Meta tag 最穩定
-            og_title = soup.find('meta', property='og:title') or soup.find('title')
-            title = og_title['content'] if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知專輯")
+            # 針對 Amazon 加入更真實的 Headers，避免被 WAF 擋下
+            amazon_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,ja;q=0.6',
+                'Accept-Encoding': 'gzip, deflate, br'
+            }
+            # 強制使用強化 headers 重新請求
+            res = scraper.get(url, headers=amazon_headers, timeout=15)
             
-            # 清洗 Amazon 標題 (通常帶有 Amazon.com: ... 等字眼)
+            # 如果 Amazon 回傳了 Captcha 頁面，至少我們要能識別
+            if "Type the characters you see in this image" in res.text or "To discuss automated access to Amazon data please contact" in res.text:
+                print("⚠️ 遭到 Amazon 機器人驗證牆阻擋！")
+                return {"type": "🎵 音樂/實體專輯", "title": f"Amazon 商品 (需手動補圖)", "creator": "被驗證牆阻擋", "cover": None, "url": url, "summary": f"ASIN 解析被阻擋，網址：{url}"}
+
+            soup = BeautifulSoup(res.text, 'html.parser')
+            
+            # --- 抓取標題 (多重備援) ---
+            title_tag = soup.find('span', id='productTitle') or soup.find('title') or soup.find('meta', property='og:title')
+            title = "未知專輯"
+            if title_tag:
+                if title_tag.name == 'meta':
+                    title = title_tag['content']
+                else:
+                    title = title_tag.get_text(strip=True)
+            
+            # 清洗標題
             title = title.split(': Amazon')[0].replace('Amazon.com:', '').strip()
             
-            # 抓取高畫質封面 (Amazon 音樂封面通常在 landingImage 裡)
-            img_tag = soup.find('img', id='landingImage') or soup.find('img', id='imgBlkFront')
-            img_url = img_tag['data-old-hires'] if img_tag and img_tag.has_attr('data-old-hires') else (img_tag['src'] if img_tag else None)
+            # --- 抓取封面圖 (多重備援，針對黑膠/CD/數位版有不同結構) ---
+            img_url = None
+            # 策略 A: 尋找動態圖片資料屬性 (最清晰)
+            img_tag_dynamic = soup.find('img', {'data-old-hires': True}) or soup.find('img', {'data-a-dynamic-image': True})
+            if img_tag_dynamic:
+                if img_tag_dynamic.get('data-old-hires'):
+                    img_url = img_tag_dynamic['data-old-hires']
+                elif img_tag_dynamic.get('data-a-dynamic-image'):
+                    import json
+                    try:
+                        # 解析 JSON 字串找到最大尺寸的圖片
+                        img_dict = json.loads(img_tag_dynamic['data-a-dynamic-image'])
+                        img_url = list(img_dict.keys())[0] if img_dict else None
+                    except: pass
+            
+            # 策略 B: 傳統 ID 尋找
+            if not img_url:
+                img_tag_fallback = soup.find('img', id='landingImage') or soup.find('img', id='imgBlkFront') or soup.find('img', id='main-image')
+                img_url = img_tag_fallback['src'] if img_tag_fallback else None
+            
+            # 策略 C: OG Image 兜底
+            if not img_url:
+                og_img = soup.find('meta', property='og:image')
+                img_url = og_img['content'] if og_img else None
+
+            # 將抓到的圖片轉為 Base64
             img_b64 = fetch_image_as_base64(img_url) if img_url else None
             
-            return {"type": "🎵 音樂/專輯", "title": title, "creator": "Amazon Music", "cover": img_b64, "url": url, "summary": "由 Amazon ASIN 匯入之影音檔案"}
+            # 如果真的什麼都抓不到，不要回傳 None 導致前端報錯，而是給一個預設卡片
+            if title == "未知專輯" and not img_b64:
+                 print("⚠️ Amazon 網頁解析失敗，可能是結構變動或區域限制。")
+                 return {"type": "🎵 音樂/專輯", "title": f"未知的 Amazon 商品", "creator": "解析失敗", "cover": None, "url": url, "summary": "請確認網址或 ASIN 碼。"}
+
+            return {"type": "🎵 實體專輯/音樂", "title": title, "creator": "Amazon", "cover": img_b64, "url": url, "summary": "由 Amazon 匯入之影音檔案"}
             
     except Exception as e:
         print(f"Media 解析失敗: {e}")
