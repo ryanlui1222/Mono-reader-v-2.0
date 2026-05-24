@@ -280,34 +280,121 @@ def crawl_verso():
         })
     return books
     
+# ==========================================
+# 重構：青土社精細化目錄爬蟲 (支援《現代思想》與《ユリイカ》單篇萃取)
+# ==========================================
 def crawl_seidosha():
-    print("🔍 [青土社] 準備擷取...")
+    print("🔍 [青土社] 準備擷取單期目錄...")
     try:
         res = requests.get("https://www.seidosha.co.jp/", timeout=15)
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, "html.parser")
         items = soup.find("div", id="new_mag").find_all("div", class_="col-link-items")
         records = []
+        
         for item in items:
             a_tag = item.find("a")
             raw_link = a_tag.get("href", "")
             link = f"https://www.seidosha.co.jp{raw_link.lstrip('.')}"
             
-            identifier = link
-            id_match = re.search(r'id=(\d+)', link)
-            if id_match: identifier = f"seidosha_{id_match.group(1)}"
-                
-            title = item.find("h3", class_="h5").get_text(strip=True)
+            issue_title = item.find("h3", class_="h5").get_text(strip=True)
             img_src = item.find("img").get("src", "")
             image_url = f"https://www.seidosha.co.jp{img_src}"
+            
+            is_journal = "ユリイカ" in issue_title or "現代思想" in issue_title
+            
+            if is_journal:
+                try:
+                    inner_res = requests.get(link, timeout=15)
+                    inner_res.encoding = 'utf-8'
+                    inner_soup = BeautifulSoup(inner_res.text, "html.parser")
+                    
+                    # 尋找內文目錄區塊並進行斷行拆解
+                    toc_area = inner_soup.find("div", class_=re.compile(r"detail|txt"))
+                    if toc_area:
+                        lines = toc_area.get_text(separator='\n').split('\n')
+                        article_count = 0
+                        for line in lines:
+                            clean_line = line.strip()
+                            # 過濾無效標題或章節標記
+                            if len(clean_line) > 5 and not clean_line.startswith("■") and not clean_line.startswith("【"):
+                                parts = clean_line.split('／') # 青土社常以全形斜線分隔標題與作者
+                                article_title = parts[0].strip()
+                                article_author = parts[1].strip() if len(parts) > 1 else "未知作者"
+                                
+                                article_count += 1
+                                records.append({
+                                    "type": "Journal",
+                                    "title": article_title,
+                                    "author": article_author,
+                                    "publisher_journal": "青土社 (雜誌)",
+                                    "issue_volume": issue_title, 
+                                    "identifier": f"{link}_art_{article_count}",
+                                    "publish_date": datetime.utcnow().strftime("%Y-%m"),
+                                    "abstract": "（青土社單篇論文）",
+                                    "link": link,
+                                    "image": image_url
+                                })
+                        if article_count > 0:
+                            continue # 目錄解析成功，跳過將整本存為一筆的備用邏輯
+                except Exception as e:
+                    print(f"⚠️ 青土社目錄擷取失敗，退回整本記錄模式: {e}")
+
+            # 若非期刊，或目錄解析失敗的備用方案
+            id_match = re.search(r'id=(\d+)', link)
+            identifier = f"seidosha_{id_match.group(1)}" if id_match else link
             records.append({
-                "type": "Journal" if "ユリイカ" in title or "現代思想" in title else "Book",
-                "title": title, "author": item.find("p", class_="author").get_text(strip=True) or "青土社",
-                "publisher_journal": "青土社", "issue_volume": "", "identifier": identifier, "publish_date": "2026-05", 
-                "abstract": "（青土社新刊）", "link": link, "image": image_url
+                "type": "Journal" if is_journal else "Book",
+                "title": issue_title, 
+                "author": item.find("p", class_="author").get_text(strip=True) or "青土社",
+                "publisher_journal": "青土社 (雜誌)" if is_journal else "青土社", 
+                "issue_volume": issue_title if is_journal else "", 
+                "identifier": identifier, 
+                "publish_date": datetime.utcnow().strftime("%Y-%m"), 
+                "abstract": "（青土社新刊）", 
+                "link": link, 
+                "image": image_url
             })
         return records
-    except: return []
+    except Exception as e: 
+        print(f"❌ [青土社] 錯誤: {e}")
+        return []
+        
+# ==========================================
+# 新增：期刊專用 Crossref API 擷取器
+# ==========================================
+def fetch_journal_from_crossref(issn, journal_name):
+    print(f"🔍 [Crossref] 正在擷取期刊 {journal_name}...")
+    url = f"https://api.crossref.org/journals/{issn}/works"
+    # 鎖定最新出版的 15 篇論文
+    params = {"sort": "published", "order": "desc", "rows": 15}
+    headers = {"User-Agent": "BiblioappCloud/1.0"}
+    
+    try:
+        res = requests.get(url, params=params, headers=headers, timeout=15)
+        items = res.json().get("message", {}).get("items", [])
+        
+        records = []
+        for item in items:
+            title = item.get("title", ["未命名論文"])[0]
+            authors_list = item.get("author", [])
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or journal_name
+            
+            date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
+            date_parts = date_obj.get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            issue_vol = item.get("issue", "")
+            link = item.get("URL", f"https://doi.org/{item.get('DOI', '')}")
+            
+            records.append({
+                "type": "Journal", "title": title, "author": author, "publisher_journal": journal_name, "issue_volume": issue_vol,
+                "identifier": item.get("DOI", link), "publish_date": pub_date, "abstract": "（API 期刊論文擷取）", "link": link, "image": ""
+            })
+        return records
+    except Exception as e:
+        print(f"❌ [{journal_name}] 擷取失敗: {e}")
+        return []
 
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
@@ -320,18 +407,26 @@ def save_to_db(items):
     client.close()
     print("✅ 資料庫更新完成。")
 
+# ==========================================
+# 於主程式執行區段註冊所有期刊
+# ==========================================
 if __name__ == "__main__":
     all_books = []
     
-    # 既有來源
+    # 既有專書來源
     all_books.extend(fetch_from_crossref("281", "MIT Press"))
     all_books.extend(fetch_from_crossref("73", "Duke University Press"))
-    all_books.extend(crawl_seidosha())
-    
-    # 🌟 新增的三個來源
     all_books.extend(crawl_utp())
     all_books.extend(crawl_verso())
     all_books.extend(crawl_urbanomic_forthcoming())
     
-    # 統一寫入資料庫
+    # 青土社 (已升級為單篇萃取)
+    all_books.extend(crawl_seidosha())
+    
+    # 新增期刊
+    all_books.extend(fetch_journal_from_crossref("2578-3491", "PRISM: Theory and Modern Chinese Literature"))
+    all_books.extend(fetch_journal_from_crossref("2201-1919", "Environmental Humanities"))
+    all_books.extend(fetch_journal_from_crossref("1067-9847", "positions: asia critique"))
+    all_books.extend(fetch_journal_from_crossref("0091-7729", "Science Fiction Studies"))
+    
     save_to_db(all_books)
