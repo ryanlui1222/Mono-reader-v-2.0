@@ -131,7 +131,7 @@ def render_page():
                 ref_input = st.text_input("輸入 DOI (如 10.1215/...) 或 ISBN：", placeholder="自動擷取作者、期刊、期號...", key="ref_input_field")
             with col2:
                 # 🌟 更新：新增參考文獻時的下拉選單改為新的分級
-                ref_importance = st.selectbox("重要等級：", ["S", "A", "A-", "B", "B-", "C", "C-"], key="ref_imp_sel")
+                ref_importance = st.selectbox("重要等級：", ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"], key="ref_imp_sel")
             
             ref_notes = st.text_area("文獻備註 / 核心觀點摘要：", placeholder="輸入這篇文獻與你研究計畫的關聯性...", key="ref_notes_field")
             
@@ -157,10 +157,9 @@ def render_page():
             if ref_sort_mode == "最新加入":
                 df_refs = df_refs.sort_values(by='added_date', ascending=False)
             elif ref_sort_mode == "重要等級 (高至低)":
-                # 🌟 更新：對應新分級的排序權重映射表
-                imp_map = {"S": 1, "A": 2, "A-": 3, "B": 4, "B-": 5, "C": 6, "C-": 7}
-                # 若遇到舊版標籤或未標記，預設給予最低權重 8
-                df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(8)
+                imp_map = {"S": 1, "A": 2, "A-": 3, "B": 4, "B-": 5, "C": 6, "C-": 7, "待讀": 8}
+                # 未標記者預設給予最低權重 9
+                df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(9)
                 df_refs = df_refs.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
             elif ref_sort_mode == "出版日期 (新到舊)":
                 df_refs = df_refs.sort_values(by='publish_date', ascending=False)
@@ -179,7 +178,7 @@ def render_page():
                         with st.popover("⚙️ 管理"):
                             current_imp = row.get('importance')
                             # 🌟 更新：修改文獻時的下拉選單選項
-                            valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-"]
+                            valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"]
                             # 若舊資料的標籤不在新清單內，預設顯示 "C-" (index 6)
                             imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 6
                             
@@ -311,14 +310,28 @@ def render_page():
 
     elif biblio_view_mode == "🔖 待讀書架":
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_search_query)
+        
+        # 🌟 1. 處理分類欄位防呆：填補空值，並將爬蟲自動帶入的「學術專著」映射為「研究」
+        if 'category' not in df_pubs.columns:
+            df_pubs['category'] = "未分類"
+        df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
+        
+        # 🌟 2. 新增分類滑動選單 (利用水平 Radio 達成)
+        BOOK_CATEGORIES = ["總覽", "未分類", "研究", "小說", "詩", "漫畫", "藝術", "音樂"]
+        selected_category = st.radio("📚 分類篩選：", BOOK_CATEGORIES, horizontal=True)
+
+        # 🌟 3. 套用分類過濾
+        if selected_category != "總覽":
+            df_pubs = df_pubs[df_pubs['category'] == selected_category]
+
         if df_pubs.empty:
-            st.subheader("🔖 待讀書架 (共 0 本)")
+            st.subheader(f"🔖 待讀書架 ({selected_category} - 共 0 本)")
             st.markdown("---")
-            st.info("您的待讀書架目前是空的。請在文獻探索中點擊收藏，或在左側透過 ISBN 手動加入。")
+            st.info(f"「{selected_category}」分類目前是空的。")
         else:
             col_title, col_sort = st.columns([3, 1])
             with col_title:
-                st.subheader(f"🔖 待讀書架 (共 {len(df_pubs)} 本)")
+                st.subheader(f"🔖 待讀書架 ({selected_category} - 共 {len(df_pubs)} 本)")
             with col_sort:
                 bib_sort_mode = st.selectbox(
                     "🔀 書架排序方式：", 
@@ -357,13 +370,25 @@ def render_page():
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
+                    
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1: 
                         st.button("💔 移除", key=f"unmark_{row['id']}_{idx}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
                     with btn_col2:
-                        with st.popover("🗑️ 刪除"):
+                        # 🌟 4. 將單純的刪除按鈕改為管理選單，允許修改分類
+                        with st.popover("⚙️ 管理"):
+                            current_cat = row.get('category', '未分類')
+                            valid_cats = ["未分類", "研究", "小說", "詩", "漫畫", "藝術", "音樂"]
+                            cat_idx = valid_cats.index(current_cat) if current_cat in valid_cats else 0
+                            
+                            new_cat = st.selectbox("修改分類：", valid_cats, index=cat_idx, key=f"cat_{row['id']}_{idx}")
+                            if st.button("💾 儲存分類", key=f"save_cat_{row['id']}_{idx}", use_container_width=True):
+                                core_utils.update_biblio_category(row['id'], new_cat)
+                                st.rerun() # 儲存後強制重新渲染以套用新分類
+                            
+                            st.divider()
                             st.write("確定抹除此書？")
-                            st.button("✅ 確定", key=f"del_grid_{row['id']}_{idx}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
+                            st.button("✅ 確定刪除", key=f"del_grid_{row['id']}_{idx}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.write("") 
 
             if total_grid_pages > 1:
@@ -374,7 +399,7 @@ def render_page():
                     if chosen_grid_page != st.session_state.bib_grid_page:
                         st.session_state.bib_grid_page = chosen_grid_page
                         st.rerun()
-
+                        
     elif biblio_view_mode == "🔗 網址備存":
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_search_query)
         col_title, col_sort = st.columns([3, 1])
