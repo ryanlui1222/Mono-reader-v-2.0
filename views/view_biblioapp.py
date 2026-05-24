@@ -76,16 +76,25 @@ def render_page():
             if db_type == "Book":
                 active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "手動加入", "MIT Press", "Duke University Press", "青土社", "Urbanomic", "東京大学出版会", "Verso Books"], on_change=reset_biblio_page)
             else:
-                active_filter = st.selectbox("選擇期刊：", ["總覽 (依日期遞減)", "青土社 (雜誌)", "PRISM: Theory and Modern Chinese Literature"], on_change=reset_biblio_page)
+                # 🌟 將期刊選單獨立拆分，並加入前面討論的新刊物
+                active_filter = st.selectbox("選擇期刊：", [
+                    "總覽 (依日期遞減)", 
+                    "現代思想", 
+                    "ユリイカ", 
+                    "PRISM: Theory and Modern Chinese Literature",
+                    "Environmental Humanities",
+                    "positions: asia critique",
+                    "Science Fiction Studies"
+                ], on_change=reset_biblio_page)
 
-    # 🌟 傳遞 search_query 變數至後端
+    # 🌟 傳遞變數時，不再需要針對青土社做 Hack 替換，直接傳入 active_filter
     df_pubs = core_utils.fetch_academic_pubs(
         view_mode=biblio_view_mode, 
         pub_type=db_type, 
-        source_filter="青土社" if active_filter == "青土社 (雜誌)" else active_filter,
+        source_filter=active_filter,
         search_query=bib_search_query
     )
-    
+
     if biblio_view_mode == "🔖 待讀書架":
         if df_pubs.empty:
             st.subheader("🔖 待讀書架 (共 0 本)")
@@ -274,16 +283,23 @@ def render_page():
                         for _, row in df_latest_issue.iterrows():
                             col_text, col_btn = st.columns([15, 1])
                             with col_text:
-                                # 極簡條列式：標題 + 作者
-                                st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}*")
+                                # 🌟 擴充極簡條列式：加入 DOI/識別碼 與 發布時間
+                                doi_text = row.get('identifier', '無識別碼')
+                                pub_date = row.get('publish_date', '未知日期')
+                                issue_text = row.get('issue_volume', '')
+                                
+                                # 若有卷期數則優先顯示卷期數，否則顯示日期
+                                display_time = issue_text if pd.notna(issue_text) and issue_text else pub_date
+                                
+                                st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
                             with col_btn:
                                 # 輕量的快速收藏按鈕
                                 is_bk = bool(row.get('is_bookmarked', 0))
                                 st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
                         
                         st.write("") # 增加各期刊之間的留白
-                        st.divider()
-                    
+                        st.divider()                    
+
             # 📚 原本的詳細卡片模式 (適用於「所有專書」以及「特定單一期刊」)
             else:
                 PER_PAGE = 20
