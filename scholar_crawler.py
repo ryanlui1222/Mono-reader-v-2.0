@@ -428,10 +428,10 @@ def fetch_journal_from_crossref(issn, journal_name):
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
     for item in items:
-        # 🌟 補上 category 預設值，若該爬蟲沒有提供，則預設為 "未分類"
+        # 補上 category 預設值
         cat = item.get("category", "未分類")
         
-        # 🌟 修改 SQL：加入 category 欄位。ON CONFLICT 時故意不更新 category 以保護使用者手動分類！
+        # 🌟 修改 SQL：寫入 category，但 ON CONFLICT 不更新 category，防護手動修改
         sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, identifier, publish_date, abstract, link, image, category)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
@@ -453,11 +453,9 @@ if __name__ == "__main__":
     all_books.extend(crawl_utp())
     all_books.extend(crawl_verso())
     all_books.extend(crawl_urbanomic_forthcoming())
-    
-    # 青土社 (已升級為單篇萃取)
     all_books.extend(crawl_seidosha())
     
-    # 新增期刊
+    # 新增學術期刊追蹤清單
     all_books.extend(fetch_journal_from_crossref("2578-3491", "PRISM: Theory and Modern Chinese Literature"))
     all_books.extend(fetch_journal_from_crossref("2201-1919", "Environmental Humanities"))
     all_books.extend(fetch_journal_from_crossref("1067-9847", "positions: asia critique"))
