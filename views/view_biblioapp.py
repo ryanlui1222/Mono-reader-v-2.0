@@ -87,7 +87,13 @@ def render_page():
                     "📁 PRISM: Theory and Modern Chinese Literature",
                     "📁 Environmental Humanities",
                     "📁 positions: asia critique",
-                    "📁 Science Fiction Studies"
+                    "📁 Science Fiction Studies (SFS)",
+                    "📁 boundary 2",
+                    "📁 MCLC (Modern Chinese Literature and Culture)",
+                    "📁 ISLE: Interdisciplinary Studies in Literature and Environment",
+                    "📁 Journal of World Literature (JWL)",
+                    "📁 Comparative Literature Studies (CLS)",
+                    "📁 Chinese literature and thought today (CLT2)"
                 ]
                 selected_main = st.selectbox("請選擇板塊：", journal_options, on_change=reset_biblio_page)
                 
