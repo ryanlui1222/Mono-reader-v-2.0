@@ -254,7 +254,7 @@ def render_page():
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
         
-        BOOK_CATEGORIES = ["總覽", "未分類", "研究", "小說", "詩", "漫畫", "藝術", "音樂"]
+        BOOK_CATEGORIES = ["總覽", "未分類", "研究", "學術", "小說", "詩", "漫畫", "藝術", "音樂"]
         selected_category = st.radio("📚 分類篩選：", BOOK_CATEGORIES, horizontal=True)
 
         if selected_category != "總覽":
@@ -304,7 +304,7 @@ def render_page():
                     with btn_col2:
                         with st.popover("⚙️ 管理"):
                             current_cat = row.get('category', '未分類')
-                            valid_cats = ["未分類", "研究", "小說", "詩", "漫畫", "藝術", "音樂"]
+                            valid_cats = ["未分類", "研究", "學術", "小說", "詩", "漫畫", "藝術", "音樂"]
                             cat_idx = valid_cats.index(current_cat) if current_cat in valid_cats else 0
                             new_cat = st.selectbox("修改分類：", valid_cats, index=cat_idx, key=f"cat_{row['id']}_{idx}")
                             if st.button("💾 儲存分類", key=f"save_cat_{row['id']}_{idx}", use_container_width=True):
