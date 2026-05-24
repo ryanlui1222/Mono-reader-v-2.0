@@ -424,3 +424,15 @@ def delete_bibliography_reference(ref_id):
         st.cache_data.clear()
         st.toast("🗑️ 參考書目已移除！")
     except Exception as e: st.error(f"刪除失敗: {e}")
+
+# ==========================================
+# 書架分類管理模組
+# ==========================================
+def update_biblio_category(pub_id, new_category):
+    try:
+        # SQLite 若欄位不存在不會報錯，但我們在爬蟲端其實有預留過 category 欄位
+        db.execute("UPDATE academic_pubs SET category = ? WHERE id = ?", [new_category, pub_id])
+        st.cache_data.clear()
+        st.toast(f"🏷️ 分類已更新為：{new_category}")
+    except Exception as e:
+        st.error(f"分類更新失敗: {e}")
