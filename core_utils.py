@@ -471,33 +471,90 @@ def add_url_backup(url_book_data):
     except Exception as e: 
         return False, f"寫入資料庫失敗: {e}"
 
-# (在 core_utils.py 裡新增)
-def fetch_media_by_url(url):
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-    
+# ==========================================
+# 🎬 影音館 (Media Vault) 專用引擎
+# ==========================================
+
+def insert_media_db(data):
+    """將影音資料寫入 Turso 資料庫"""
     try:
-        # 1. 解析豆瓣電影 (擅長華語/日本影視)
+        sql = """
+        INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """
+        args = [
+            data.get('type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
+            data.get('cover', ''), data.get('release_date', '未知時間'), data.get('url', ''),
+            data.get('summary', ''), datetime.utcnow().isoformat()
+        ]
+        db.execute(sql, args)
+    except Exception as e:
+        print(f"寫入 Media 資料庫失敗: {e}")
+        # 如果是 UNIQUE 衝突 (重複加入)，可以不理會或更新
+
+def fetch_all_media():
+    """從 Turso 資料庫讀取所有影音館資料"""
+    try:
+        res = db.execute("SELECT * FROM media_vault ORDER BY sort_date DESC")
+        return [dict(zip(res.columns, row)) for row in res.rows] if res.rows else []
+    except Exception as e:
+        print(f"讀取 Media 資料庫失敗: {e}")
+        return []
+
+def fetch_media_by_url(user_input):
+    """智慧路由器：處理網址、ASIN、IMDb ID 並進行爬蟲"""
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    user_input = user_input.strip()
+    
+    # 🌟 智慧判斷邏輯：如果輸入的不是網址，自動轉換為網址
+    url = user_input
+    if not user_input.startswith("http"):
+        if len(user_input) == 10 and user_input.isalnum(): # 判斷為 Amazon ASIN (10碼英數字)
+            url = f"https://www.amazon.com/dp/{user_input}"
+        elif user_input.startswith("tt"): # 判斷為 IMDb ID
+            url = f"https://www.imdb.com/title/{user_input}/"
+        else:
+            return None # 無法識別的輸入格式
+            
+    try:
+        res = scraper.get(url, timeout=15)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. 解析豆瓣電影
         if "movie.douban.com" in url:
-            res = scraper.get(url, timeout=15)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            title = soup.find('span', property='v:itemreviewed').get_text(strip=True)
+            title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知標題"
             director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else ""
             img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
-            # 轉換高畫質海報並轉為 Base64 (防止防盜鏈)
             img_b64 = fetch_image_as_base64(img_url) if img_url else None
-            summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else ""
+            summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else "無劇情簡介"
+            return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
             
-            return {"type": "Movie", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
-            
-        # 2. 解析 IMDb (全球電影首選)
+        # 2. 解析 IMDb
         elif "imdb.com/title/" in url:
-            # (省略詳細解析代碼，邏輯同上，抓取 og:title, og:image 等)
-            pass
+            og_title = soup.find('meta', property='og:title')
+            title = og_title['content'].replace(' - IMDb', '') if og_title else "未知標題"
+            og_img = soup.find('meta', property='og:image')
+            img_url = og_img['content'] if og_img else None
+            img_b64 = fetch_image_as_base64(img_url) if img_url else None
+            og_desc = soup.find('meta', property='og:description')
+            summary = og_desc['content'] if og_desc else "無劇情簡介"
+            return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb 資料庫", "cover": img_b64, "url": url, "summary": summary}
 
-        # 3. 解析 Amazon 音樂/實體專輯
+        # 3. 解析 Amazon (音樂/實體專輯/數位版)
         elif "amazon" in url:
-            # (利用類似 Biblioapp 的 Amazon 書籍抓取邏輯，抓取專輯名稱與封面)
-            pass
+            # Amazon 經常變換 DOM，用 Meta tag 最穩定
+            og_title = soup.find('meta', property='og:title') or soup.find('title')
+            title = og_title['content'] if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知專輯")
+            
+            # 清洗 Amazon 標題 (通常帶有 Amazon.com: ... 等字眼)
+            title = title.split(': Amazon')[0].replace('Amazon.com:', '').strip()
+            
+            # 抓取高畫質封面 (Amazon 音樂封面通常在 landingImage 裡)
+            img_tag = soup.find('img', id='landingImage') or soup.find('img', id='imgBlkFront')
+            img_url = img_tag['data-old-hires'] if img_tag and img_tag.has_attr('data-old-hires') else (img_tag['src'] if img_tag else None)
+            img_b64 = fetch_image_as_base64(img_url) if img_url else None
+            
+            return {"type": "🎵 音樂/專輯", "title": title, "creator": "Amazon Music", "cover": img_b64, "url": url, "summary": "由 Amazon ASIN 匯入之影音檔案"}
             
     except Exception as e:
         print(f"Media 解析失敗: {e}")
