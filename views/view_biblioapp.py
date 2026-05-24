@@ -73,20 +73,43 @@ def render_page():
             st.subheader("文獻篩選")
             biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed", on_change=reset_biblio_page)
             db_type = "Book" if "專書" in biblio_type_label else "Journal"
+            active_filter = "總覽 (依日期遞減)"
+            
             if db_type == "Book":
                 active_filter = st.selectbox("選擇出版社：", ["總覽 (依日期遞減)", "手動加入", "MIT Press", "Duke University Press", "青土社", "Urbanomic", "東京大学出版会", "Verso Books"], on_change=reset_biblio_page)
+                df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
             else:
-                # 🌟 將期刊選單獨立拆分，並加入前面討論的新刊物
-                active_filter = st.selectbox("選擇期刊：", [
+                st.subheader("選擇訂閱來源")
+                journal_options = [
                     "總覽 (依日期遞減)", 
-                    "現代思想", 
-                    "ユリイカ", 
-                    "PRISM: Theory and Modern Chinese Literature",
-                    "Environmental Humanities",
-                    "positions: asia critique",
-                    "Science Fiction Studies"
-                ], on_change=reset_biblio_page)
-
+                    "📁 現代思想", 
+                    "📁 ユリイカ", 
+                    "📁 PRISM: Theory and Modern Chinese Literature",
+                    "📁 Environmental Humanities",
+                    "📁 positions: asia critique",
+                    "📁 Science Fiction Studies"
+                ]
+                selected_main = st.selectbox("請選擇板塊：", journal_options, on_change=reset_biblio_page)
+                
+                if selected_main.startswith("📁 "):
+                    active_filter = selected_main.replace("📁 ", "")
+                    # 先將該期刊的所有資料拉出
+                    temp_df = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
+                    
+                    # 擷取不重複的期號，自動產生動態資料夾
+                    raw_issues = temp_df['issue_volume'].dropna().unique().tolist() if not temp_df.empty else []
+                    clean_issues = [iss for iss in raw_issues if str(iss).strip()]
+                    
+                    if clean_issues:
+                        selected_issue = st.radio(f"{active_filter} 期號/版本：", clean_issues, on_change=reset_biblio_page)
+                        # 依照選定的期號過濾資料
+                        df_pubs = temp_df[temp_df['issue_volume'] == selected_issue]
+                    else:
+                        df_pubs = temp_df
+                else:
+                    active_filter = selected_main
+                    df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
+                    
     # 🌟 傳遞變數時，不再需要針對青土社做 Hack 替換，直接傳入 active_filter
     df_pubs = core_utils.fetch_academic_pubs(
         view_mode=biblio_view_mode, 
@@ -254,55 +277,72 @@ def render_page():
         if df_pubs.empty:
             st.info("目前資料庫中沒有符合條件的書目。")
         else:
-            # 🌟 核心修改：針對「期刊」的「總覽」模式，動態過濾出「最新一期」的所有文章
             if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
-                # 取得資料庫中所有的期刊名稱 (過濾掉空值)
                 journals = df_pubs['publisher_journal'].dropna().unique()
                 
+                # 1. 預先聚合所有最新期刊的資料
+                latest_dfs = []
                 for journal in journals:
-                    # 篩選出該期刊的所有文章（後端 SQL 已預設依日期遞減排序）
                     df_journal = df_pubs[df_pubs['publisher_journal'] == journal]
-                    
                     if not df_journal.empty:
-                        # 1. 取得最新一篇文章作為「最新期數」的基準
                         latest_row = df_journal.iloc[0]
                         latest_issue_vol = latest_row.get('issue_volume', '')
                         latest_pub_date = latest_row.get('publish_date', '')
                         
-                        # 2. 判斷該期刊是否有期號，若無則退而求其次使用發布日期作為「一期」的基準
                         if pd.notna(latest_issue_vol) and str(latest_issue_vol).strip() != "":
-                            df_latest_issue = df_journal[df_journal['issue_volume'] == latest_issue_vol]
-                            issue_display = f"Issue: {latest_issue_vol}"
+                            latest_dfs.append(df_journal[df_journal['issue_volume'] == latest_issue_vol])
                         else:
-                            df_latest_issue = df_journal[df_journal['publish_date'] == latest_pub_date]
-                            issue_display = f"{latest_pub_date}"
+                            latest_dfs.append(df_journal[df_journal['publish_date'] == latest_pub_date])
+                
+                if latest_dfs:
+                    df_aggregated = pd.concat(latest_dfs)
+                    
+                    # 2. 套用 100 筆分頁邏輯
+                    PER_PAGE = 100
+                    total_pages = math.ceil(len(df_aggregated) / PER_PAGE)
+                    if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
+                    start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
+                    
+                    current_page_df = df_aggregated.iloc[start_idx:start_idx + PER_PAGE]
+                    
+                    # 3. 追蹤目前正在渲染的期刊名稱，用以印出分類標題
+                    current_rendering_journal = ""
+                    
+                    for _, row in current_page_df.iterrows():
+                        journal_name = row.get('publisher_journal', '未知期刊')
+                        
+                        # 當遇到新的期刊時，動態印出其分類標題區塊
+                        if journal_name != current_rendering_journal:
+                            if current_rendering_journal != "":
+                                st.write("")
+                                st.divider()
+                                
+                            current_rendering_journal = journal_name
+                            issue_display = row.get('issue_volume', row.get('publish_date', ''))
+                            st.markdown(f"### 📖 {journal_name} (Latest | {issue_display})")
                             
-                        st.markdown(f"### 📖 {journal} (Latest | {issue_display})")
-                        
-                        # 3. 渲染該最新一期的「所有」文章，不再限制 5 篇
-                        for _, row in df_latest_issue.iterrows():
-                            col_text, col_btn = st.columns([15, 1])
-                            with col_text:
-                                # 🌟 擴充極簡條列式：加入 DOI/識別碼 與 發布時間
-                                doi_text = row.get('identifier', '無識別碼')
-                                pub_date = row.get('publish_date', '未知日期')
-                                issue_text = row.get('issue_volume', '')
-                                
-                                # 若有卷期數則優先顯示卷期數，否則顯示日期
-                                display_time = issue_text if pd.notna(issue_text) and issue_text else pub_date
-                                
-                                st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
-                            with col_btn:
-                                # 輕量的快速收藏按鈕
-                                is_bk = bool(row.get('is_bookmarked', 0))
-                                st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
-                        
-                        st.write("") # 增加各期刊之間的留白
-                        st.divider()                    
+                        col_text, col_btn = st.columns([15, 1])
+                        with col_text:
+                            doi_text = row.get('identifier', '無識別碼')
+                            pub_date = row.get('publish_date', '未知日期')
+                            issue_text = row.get('issue_volume', '')
+                            display_time = issue_text if pd.notna(issue_text) and issue_text else pub_date
+                            st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
+                        with col_btn:
+                            is_bk = bool(row.get('is_bookmarked', 0))
+                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
 
-            # 📚 原本的詳細卡片模式 (適用於「所有專書」以及「特定單一期刊」)
+                    # 分頁選單器
+                    if total_pages > 1:
+                        st.write("")
+                        col_space, col_page, col_space2 = st.columns([1, 2, 1])
+                        with col_page:
+                            st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
+            
             else:
-                PER_PAGE = 20
+                # 📚 原本的詳細卡片模式 (適用於「所有專書」以及「特定單一期刊」)
+                # 將此處的 PER_PAGE 同步修改為 100
+                PER_PAGE = 100
                 total_pages = math.ceil(len(df_pubs) / PER_PAGE)
                 if st.session_state.biblio_page > total_pages and total_pages > 0: st.session_state.biblio_page = total_pages
                 start_idx = (st.session_state.biblio_page - 1) * PER_PAGE
