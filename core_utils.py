@@ -532,8 +532,7 @@ def fetch_media_by_url(user_input, force_type=None):
             apple_id = match.group(1) if match else None
             
         if apple_id:
-            # 🌟 核心突破：智慧區域輪詢機制 (依序測試 日本、台灣、美國、香港)
-            # 確保像《玉姫様》這種日本版權鎖定的專輯，不論用戶輸入什麼網址都能精準撈回
+            # 智慧區域輪詢機制 (依序測試 日本、台灣、美國、香港)
             for country in ['jp', 'tw', 'us', 'hk']:
                 try:
                     api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
@@ -545,7 +544,10 @@ def fetch_media_by_url(user_input, force_type=None):
                         title = item.get('trackName') if is_track else item.get('collectionName', '未知名稱')
                         creator = item.get('artistName', '未知歌手')
                         img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                        img_b64 = fetch_image_as_base64(img_url) if img_url else None
+                        
+                        # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
+                        img_b64 = fetch_image_base64(img_url) if img_url else None
+                        
                         summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
                         
                         return {
@@ -582,7 +584,10 @@ def fetch_media_by_url(user_input, force_type=None):
             title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知華語電影"
             director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else "未知導演"
             img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
-            img_b64 = fetch_image_as_base64(img_url) if img_url else None
+            
+            # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
+            img_b64 = fetch_image_base64(img_url) if img_url else None
+            
             summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else "無劇情簡介"
             return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
             
@@ -592,7 +597,10 @@ def fetch_media_by_url(user_input, force_type=None):
             title = og_title['content'].replace(' - IMDb', '').strip() if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知歐美電影")
             og_img = soup.find('meta', property='og:image')
             img_url = og_img['content'] if og_img else None
-            img_b64 = fetch_image_as_base64(img_url) if img_url else None
+            
+            # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
+            img_b64 = fetch_image_base64(img_url) if img_url else None
+            
             og_desc = soup.find('meta', property='og:description')
             summary = og_desc['content'] if og_desc else "無明細摘要"
             return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb Archive", "cover": img_b64, "url": url, "summary": summary}
@@ -600,8 +608,7 @@ def fetch_media_by_url(user_input, force_type=None):
     except Exception as e:
         print(f"電影網頁解析觸發防禦性兜底: {e}")
 
-    # 🌟 核心防護兜底 (IMDb/豆瓣 防火牆阻擋時的救生圈)
-    # 就算被對方的防爬蟲牆擋住，也絕對不報錯，而是將網址安全保存，轉為「手動卡片」，確保 UNIQUE 約束不崩潰
+    # 核心防護兜底 (IMDb/豆瓣 防火牆阻擋時的救生圈)
     fallback_title = "備存電影資料"
     if "tt" in url:
         tt_id = re.search(r'(tt\d+)', url)
