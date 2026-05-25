@@ -516,84 +516,119 @@ def delete_media_db(media_id):
     except Exception as e:
         pass
 
-def fetch_media_by_url(user_input, force_type=None):
-    """智慧 API 路由器：Apple Music API + TMDB API"""
-    user_input = user_input.strip()
+def fetch_apple_music_data(url_or_id):
+    """擷取 Apple Music，使用多國區域輪詢"""
+    apple_id = url_or_id.strip()
+    if not apple_id.isdigit():
+        # 從網址中萃取數字 ID
+        match = re.search(r'/id(\d+)', url_or_id) or re.search(r'/(\d+)(?:\?|$)', url_or_id)
+        apple_id = match.group(1) if match else None
+        
+    if not apple_id:
+        return None
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'application/json'
+    }
     
-    # --------------------------------------------------
-    # 🎵 模式 A：音樂 (Apple Music API)
-    # --------------------------------------------------
-    if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
-        apple_id = user_input
-        if not user_input.isdigit():
-            match = re.search(r'/id(\d+)', user_input) or re.search(r'/(\d+)(?:\?|$)', user_input)
-            apple_id = match.group(1) if match else None
+    # 多區輪詢 (解決跨區無法抓取的問題)
+    for country in ['tw', 'jp', 'us', 'hk']:
+        api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
+        try:
+            res = requests.get(api_url, headers=headers, timeout=10)
+            data = res.json()
             
-        if apple_id:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            }
-            for country in ['tw', 'jp', 'us', 'hk', 'gb']:
-                try:
-                    api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
-                    api_res = requests.get(api_url, headers=headers, timeout=10).json()
-                    
-                    if api_res.get('resultCount', 0) > 0:
-                        item = api_res['results'][0]
-                        is_track = item.get('wrapperType') == 'track'
-                        m_type = "🎵 單曲" if is_track else "🎵 專輯"
-                        title = item.get('collectionName') or item.get('trackName') or '未知名稱'
-                        creator = item.get('artistName', '未知歌手')
-                        img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                        
-                        # 🌟 真正致命錯誤已修正：使用您系統原生的 fetch_image_as_base64
-                        img_b64 = fetch_image_as_base64(img_url) if img_url else None
-                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
-                        
-                        return {
-                            "media_type": m_type, "title": title, "creator": creator, 
-                            "cover_image": img_b64, "source_url": f"https://music.apple.com/album/{apple_id}", "summary": summary
-                        }
-                except Exception as e:
-                    print(f"Apple API [{country}] 錯誤: {e}")
-                    continue
-                    
-        return {"media_type": "🎵 音樂", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知", "cover_image": None, "source_url": f"https://music.apple.com/album/{apple_id}", "summary": "抓取失敗，已安全備存。"}
-
-    # --------------------------------------------------
-    # 🎬 模式 B：電影 (TMDB API 突破 IMDb 限制)
-    # --------------------------------------------------
-    url = user_input
-    if not user_input.startswith("http") and user_input.startswith("tt"):
-        url = f"https://www.imdb.com/title/{user_input}/"
-
-    if "tt" in url:
-        match = re.search(r'(tt\d+)', url)
-        if match:
-            imdb_id = match.group(1)
-            tmdb_api_key = "0539c381c81735a297775971431665a3"
-            try:
-                tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_api_key}&external_source=imdb_id&language=zh-TW"
-                res = requests.get(tmdb_url, timeout=10).json()
+            if data.get('resultCount', 0) > 0:
+                item = data['results'][0]
+                # 取得高畫質封面
+                img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
+                img_b64 = fetch_image_as_base64(img_url) if img_url else None
                 
-                if res.get('movie_results'):
-                    data = res['movie_results'][0]
-                    title = data.get('title') or data.get('original_title') or "未知電影"
-                    summary = data.get('overview', '無簡介')
-                    poster_path = data.get('poster_path')
-                    
-                    # 🌟 真正致命錯誤已修正：使用您系統原生的 fetch_image_as_base64
-                    img_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
-                    img_b64 = fetch_image_as_base64(img_url) if img_url else None
-                    
-                    return {
-                        "media_type": "🎬 電影", "title": title, "creator": "TMDB", 
-                        "cover_image": img_b64, "source_url": f"https://www.imdb.com/title/{imdb_id}/", "summary": summary
-                    }
-            except Exception as e:
-                print(f"TMDB API 查詢失敗: {e}")
-                
-            return {"media_type": "🎬 電影", "title": f"IMDb ({imdb_id})", "creator": "未知", "cover_image": None, "source_url": f"https://www.imdb.com/title/{imdb_id}/", "summary": "API 抓取失敗，安全備存。"}
+                # 嚴格匹配資料庫的 6 個欄位，杜絕 KeyError
+                return {
+                    "media_type": "🎵 音樂",
+                    "title": item.get('collectionName') or item.get('trackName', '未知專輯'),
+                    "creator": item.get('artistName', '未知音樂家'),
+                    "cover_image": img_b64,
+                    "source_url": item.get('collectionViewUrl', url_or_id),
+                    "summary": f"Apple Music ({country.upper()}區) 典藏"
+                }
+        except Exception as e:
+            print(f"Apple Music {country}區 查詢失敗: {e}")
+            continue
             
-    return {"media_type": "🎬 電影", "title": "網路備存電影", "creator": "未知", "cover_image": None, "source_url": url, "summary": "非 API 支援網址，已備存。"}
+    return None
+
+def fetch_movie_data(url):
+    """擷取電影資料 (TMDB API 優先 -> IMDb JSON-LD 備援)"""
+    import streamlit as st
+    
+    # 提取 IMDb ID (例如 tt4003440)
+    match = re.search(r'(tt\d+)', url)
+    if not match:
+        return None
+    imdb_id = match.group(1)
+    target_url = f"https://www.imdb.com/title/{imdb_id}/"
+
+    # 策略 A：嘗試使用 TMDB API (若有設定金鑰)
+    # 建議您在 Streamlit Community Cloud 的 Secrets 中加入 TMDB_API_KEY
+    tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
+    if tmdb_key:
+        tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
+        try:
+            res = requests.get(tmdb_url, timeout=10).json()
+            if res.get('movie_results'):
+                data = res['movie_results'][0]
+                poster_path = data.get('poster_path')
+                img_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+                
+                return {
+                    "media_type": "🎬 電影",
+                    "title": data.get('title') or data.get('original_title', '未知電影'),
+                    "creator": "TMDB", 
+                    "cover_image": fetch_image_as_base64(img_url) if img_url else None,
+                    "source_url": target_url,
+                    "summary": data.get('overview', '無簡介')
+                }
+        except Exception as e:
+            print(f"TMDB 解析失敗: {e}")
+
+    # 策略 B：Cloudscraper 強行解析 IMDb 底層 JSON-LD
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    try:
+        res = scraper.get(target_url, timeout=15)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 尋找 Next.js 頁面中的 JSON-LD
+        ld_json = soup.find('script', type='application/ld+json')
+        title = f"IMDb ({imdb_id})"
+        img_url = None
+        summary = "IMDb 直接抓取"
+
+        if ld_json:
+            data = json.loads(ld_json.string)
+            # IMDb 的 JSON-LD 可能是陣列或單一物件
+            if isinstance(data, list):
+                data = data[0]
+            title = data.get('name', title)
+            img_url = data.get('image')
+            summary = data.get('description', summary)
+        else:
+            # 最低限度備援：OG 標籤
+            og_title = soup.find('meta', property='og:title')
+            og_img = soup.find('meta', property='og:image')
+            if og_title: title = og_title['content']
+            if og_img: img_url = og_img['content']
+
+        return {
+            "media_type": "🎬 電影",
+            "title": title,
+            "creator": "IMDb",
+            "cover_image": fetch_image_as_base64(img_url) if img_url else None,
+            "source_url": target_url,
+            "summary": summary
+        }
+    except Exception as e:
+        print(f"IMDb 爬蟲失敗: {e}")
+        return None
