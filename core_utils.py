@@ -473,13 +473,12 @@ def add_url_backup(url_book_data):
         return False, f"寫入資料庫失敗: {e}"
 
 # ==========================================
-# 🎬 影音館 (Media Vault) 專用引擎
+# 🎬 影音館 (Media Vault) 專用智慧引擎
 # ==========================================
 
 def insert_media_db(data):
     """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版)"""
     try:
-        # 🌟 使用 ON CONFLICT DO UPDATE，若網址重複則自動覆寫更新，不引發紅字崩潰
         sql = """
         INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -497,153 +496,118 @@ def insert_media_db(data):
         db.execute(sql, args)
     except Exception as e:
         print(f"寫入 Media 資料庫失敗: {e}")
-        
-def fetch_all_media():
-    """從 Turso 資料庫讀取所有影音館資料"""
+
+def fetch_media_by_broad_type(broad_type):
+    """依照大分類 (電影 或 音樂) 讀取資料庫數據"""
     try:
-        res = db.execute("SELECT * FROM media_vault ORDER BY sort_date DESC")
+        if broad_type == "Movie":
+            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' ORDER BY sort_date DESC")
+        else:
+            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%' ORDER BY sort_date DESC")
         return [dict(zip(res.columns, row)) for row in res.rows] if res.rows else []
     except Exception as e:
         print(f"讀取 Media 資料庫失敗: {e}")
         return []
 
-def fetch_media_by_url(user_input):
-    """智慧路由器：處理網址、ASIN、IMDb ID 並進行爬蟲"""
+def delete_media_db(media_id):
+    """手動刪除影音館資料"""
+    try:
+        db.execute("DELETE FROM media_vault WHERE id = ?", [media_id])
+    except Exception as e:
+        print(f"刪除 Media 資料失敗: {e}")
+
+def fetch_media_by_url(user_input, force_type=None):
+    """智慧影音路由器：支持電影智慧判別、音樂純數字 ID 智慧區域輪詢、以及防崩潰安全兜底"""
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     user_input = user_input.strip()
     
-    # 🌟 智慧判斷邏輯：如果輸入的不是網址，自動轉換為網址
-    url = user_input
-    if not user_input.startswith("http"):
-        if len(user_input) == 10 and user_input.isalnum(): # 判斷為 Amazon ASIN (10碼英數字)
-            url = f"https://www.amazon.com/dp/{user_input}"
-        elif user_input.startswith("tt"): # 判斷為 IMDb ID
-            url = f"https://www.imdb.com/title/{user_input}/"
-        else:
-            return None # 無法識別的輸入格式
+    # --------------------------------------------------
+    # 🎵 模式 A：純數字輸入 或 Apple Music 網址 (音樂類)
+    # --------------------------------------------------
+    if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
+        apple_id = user_input
+        if not user_input.isdigit():
+            # 從網址中萃取出純數字 ID
+            match = re.search(r'/id(\d+)', user_input) or re.search(r'/(\d+)(?:\?|$)', user_input)
+            apple_id = match.group(1) if match else None
             
+        if apple_id:
+            # 🌟 核心突破：智慧區域輪詢機制 (依序測試 日本、台灣、美國、香港)
+            # 確保像《玉姫様》這種日本版權鎖定的專輯，不論用戶輸入什麼網址都能精準撈回
+            for country in ['jp', 'tw', 'us', 'hk']:
+                try:
+                    api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
+                    api_res = requests.get(api_url, timeout=10).json()
+                    if api_res.get('resultCount', 0) > 0:
+                        item = api_res['results'][0]
+                        is_track = item.get('wrapperType') == 'track'
+                        m_type = "🎵 單曲" if is_track else "🎵 專輯"
+                        title = item.get('trackName') if is_track else item.get('collectionName', '未知名稱')
+                        creator = item.get('artistName', '未知歌手')
+                        img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
+                        img_b64 = fetch_image_as_base64(img_url) if img_url else None
+                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
+                        
+                        return {
+                            "type": m_type, "title": title, "creator": creator, "cover": img_b64, 
+                            "url": f"https://music.apple.com/album/{apple_id}", "summary": summary
+                        }
+                except:
+                    continue
+                    
+        # 如果音樂完全查不到，啟動安全防護兜底
+        return {
+            "type": "🎵 獨立音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知藝術家", 
+            "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "手動快速編號歸檔。"
+        }
+
+    # --------------------------------------------------
+    # 🎬 模式 B：電影與影集 (豆瓣/IMDb 智慧判別)
+    # --------------------------------------------------
+    url = user_input
+    if not user_input.startswith("http") and user_input.startswith("tt"):
+        url = f"https://www.imdb.com/title/{user_input}/"
+
     try:
-        res = scraper.get(url, timeout=15)
+        amazon_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+        res = scraper.get(url, headers=amazon_headers, timeout=15)
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 1. 解析豆瓣電影
+        # 1. 豆瓣電影解析
         if "movie.douban.com" in url:
-            title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知標題"
-            director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else ""
+            title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知華語電影"
+            director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else "未知導演"
             img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
             img_b64 = fetch_image_as_base64(img_url) if img_url else None
             summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else "無劇情簡介"
             return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
             
-        # 2. 解析 IMDb
-        elif "imdb.com/title/" in url:
-            og_title = soup.find('meta', property='og:title')
-            title = og_title['content'].replace(' - IMDb', '') if og_title else "未知標題"
+        # 2. IMDb 電影解析
+        elif "imdb.com" in url:
+            og_title = soup.find('meta', property='og:title') or soup.find('title')
+            title = og_title['content'].replace(' - IMDb', '').strip() if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知歐美電影")
             og_img = soup.find('meta', property='og:image')
             img_url = og_img['content'] if og_img else None
             img_b64 = fetch_image_as_base64(img_url) if img_url else None
             og_desc = soup.find('meta', property='og:description')
-            summary = og_desc['content'] if og_desc else "無劇情簡介"
-            return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb 資料庫", "cover": img_b64, "url": url, "summary": summary}
-            
-        # 4. 🌟 解析 Apple Music (免費官方 API，免爬蟲、無阻擋、高畫質封面)
-        elif "music.apple.com" in url:
-            # 智慧判斷：優先找單曲 ID (?i=...)，若無則找專輯 ID (網址最後的數字)
-            track_match = re.search(r'[?&]i=(\d+)', url)
-            album_match = re.search(r'/(\d+)(?:\?|$)', url)
-            apple_id = track_match.group(1) if track_match else (album_match.group(1) if album_match else None)
-            
-            if apple_id:
-                # 呼叫 Apple 免費公開 API (免金鑰)
-                api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country=tw"
-                api_res = requests.get(api_url, timeout=10).json()
-                
-                if api_res['resultCount'] > 0:
-                    item = api_res['results'][0]
-                    # 判斷是專輯還是單曲
-                    is_track = item.get('wrapperType') == 'track'
-                    media_type = "🎵 單曲" if is_track else "🎵 專輯"
-                    
-                    title = item.get('trackName') if is_track else item.get('collectionName', '未知名稱')
-                    creator = item.get('artistName', '未知歌手')
-                    
-                    # 🌟 秘技：Apple 預設回傳 100x100 模糊封面，我們替換網址字串取得 600x600 高清版
-                    img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                    img_b64 = fetch_image_as_base64(img_url) if img_url else None
-                    
-                    summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**類型:** {item.get('primaryGenreName', '')}"
-                    
-                    return {"type": media_type, "title": title, "creator": creator, "cover": img_b64, "url": url, "summary": summary}
-            
-            return None # 若找不到 ID 則回傳失敗
+            summary = og_desc['content'] if og_desc else "無明細摘要"
+            return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb Archive", "cover": img_b64, "url": url, "summary": summary}
 
-        # 3. 解析 Amazon (音樂/實體專輯/數位版)
-        # 3. 解析 Amazon (音樂/實體專輯/數位版) - 🌟 強化防彈版
-        elif "amazon" in url:
-            # 針對 Amazon 加入更真實的 Headers，避免被 WAF 擋下
-            amazon_headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,ja;q=0.6',
-                'Accept-Encoding': 'gzip, deflate, br'
-            }
-            # 強制使用強化 headers 重新請求
-            res = scraper.get(url, headers=amazon_headers, timeout=15)
-            
-            # 如果 Amazon 回傳了 Captcha 頁面，至少我們要能識別
-            if "Type the characters you see in this image" in res.text or "To discuss automated access to Amazon data please contact" in res.text:
-                print("⚠️ 遭到 Amazon 機器人驗證牆阻擋！")
-                return {"type": "🎵 音樂/實體專輯", "title": f"Amazon 商品 (需手動補圖)", "creator": "被驗證牆阻擋", "cover": None, "url": url, "summary": f"ASIN 解析被阻擋，網址：{url}"}
-
-            soup = BeautifulSoup(res.text, 'html.parser')
-            
-            # --- 抓取標題 (多重備援) ---
-            title_tag = soup.find('span', id='productTitle') or soup.find('title') or soup.find('meta', property='og:title')
-            title = "未知專輯"
-            if title_tag:
-                if title_tag.name == 'meta':
-                    title = title_tag['content']
-                else:
-                    title = title_tag.get_text(strip=True)
-            
-            # 清洗標題
-            title = title.split(': Amazon')[0].replace('Amazon.com:', '').strip()
-            
-            # --- 抓取封面圖 (多重備援，針對黑膠/CD/數位版有不同結構) ---
-            img_url = None
-            # 策略 A: 尋找動態圖片資料屬性 (最清晰)
-            img_tag_dynamic = soup.find('img', {'data-old-hires': True}) or soup.find('img', {'data-a-dynamic-image': True})
-            if img_tag_dynamic:
-                if img_tag_dynamic.get('data-old-hires'):
-                    img_url = img_tag_dynamic['data-old-hires']
-                elif img_tag_dynamic.get('data-a-dynamic-image'):
-                    import json
-                    try:
-                        # 解析 JSON 字串找到最大尺寸的圖片
-                        img_dict = json.loads(img_tag_dynamic['data-a-dynamic-image'])
-                        img_url = list(img_dict.keys())[0] if img_dict else None
-                    except: pass
-            
-            # 策略 B: 傳統 ID 尋找
-            if not img_url:
-                img_tag_fallback = soup.find('img', id='landingImage') or soup.find('img', id='imgBlkFront') or soup.find('img', id='main-image')
-                img_url = img_tag_fallback['src'] if img_tag_fallback else None
-            
-            # 策略 C: OG Image 兜底
-            if not img_url:
-                og_img = soup.find('meta', property='og:image')
-                img_url = og_img['content'] if og_img else None
-
-            # 將抓到的圖片轉為 Base64
-            img_b64 = fetch_image_as_base64(img_url) if img_url else None
-            
-            # 如果真的什麼都抓不到，不要回傳 None 導致前端報錯，而是給一個預設卡片
-            if title == "未知專輯" and not img_b64:
-                 print("⚠️ Amazon 網頁解析失敗，可能是結構變動或區域限制。")
-                 return {"type": "🎵 音樂/專輯", "title": f"未知的 Amazon 商品", "creator": "解析失敗", "cover": None, "url": url, "summary": "請確認網址或 ASIN 碼。"}
-
-            return {"type": "🎵 實體專輯/音樂", "title": title, "creator": "Amazon", "cover": img_b64, "url": url, "summary": "由 Amazon 匯入之影音檔案"}
-            
     except Exception as e:
-        print(f"Media 解析失敗: {e}")
-        return None
+        print(f"電影網頁解析觸發防禦性兜底: {e}")
+
+    # 🌟 核心防護兜底 (IMDb/豆瓣 防火牆阻擋時的救生圈)
+    # 就算被對方的防爬蟲牆擋住，也絕對不報錯，而是將網址安全保存，轉為「手動卡片」，確保 UNIQUE 約束不崩潰
+    fallback_title = "備存電影資料"
+    if "tt" in url:
+        tt_id = re.search(r'(tt\d+)', url)
+        if tt_id: fallback_title = f"IMDb 電影 ({tt_id.group(1)})"
+        
+    return {
+        "type": "🎬 電影/影集", "title": fallback_title, "creator": "網路文獻歸檔", 
+        "cover": None, "url": url, "summary": "連結已成功安全備存。由於對方網站具備高強度反爬蟲防火牆，本卡片已自動轉為安全連結模式。"
+    }
