@@ -473,7 +473,7 @@ def add_url_backup(url_book_data):
         return False, f"寫入資料庫失敗: {e}"
 
 # ==========================================
-# 🎬 影音館 (Media Vault) 雙 API 穩定引擎
+# 🎬 影音館 (Media Vault) 雙 API 引擎 (修正版)
 # ==========================================
 
 def insert_media_db(data):
@@ -485,9 +485,10 @@ def insert_media_db(data):
         ON CONFLICT(source_url) DO UPDATE SET 
             title=excluded.title, creator=excluded.creator, cover_image=excluded.cover_image, summary=excluded.summary;
         """
+        # 🌟 精準對齊資料字典的鍵名
         args = [
-            data.get('type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
-            data.get('cover', ''), data.get('release_date', '未知時間'), data.get('url', ''),
+            data.get('media_type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
+            data.get('cover_image', ''), '未知時間', data.get('source_url', ''),
             data.get('summary', ''), datetime.utcnow().isoformat()
         ]
         db.execute(sql, args)
@@ -513,7 +514,7 @@ def delete_media_db(media_id):
     try:
         db.execute("DELETE FROM media_vault WHERE id = ?", [media_id])
     except Exception as e:
-        print(f"刪除 Media 資料失敗: {e}")
+        pass
 
 def fetch_media_by_url(user_input, force_type=None):
     """智慧 API 路由器：Apple Music API + TMDB API"""
@@ -529,7 +530,10 @@ def fetch_media_by_url(user_input, force_type=None):
             apple_id = match.group(1) if match else None
             
         if apple_id:
-            headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
             for country in ['tw', 'jp', 'us', 'hk', 'gb']:
                 try:
                     api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
@@ -542,14 +546,20 @@ def fetch_media_by_url(user_input, force_type=None):
                         title = item.get('collectionName') or item.get('trackName') or '未知名稱'
                         creator = item.get('artistName', '未知歌手')
                         img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                        img_b64 = fetch_image_base64(img_url) if img_url else None
+                        
+                        # 🌟 真正致命錯誤已修正：使用您系統原生的 fetch_image_as_base64
+                        img_b64 = fetch_image_as_base64(img_url) if img_url else None
                         summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
                         
-                        return {"type": m_type, "title": title, "creator": creator, "cover": img_b64, "url": f"https://music.apple.com/album/{apple_id}", "summary": summary}
-                except:
+                        return {
+                            "media_type": m_type, "title": title, "creator": creator, 
+                            "cover_image": img_b64, "source_url": f"https://music.apple.com/album/{apple_id}", "summary": summary
+                        }
+                except Exception as e:
+                    print(f"Apple API [{country}] 錯誤: {e}")
                     continue
                     
-        return {"type": "🎵 音樂", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知", "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "抓取失敗，已安全備存。"}
+        return {"media_type": "🎵 音樂", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知", "cover_image": None, "source_url": f"https://music.apple.com/album/{apple_id}", "summary": "抓取失敗，已安全備存。"}
 
     # --------------------------------------------------
     # 🎬 模式 B：電影 (TMDB API 突破 IMDb 限制)
@@ -572,12 +582,18 @@ def fetch_media_by_url(user_input, force_type=None):
                     title = data.get('title') or data.get('original_title') or "未知電影"
                     summary = data.get('overview', '無簡介')
                     poster_path = data.get('poster_path')
-                    img_b64 = fetch_image_base64(f"https://image.tmdb.org/t/p/w500{poster_path}") if poster_path else None
                     
-                    return {"type": "🎬 電影", "title": title, "creator": "TMDB", "cover": img_b64, "url": f"https://www.imdb.com/title/{imdb_id}/", "summary": summary}
+                    # 🌟 真正致命錯誤已修正：使用您系統原生的 fetch_image_as_base64
+                    img_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+                    img_b64 = fetch_image_as_base64(img_url) if img_url else None
+                    
+                    return {
+                        "media_type": "🎬 電影", "title": title, "creator": "TMDB", 
+                        "cover_image": img_b64, "source_url": f"https://www.imdb.com/title/{imdb_id}/", "summary": summary
+                    }
             except Exception as e:
                 print(f"TMDB API 查詢失敗: {e}")
                 
-            return {"type": "🎬 電影", "title": f"IMDb ({imdb_id})", "creator": "未知", "cover": None, "url": f"https://www.imdb.com/title/{imdb_id}/", "summary": "API 抓取失敗，安全備存。"}
+            return {"media_type": "🎬 電影", "title": f"IMDb ({imdb_id})", "creator": "未知", "cover_image": None, "source_url": f"https://www.imdb.com/title/{imdb_id}/", "summary": "API 抓取失敗，安全備存。"}
             
-    return {"type": "🎬 電影", "title": "網路備存電影", "creator": "未知", "cover": None, "url": url, "summary": "非 API 支援網址，已備存。"}
+    return {"media_type": "🎬 電影", "title": "網路備存電影", "creator": "未知", "cover_image": None, "source_url": url, "summary": "非 API 支援網址，已備存。"}
