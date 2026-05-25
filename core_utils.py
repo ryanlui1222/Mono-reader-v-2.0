@@ -496,7 +496,7 @@ def insert_media_db(data):
 def fetch_media_by_broad_type(broad_type):
     try:
         if broad_type == "Movie":
-            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' ORDER BY sort_date DESC")
+            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' OR media_type LIKE '%影集%' ORDER BY sort_date DESC")
         else:
             res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%' ORDER BY sort_date DESC")
         
@@ -514,12 +514,14 @@ def delete_media_db(media_id):
         print(f"刪除 Media 資料失敗: {e}")
 
 def fetch_media_by_url(user_input, force_type=None):
-    import json # 確保載入 JSON 解析器
+    import json 
+    import re
+    import requests
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     user_input = user_input.strip()
     
     # --------------------------------------------------
-    # 🎵 音樂模式 (支援 Apple Music 與純數字)
+    # 🎵 音樂模式 (Apple Music 測試成功版)
     # --------------------------------------------------
     if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
         apple_id = user_input
@@ -528,9 +530,8 @@ def fetch_media_by_url(user_input, force_type=None):
             apple_id = match.group(1) if match else None
             
         if apple_id:
-            # 加入真實瀏覽器 Header 避免 Apple 阻擋
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            for country in ['jp', 'tw', 'us', 'hk', 'gb']:
+            headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            for country in ['tw', 'jp', 'us', 'hk', 'gb']:
                 try:
                     api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
                     api_res = requests.get(api_url, headers=headers, timeout=10).json()
@@ -539,75 +540,44 @@ def fetch_media_by_url(user_input, force_type=None):
                         item = api_res['results'][0]
                         is_track = item.get('wrapperType') == 'track'
                         m_type = "🎵 單曲" if is_track else "🎵 專輯"
-                        title = item.get('trackName') or item.get('collectionName') or '未知名稱'
+                        title = item.get('collectionName') or item.get('trackName') or '未知名稱'
                         creator = item.get('artistName', '未知歌手')
                         img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
                         img_b64 = fetch_image_base64(img_url) if img_url else None
-                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\\n**主要風格:** {item.get('primaryGenreName', '')}"
+                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
                         
                         return {"type": m_type, "title": title, "creator": creator, "cover": img_b64, "url": f"https://music.apple.com/album/{apple_id}", "summary": summary}
-                except Exception as e:
+                except:
                     continue
                     
-        return {"type": "🎵 獨立音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "手動歸檔", "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "手動快速編號歸檔。"}
+        return {"type": "🎵 音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知", "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "自動抓取失敗，已安全備存連結。"}
 
-    # --------------------------------------------------
-    # 🎬 電影模式 (豆瓣/IMDb)
-    # --------------------------------------------------
-    url = user_input
-    if not user_input.startswith("http") and user_input.startswith("tt"):
-        url = f"https://www.imdb.com/title/{user_input}/"
-
-    try:
-        amazon_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-        res = scraper.get(url, headers=amazon_headers, timeout=15)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        if "movie.douban.com" in url:
-            title = soup.find('span', property='v:itemreviewed')
-            title = title.get_text(strip=True) if title else "未知華語電影"
-            director = soup.find('a', rel='v:directedBy')
-            director = director.get_text(strip=True) if director else "未知導演"
-            img = soup.find('img', rel='v:image')
-            img_b64 = fetch_image_base64(img['src']) if img else None
-            summary = soup.find('span', property='v:summary')
-            summary = summary.get_text(" ", strip=True) if summary else "無劇情簡介"
-            return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
+# 電影模式：改用 TMDB API 查詢 (穩定且不被封鎖)
+    if "imdb.com/title/tt" in user_input or user_input.startswith("tt"):
+        imdb_id = re.search(r'tt\d+', user_input).group(0)
+        # 這是一個公開的測試 API key，若未來失效可免費申請一個
+        api_key = "0539c381c81735a297775971431665a3" 
+        try:
+            # 1. 先用 IMDb ID 換取 TMDB ID
+            find_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={api_key}&external_source=imdb_id"
+            find_res = requests.get(find_url).json()
+            movie_data = find_res['movie_results'][0]
+            tmdb_id = movie_data['id']
             
-        elif "imdb.com" in url:
-            # 🌟 採用進階 JSON-LD 解析法，直接繞過 IMDb 的防護標籤
-            ld_json = soup.find('script', type='application/ld+json')
-            title, creator, img_b64, summary = "未知歐美電影", "IMDb Archive", None, "無明細摘要"
+            # 2. 獲取詳細資訊 (包含高畫質海報)
+            detail_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={api_key}&language=zh-TW"
+            detail_res = requests.get(detail_url).json()
             
-            if ld_json:
-                try:
-                    data = json.loads(ld_json.string)
-                    title = data.get('name', title)
-                    summary = data.get('description', summary)
-                    if data.get('image'): img_b64 = fetch_image_base64(data['image'])
-                    
-                    dir_data = data.get('director')
-                    if isinstance(dir_data, list) and len(dir_data) > 0:
-                        creator = dir_data[0].get('name', creator)
-                    elif isinstance(dir_data, dict):
-                        creator = dir_data.get('name', creator)
-                except: pass
-                
-            if title == "未知歐美電影": # JSON-LD 失效的最終兜底
-                og_title = soup.find('meta', property='og:title')
-                if og_title: title = og_title['content'].replace(' - IMDb', '').strip()
-                
-            return {"type": "🎬 電影/影集", "title": title, "creator": creator, "cover": img_b64, "url": url, "summary": summary}
-
-    except Exception as e:
-        print(f"電影網頁解析觸發防禦兜底: {e}")
-
-    fallback_title = "備存電影資料"
-    if "tt" in url:
-        tt_id = re.search(r'(tt\d+)', url)
-        if tt_id: fallback_title = f"IMDb 電影 ({tt_id.group(1)})"
-        
-    return {"type": "🎬 電影/影集", "title": fallback_title, "creator": "網路文獻歸檔", "cover": None, "url": url, "summary": "由於對方網站防護較高，已安全備存為連結卡片。"}
+            img_url = f"https://image.tmdb.org/t/p/w500{detail_res['poster_path']}"
+            img_b64 = fetch_image_base64(img_url)
+            
+            return {
+                "type": "🎬 電影",
+                "title": detail_res['title'],
+                "creator": detail_res.get('production_companies', [{}])[0].get('name', 'N/A'),
+                "cover": img_b64,
+                "url": f"https://www.imdb.com/title/{imdb_id}/",
+                "summary": detail_res['overview']
+            }
+        except Exception as e:
+            return {"type": "🎬 電影", "title": "解析失敗", "creator": "N/A", "cover": None, "url": user_input, "summary": "API 查詢失敗"}
