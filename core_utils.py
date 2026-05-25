@@ -26,7 +26,8 @@ SOURCE_URLS = {
     "Asian Review of Books": "https://asianreviewofbooks.com/",
     "The Comics Journal": "https://www.tcj.com/", "FNMNL": "https://fnmnl.tv/",
     "触乐": "https://www.chuapp.com/tag/index/id/20369.html",
-    "MCLC Resource Center": "https://u.osu.edu/mclc/list/blog/"
+    "MCLC Resource Center": "https://u.osu.edu/mclc/list/blog/",
+    "结绳志": "https://tyingknots.net/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
