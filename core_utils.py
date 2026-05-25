@@ -543,7 +543,7 @@ def fetch_apple_music_data(url_or_id):
                 item = data['results'][0]
                 # 取得高畫質封面
                 img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                img_b64 = fetch_image_as_base64(img_url) if img_url else None
+                img_b64 = get_secure_image_base64(img_url) if img_url else None
                 
                 # 嚴格匹配資料庫的 6 個欄位，杜絕 KeyError
                 return {
@@ -587,7 +587,7 @@ def fetch_movie_data(url):
                     "media_type": "🎬 電影",
                     "title": data.get('title') or data.get('original_title', '未知電影'),
                     "creator": "TMDB", 
-                    "cover_image": fetch_image_as_base64(img_url) if img_url else None,
+                    "cover_image": get_secure_image_base64(img_url) if img_url else None,
                     "source_url": target_url,
                     "summary": data.get('overview', '無簡介')
                 }
@@ -625,7 +625,7 @@ def fetch_movie_data(url):
             "media_type": "🎬 電影",
             "title": title,
             "creator": "IMDb",
-            "cover_image": fetch_image_as_base64(img_url) if img_url else None,
+            "cover_image": get_secure_image_base64(img_url) if img_url else None,
             "source_url": target_url,
             "summary": summary
         }
