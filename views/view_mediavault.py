@@ -121,7 +121,6 @@ def render_page():
             if st.button("快存卡片", use_container_width=True, type="primary", key="res_btn_key"):
                 if res_url.startswith("http"):
                     with st.spinner("正在快取分享卡片資訊..."):
-                        # 🌟 修正1：精準對齊您的 add_custom_resource 參數 (folder, url)
                         if core_utils.add_custom_resource("media_vault", res_url):
                             st.success("🌐 分享卡片已加入備存清單！")
                             st.rerun()
@@ -129,7 +128,6 @@ def render_page():
                 
         st.markdown("---")
         
-        # 🌟 修正2：精準對齊您的 fetch_custom_resources 參數 (folder) 並且處理 Pandas DataFrame
         df_res = core_utils.fetch_custom_resources("media_vault")
         if df_res is None or df_res.empty:
             st.info("📦 目前還沒有儲存任何社群資源卡片。")
@@ -149,13 +147,11 @@ def render_page():
                             current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
                             new_comment = st.text_area("添加自訂備註/筆記:", value=current_comment, key=f"edit_c_{row['id']}")
                             
-                            # 🌟 修正3：精準對齊您的 update_custom_resource 參數 (id, title, comment)
                             if st.button("💾 保存修改", key=f"save_c_{row['id']}", use_container_width=True):
                                 core_utils.update_custom_resource(row['id'], new_title, new_comment)
                                 st.rerun()
                                 
                             st.divider()
-                            # 🌟 修正4：精準對齊您的 delete_custom_resource 參數 (id)
                             if st.button("🗑️ 徹底刪除", key=f"del_card_{row['id']}", type="primary", use_container_width=True):
                                 core_utils.delete_custom_resource(row['id'])
                                 st.rerun()
