@@ -520,7 +520,7 @@ def fetch_media_by_url(user_input, force_type=None):
     user_input = user_input.strip()
     
     # --------------------------------------------------
-    # 🎵 模式 A：音樂 (Apple Music API) - 測試成功版
+    # 🎵 模式 A：音樂 (Apple Music API)
     # --------------------------------------------------
     if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
         apple_id = user_input
@@ -552,18 +552,16 @@ def fetch_media_by_url(user_input, force_type=None):
         return {"type": "🎵 音樂", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知", "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "抓取失敗，已安全備存。"}
 
     # --------------------------------------------------
-    # 🎬 模式 B：電影 (TMDB API 突破 IMDb 202 限制)
+    # 🎬 模式 B：電影 (TMDB API 突破 IMDb 限制)
     # --------------------------------------------------
     url = user_input
     if not user_input.startswith("http") and user_input.startswith("tt"):
         url = f"https://www.imdb.com/title/{user_input}/"
 
-    # 如果有 IMDb 的 tt 代碼，直接呼叫 TMDB API
     if "tt" in url:
         match = re.search(r'(tt\d+)', url)
         if match:
             imdb_id = match.group(1)
-            # 使用 TMDB 公開測試金鑰
             tmdb_api_key = "0539c381c81735a297775971431665a3"
             try:
                 tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_api_key}&external_source=imdb_id&language=zh-TW"
@@ -576,11 +574,10 @@ def fetch_media_by_url(user_input, force_type=None):
                     poster_path = data.get('poster_path')
                     img_b64 = fetch_image_base64(f"https://image.tmdb.org/t/p/w500{poster_path}") if poster_path else None
                     
-                    return {"type": "🎬 電影", "title": title, "creator": "TMDB 資料庫", "cover": img_b64, "url": f"https://www.imdb.com/title/{imdb_id}/", "summary": summary}
+                    return {"type": "🎬 電影", "title": title, "creator": "TMDB", "cover": img_b64, "url": f"https://www.imdb.com/title/{imdb_id}/", "summary": summary}
             except Exception as e:
                 print(f"TMDB API 查詢失敗: {e}")
                 
             return {"type": "🎬 電影", "title": f"IMDb ({imdb_id})", "creator": "未知", "cover": None, "url": f"https://www.imdb.com/title/{imdb_id}/", "summary": "API 抓取失敗，安全備存。"}
             
-    # 豆瓣等其他網站的防禦性兜底
     return {"type": "🎬 電影", "title": "網路備存電影", "creator": "未知", "cover": None, "url": url, "summary": "非 API 支援網址，已備存。"}
