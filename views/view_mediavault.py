@@ -15,7 +15,7 @@ def render_page():
         st.markdown("### 📥 引入電影文獻")
         col_m_in, col_m_btn = st.columns([5, 1])
         with col_m_in:
-            movie_input = st.text_input("輸入網址或代碼：", placeholder="貼上 IMDb 網址、豆瓣電影網址，或直接輸入 IMDb ID (例如: tt4003440)", label_visibility="collapsed", key="movie_in_key")
+            movie_input = st.text_input("輸入網址或代碼：", placeholder="貼上 IMDb/豆瓣網址，或輸入 IMDb ID (tt4003440)", label_visibility="collapsed", key="movie_in_key")
         with col_m_btn:
             if st.button("加入電影庫", use_container_width=True, type="primary", key="movie_btn_key"):
                 if movie_input:
@@ -25,7 +25,7 @@ def render_page():
                             core_utils.insert_media_db(m_data)
                             st.success("🎬 電影已成功加入歸檔！")
                             st.rerun()
-                else: st.warning("請先輸入電影網址或 ID。")
+                else: st.warning("請先輸入網址或 ID。")
                 
         st.markdown("---")
         
@@ -33,27 +33,29 @@ def render_page():
         if not movies:
             st.info("📦 目前電影館空空如也。")
         else:
-            # 🌟 絕對安全的 5 欄排列法 (不再使用巢狀迴圈 index 數學)
-            cols = st.columns(5)
-            for idx, item in enumerate(movies):
-                with cols[idx % 5]: # 自動依序派發至 5 個直欄內
-                    with st.container():
-                        cover_data = item.get('cover_image')
-                        if cover_data:
-                            img_src = f"data:image/jpeg;base64,{cover_data}" if not str(cover_data).startswith("http") else cover_data
-                            st.markdown(f'<img src="{img_src}" style="width:100%; aspect-ratio: 2/3; border-radius:6px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-bottom:8px; object-fit: cover;">', unsafe_allow_html=True)
-                        else:
-                            st.markdown('<div style="width:100%; aspect-ratio: 2/3; background-color:#262626; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#525252; font-size:12px;">🎬 No Cover</div>', unsafe_allow_html=True)
-                        
-                        st.markdown(f"**{item.get('title', '未知標題')}**")
-                        st.caption(f"👤 {item.get('creator', '未知來源')}")
-                        
-                        with st.popover("⚙️ 管理", use_container_width=True):
-                            st.caption(item.get('summary', '無簡介'))
-                            st.markdown(f"[🔗 前往來源網頁]({item.get('source_url', '#')})")
-                            if st.button("🗑️ 確定抹除", key=f"del_m_{item.get('id')}", type="primary", use_container_width=True):
-                                core_utils.delete_media_db(item.get('id'))
-                                st.rerun()
+            # 🌟 絕對安全的 Chunk 切割排版法
+            for i in range(0, len(movies), 5):
+                chunk = movies[i:i+5]
+                cols = st.columns(5)
+                for j, item in enumerate(chunk):
+                    with cols[j]:
+                        with st.container():
+                            cover_data = item.get('cover_image')
+                            if cover_data:
+                                img_src = f"data:image/jpeg;base64,{cover_data}" if not str(cover_data).startswith("http") else cover_data
+                                st.markdown(f'<img src="{img_src}" style="width:100%; aspect-ratio: 2/3; border-radius:6px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-bottom:8px; object-fit: cover;">', unsafe_allow_html=True)
+                            else:
+                                st.markdown('<div style="width:100%; aspect-ratio: 2/3; background-color:#262626; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#525252; font-size:12px;">🎬 No Cover</div>', unsafe_allow_html=True)
+                            
+                            st.markdown(f"**{item.get('title', '未知標題')}**")
+                            st.caption(f"👤 {item.get('creator', '未知來源')}")
+                            
+                            with st.popover("⚙️ 管理", use_container_width=True):
+                                st.caption(item.get('summary', '無簡介'))
+                                st.markdown(f"[🔗 前往來源網頁]({item.get('source_url', '#')})")
+                                if st.button("🗑️ 確定抹除", key=f"del_m_{item.get('id')}", type="primary", use_container_width=True):
+                                    core_utils.delete_media_db(item.get('id'))
+                                    st.rerun()
                         st.markdown("<br>", unsafe_allow_html=True)
 
     # ====================================================================
@@ -63,7 +65,7 @@ def render_page():
         st.markdown("### 📥 引入音樂檔案")
         col_mu_in, col_mu_btn = st.columns([5, 1])
         with col_mu_in:
-            music_input = st.text_input("輸入 Apple Music ID 或網址：", placeholder="例如直接輸入純數字: 1530598395 (或是整串 music.apple.com 網址)", label_visibility="collapsed", key="music_in_key")
+            music_input = st.text_input("輸入 Apple Music ID 或網址：", placeholder="例如直接輸入純數字: 1530598395", label_visibility="collapsed", key="music_in_key")
         with col_mu_btn:
             if st.button("加入音樂庫", use_container_width=True, type="primary", key="music_btn_key"):
                 if music_input:
@@ -81,26 +83,29 @@ def render_page():
         if not music_list:
             st.info("📦 目前音樂館尚無收藏。")
         else:
-            cols = st.columns(5)
-            for idx, item in enumerate(music_list):
-                with cols[idx % 5]:
-                    with st.container():
-                        cover_data = item.get('cover_image')
-                        if cover_data:
-                            img_src = f"data:image/jpeg;base64,{cover_data}" if not str(cover_data).startswith("http") else cover_data
-                            st.markdown(f'<img src="{img_src}" style="width:100%; aspect-ratio: 1/1; border-radius:6px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-bottom:8px; object-fit: cover;">', unsafe_allow_html=True)
-                        else:
-                            st.markdown('<div style="width:100%; aspect-ratio: 1/1; background-color:#262626; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#525252; font-size:12px;">🎵 No Cover</div>', unsafe_allow_html=True)
-                        
-                        st.markdown(f"**{item.get('title', '未知標題')}**")
-                        st.caption(f"🎤 {item.get('creator', '未知歌手')} | {item.get('media_type', '音樂')}")
-                        
-                        with st.popover("⚙️ 管理", use_container_width=True):
-                            st.write(item.get('summary', ''))
-                            st.markdown(f"[🔗 前往 Apple Music]({item.get('source_url', '#')})")
-                            if st.button("🗑️ 確定抹除", key=f"del_mu_{item.get('id')}", type="primary", use_container_width=True):
-                                core_utils.delete_media_db(item.get('id'))
-                                st.rerun()
+            # 🌟 絕對安全的 Chunk 切割排版法
+            for i in range(0, len(music_list), 5):
+                chunk = music_list[i:i+5]
+                cols = st.columns(5)
+                for j, item in enumerate(chunk):
+                    with cols[j]:
+                        with st.container():
+                            cover_data = item.get('cover_image')
+                            if cover_data:
+                                img_src = f"data:image/jpeg;base64,{cover_data}" if not str(cover_data).startswith("http") else cover_data
+                                st.markdown(f'<img src="{img_src}" style="width:100%; aspect-ratio: 1/1; border-radius:6px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); margin-bottom:8px; object-fit: cover;">', unsafe_allow_html=True)
+                            else:
+                                st.markdown('<div style="width:100%; aspect-ratio: 1/1; background-color:#262626; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#525252; font-size:12px;">🎵 No Cover</div>', unsafe_allow_html=True)
+                            
+                            st.markdown(f"**{item.get('title', '未知標題')}**")
+                            st.caption(f"🎤 {item.get('creator', '未知歌手')} | {item.get('media_type', '音樂')}")
+                            
+                            with st.popover("⚙️ 管理", use_container_width=True):
+                                st.write(item.get('summary', ''))
+                                st.markdown(f"[🔗 前往 Apple Music]({item.get('source_url', '#')})")
+                                if st.button("🗑️ 確定抹除", key=f"del_mu_{item.get('id')}", type="primary", use_container_width=True):
+                                    core_utils.delete_media_db(item.get('id'))
+                                    st.rerun()
                         st.markdown("<br>", unsafe_allow_html=True)
 
     # ====================================================================
@@ -108,11 +113,11 @@ def render_page():
     # ====================================================================
     with tab_resource:
         st.markdown("### 🌐 快收網路社群與卡片連結")
-        st.caption("此分頁不進行複雜的影視音爬蟲，僅擷取網站的分享元標籤 (OG Card)，適合備存 Twitter、Facebook 貼文。")
+        st.caption("此分頁適合備存 Twitter、Facebook 貼文。")
         
         col_res_in, col_res_btn = st.columns([5, 1])
         with col_res_in:
-            res_url = st.text_input("貼上社群或外部資源網址：", placeholder="https://x.com/... 或 https://facebook.com/...", label_visibility="collapsed", key="res_in_key")
+            res_url = st.text_input("貼上社群或外部資源網址：", placeholder="https://x.com/...", label_visibility="collapsed", key="res_in_key")
         with col_res_btn:
             if st.button("快存卡片", use_container_width=True, type="primary", key="res_btn_key"):
                 if res_url.startswith("http"):
