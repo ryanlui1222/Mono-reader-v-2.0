@@ -1,5 +1,6 @@
 import streamlit as st
 import core_utils
+import pandas as pd
 
 def render_page():
     st.header("🎬 影音與網路資源館 (Media Vault)")
@@ -33,7 +34,6 @@ def render_page():
         if not movies:
             st.info("📦 目前電影館空空如也。")
         else:
-            # 🌟 絕對安全的 Chunk 切割排版法 (5欄)
             for i in range(0, len(movies), 5):
                 chunk = movies[i:i+5]
                 cols = st.columns(5)
@@ -121,40 +121,42 @@ def render_page():
             if st.button("快存卡片", use_container_width=True, type="primary", key="res_btn_key"):
                 if res_url.startswith("http"):
                     with st.spinner("正在快取分享卡片資訊..."):
-                        if core_utils.add_custom_resource(res_url, module='media_vault'):
+                        # 🌟 修正1：精準對齊您的 add_custom_resource 參數 (folder, url)
+                        if core_utils.add_custom_resource("media_vault", res_url):
                             st.success("🌐 分享卡片已加入備存清單！")
                             st.rerun()
                 else: st.warning("請輸入完整的 http 網址。")
                 
         st.markdown("---")
         
-        res_cards = core_utils.fetch_custom_resources(module='media_vault')
-        if not res_cards:
+        # 🌟 修正2：精準對齊您的 fetch_custom_resources 參數 (folder) 並且處理 Pandas DataFrame
+        df_res = core_utils.fetch_custom_resources("media_vault")
+        if df_res is None or df_res.empty:
             st.info("📦 目前還沒有儲存任何社群資源卡片。")
         else:
-            for card in res_cards:
+            for _, row in df_res.iterrows():
                 with st.container():
                     col_card_meta, col_card_opt = st.columns([5, 1])
                     with col_card_meta:
-                        st.markdown(f"#### [{card.get('title', '無標題')}]({card.get('url', '#')})")
-                        st.caption(f"🔗 來源網址: {card.get('url', '#')}")
-                        if card.get('comment'):
-                            st.info(card['comment'])
+                        st.markdown(f"#### [{row.get('title', '無標題')}]({row.get('url', '#')})")
+                        st.caption(f"🔗 來源網址: {row.get('url', '#')}")
+                        if pd.notna(row.get('comment')) and str(row.get('comment')).strip():
+                            st.info(row['comment'])
                             
                     with col_card_opt:
                         with st.popover("⚙️ 管理卡片", use_container_width=True):
-                            new_title = st.text_input("修改卡片名稱:", value=card.get('title', ''), key=f"edit_t_{card.get('id')}")
-                            if new_title != card.get('title', ''):
-                                core_utils.update_custom_resource_title(card.get('id'), new_title)
-                                st.rerun()
-                                
-                            new_comment = st.text_area("添加自訂備註/筆記:", value=card.get('comment', ''), key=f"edit_c_{card.get('id')}")
-                            if st.button("💾 保存備註", key=f"save_c_{card.get('id')}", use_container_width=True):
-                                core_utils.update_custom_resource_comment(card.get('id'), new_comment)
+                            new_title = st.text_input("修改卡片名稱:", value=row.get('title', ''), key=f"edit_t_{row['id']}")
+                            current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                            new_comment = st.text_area("添加自訂備註/筆記:", value=current_comment, key=f"edit_c_{row['id']}")
+                            
+                            # 🌟 修正3：精準對齊您的 update_custom_resource 參數 (id, title, comment)
+                            if st.button("💾 保存修改", key=f"save_c_{row['id']}", use_container_width=True):
+                                core_utils.update_custom_resource(row['id'], new_title, new_comment)
                                 st.rerun()
                                 
                             st.divider()
-                            if st.button("🗑️ 徹底刪除", key=f"del_card_{card.get('id')}", type="primary", use_container_width=True):
-                                core_utils.delete_custom_resource(card.get('id'))
+                            # 🌟 修正4：精準對齊您的 delete_custom_resource 參數 (id)
+                            if st.button("🗑️ 徹底刪除", key=f"del_card_{row['id']}", type="primary", use_container_width=True):
+                                core_utils.delete_custom_resource(row['id'])
                                 st.rerun()
                 st.markdown("<br>", unsafe_allow_html=True)
