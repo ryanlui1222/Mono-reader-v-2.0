@@ -561,72 +561,72 @@ def fetch_apple_music_data(url_or_id):
     return None
 
 def fetch_movie_data(url):
-    """擷取電影資料 (TMDB API 優先 -> IMDb JSON-LD 備援)"""
+    """擷取電影資料 (TMDB API 優先 -> IMDb 備援)"""
     import streamlit as st
     
-    # 提取 IMDb ID (例如 tt4003440)
     match = re.search(r'(tt\d+)', url)
     if not match:
         return None
     imdb_id = match.group(1)
     target_url = f"https://www.imdb.com/title/{imdb_id}/"
 
-    # 策略 A：嘗試使用 TMDB API (若有設定金鑰)
-    # 建議您在 Streamlit Community Cloud 的 Secrets 中加入 TMDB_API_KEY
     tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
     if tmdb_key:
-        tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
         try:
+            tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
             res = requests.get(tmdb_url, timeout=10).json()
             if res.get('movie_results'):
                 data = res['movie_results'][0]
-                poster_path = data.get('poster_path')
-                img_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
-                
+                img_url = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get('poster_path') else None
                 return {
-                    "media_type": "🎬 電影",
+                    "media_type": "🎬 電影", 
                     "title": data.get('title') or data.get('original_title', '未知電影'),
                     "creator": "TMDB", 
-                    "cover_image": get_secure_image_base64(img_url) if img_url else None,
-                    "source_url": target_url,
+                    "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
+                    "source_url": target_url, 
                     "summary": data.get('overview', '無簡介')
                 }
         except Exception as e:
             print(f"TMDB 解析失敗: {e}")
 
-    # 策略 B：Cloudscraper 強行解析 IMDb 底層 JSON-LD
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    # 策略 B：捨棄 Cloudscraper，改用 requests 強偽裝抓取 OG 標籤
     try:
-        res = scraper.get(target_url, timeout=15)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9'
+        }
+        res = requests.get(target_url, headers=headers, timeout=15)
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 尋找 Next.js 頁面中的 JSON-LD
         ld_json = soup.find('script', type='application/ld+json')
         title = f"IMDb ({imdb_id})"
         img_url = None
-        summary = "IMDb 直接抓取"
+        summary = "IMDb 備存"
 
         if ld_json:
-            data = json.loads(ld_json.string)
-            # IMDb 的 JSON-LD 可能是陣列或單一物件
-            if isinstance(data, list):
-                data = data[0]
-            title = data.get('name', title)
-            img_url = data.get('image')
-            summary = data.get('description', summary)
-        else:
-            # 最低限度備援：OG 標籤
-            og_title = soup.find('meta', property='og:title')
+            try:
+                data = json.loads(ld_json.string)
+                if isinstance(data, list): data = data[0]
+                title = data.get('name', title)
+                img_url = data.get('image')
+                summary = data.get('description', summary)
+            except: pass
+        
+        # 雙重防護：如果 JSON-LD 失敗，強制抓 OG 標籤
+        if not img_url:
             og_img = soup.find('meta', property='og:image')
-            if og_title: title = og_title['content']
             if og_img: img_url = og_img['content']
+            
+        if title == f"IMDb ({imdb_id})":
+            og_title = soup.find('meta', property='og:title')
+            if og_title: title = og_title['content'].replace(" - IMDb", "")
 
         return {
-            "media_type": "🎬 電影",
-            "title": title,
+            "media_type": "🎬 電影", 
+            "title": title, 
             "creator": "IMDb",
-            "cover_image": get_secure_image_base64(img_url) if img_url else None,
-            "source_url": target_url,
+            "cover_image": get_secure_image_base64(img_url, "imdb") if img_url else None,
+            "source_url": target_url, 
             "summary": summary
         }
     except Exception as e:
