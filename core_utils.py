@@ -477,16 +477,12 @@ def add_url_backup(url_book_data):
 # ==========================================
 
 def insert_media_db(data):
-    """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版)"""
     try:
         sql = """
         INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(source_url) DO UPDATE SET 
-            title=excluded.title,
-            creator=excluded.creator,
-            cover_image=excluded.cover_image,
-            summary=excluded.summary;
+            title=excluded.title, creator=excluded.creator, cover_image=excluded.cover_image, summary=excluded.summary;
         """
         args = [
             data.get('type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
@@ -498,17 +494,13 @@ def insert_media_db(data):
         print(f"寫入 Media 資料庫失敗: {e}")
 
 def fetch_media_by_broad_type(broad_type):
-    """依照大分類 (電影 或 音樂) 讀取資料庫數據 (欄位名稱強制小寫標準化化)"""
     try:
         if broad_type == "Movie":
             res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' ORDER BY sort_date DESC")
         else:
             res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%' ORDER BY sort_date DESC")
         
-        if not res.rows:
-            return []
-            
-        # 🌟 關鍵核心修復：強制將 res.columns 轉為小寫，防止大小寫變異導致前端 KeyError
+        if not res.rows: return []
         lowercase_columns = [c.lower() for c in res.columns]
         return [dict(zip(lowercase_columns, row)) for row in res.rows]
     except Exception as e:
@@ -516,19 +508,18 @@ def fetch_media_by_broad_type(broad_type):
         return []
 
 def delete_media_db(media_id):
-    """手動刪除影音館資料"""
     try:
         db.execute("DELETE FROM media_vault WHERE id = ?", [media_id])
     except Exception as e:
         print(f"刪除 Media 資料失敗: {e}")
 
 def fetch_media_by_url(user_input, force_type=None):
-    """智慧影音路由器：支持電影智慧判別、音樂純數字 ID 智慧區域輪詢、以及防崩潰安全兜底"""
+    import json # 確保載入 JSON 解析器
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     user_input = user_input.strip()
     
     # --------------------------------------------------
-    # 🎵 模式 A：純數字輸入 或 Apple Music 網址 (音樂類)
+    # 🎵 音樂模式 (支援 Apple Music 與純數字)
     # --------------------------------------------------
     if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
         apple_id = user_input
@@ -537,35 +528,31 @@ def fetch_media_by_url(user_input, force_type=None):
             apple_id = match.group(1) if match else None
             
         if apple_id:
-            for country in ['jp', 'tw', 'us', 'hk']:
+            # 加入真實瀏覽器 Header 避免 Apple 阻擋
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            for country in ['jp', 'tw', 'us', 'hk', 'gb']:
                 try:
                     api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
-                    api_res = requests.get(api_url, timeout=10).json()
+                    api_res = requests.get(api_url, headers=headers, timeout=10).json()
+                    
                     if api_res.get('resultCount', 0) > 0:
                         item = api_res['results'][0]
                         is_track = item.get('wrapperType') == 'track'
                         m_type = "🎵 單曲" if is_track else "🎵 專輯"
-                        title = item.get('trackName') if is_track else item.get('collectionName', '未知名稱')
+                        title = item.get('trackName') or item.get('collectionName') or '未知名稱'
                         creator = item.get('artistName', '未知歌手')
                         img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                        
                         img_b64 = fetch_image_base64(img_url) if img_url else None
-                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
+                        summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\\n**主要風格:** {item.get('primaryGenreName', '')}"
                         
-                        return {
-                            "type": m_type, "title": title, "creator": creator, "cover": img_b64, 
-                            "url": f"https://music.apple.com/album/{apple_id}", "summary": summary
-                        }
-                except:
+                        return {"type": m_type, "title": title, "creator": creator, "cover": img_b64, "url": f"https://music.apple.com/album/{apple_id}", "summary": summary}
+                except Exception as e:
                     continue
                     
-        return {
-            "type": "🎵 獨立音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知藝術家", 
-            "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "手動快速編號歸檔。"
-        }
+        return {"type": "🎵 獨立音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "手動歸檔", "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "手動快速編號歸檔。"}
 
     # --------------------------------------------------
-    # 🎬 模式 B：電影與影集 (豆瓣/IMDb 智慧判別)
+    # 🎬 電影模式 (豆瓣/IMDb)
     # --------------------------------------------------
     url = user_input
     if not user_input.startswith("http") and user_input.startswith("tt"):
@@ -574,39 +561,53 @@ def fetch_media_by_url(user_input, force_type=None):
     try:
         amazon_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
         }
         res = scraper.get(url, headers=amazon_headers, timeout=15)
         soup = BeautifulSoup(res.text, 'html.parser')
         
         if "movie.douban.com" in url:
-            title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知華語電影"
-            director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else "未知導演"
-            img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
-            img_b64 = fetch_image_base64(img_url) if img_url else None
-            summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else "無劇情簡介"
+            title = soup.find('span', property='v:itemreviewed')
+            title = title.get_text(strip=True) if title else "未知華語電影"
+            director = soup.find('a', rel='v:directedBy')
+            director = director.get_text(strip=True) if director else "未知導演"
+            img = soup.find('img', rel='v:image')
+            img_b64 = fetch_image_base64(img['src']) if img else None
+            summary = soup.find('span', property='v:summary')
+            summary = summary.get_text(" ", strip=True) if summary else "無劇情簡介"
             return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
             
         elif "imdb.com" in url:
-            og_title = soup.find('meta', property='og:title') or soup.find('title')
-            title = og_title['content'].replace(' - IMDb', '').strip() if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知歐美電影")
-            og_img = soup.find('meta', property='og:image')
-            img_url = og_img['content'] if og_img else None
-            img_b64 = fetch_image_base64(img_url) if img_url else None
-            og_desc = soup.find('meta', property='og:description')
-            summary = og_desc['content'] if og_desc else "無明細摘要"
-            return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb Archive", "cover": img_b64, "url": url, "summary": summary}
+            # 🌟 採用進階 JSON-LD 解析法，直接繞過 IMDb 的防護標籤
+            ld_json = soup.find('script', type='application/ld+json')
+            title, creator, img_b64, summary = "未知歐美電影", "IMDb Archive", None, "無明細摘要"
+            
+            if ld_json:
+                try:
+                    data = json.loads(ld_json.string)
+                    title = data.get('name', title)
+                    summary = data.get('description', summary)
+                    if data.get('image'): img_b64 = fetch_image_base64(data['image'])
+                    
+                    dir_data = data.get('director')
+                    if isinstance(dir_data, list) and len(dir_data) > 0:
+                        creator = dir_data[0].get('name', creator)
+                    elif isinstance(dir_data, dict):
+                        creator = dir_data.get('name', creator)
+                except: pass
+                
+            if title == "未知歐美電影": # JSON-LD 失效的最終兜底
+                og_title = soup.find('meta', property='og:title')
+                if og_title: title = og_title['content'].replace(' - IMDb', '').strip()
+                
+            return {"type": "🎬 電影/影集", "title": title, "creator": creator, "cover": img_b64, "url": url, "summary": summary}
 
     except Exception as e:
-        print(f"電影網頁解析觸發防禦性兜底: {e}")
+        print(f"電影網頁解析觸發防禦兜底: {e}")
 
     fallback_title = "備存電影資料"
     if "tt" in url:
         tt_id = re.search(r'(tt\d+)', url)
         if tt_id: fallback_title = f"IMDb 電影 ({tt_id.group(1)})"
         
-    return {
-        "type": "🎬 電影/影集", "title": fallback_title, "creator": "網路文獻歸檔", 
-        "cover": None, "url": url, "summary": "連結已成功安全備存。由於對方網站具備高強度反爬蟲防火牆，本卡片已自動轉為安全連結模式。"
-    }
+    return {"type": "🎬 電影/影集", "title": fallback_title, "creator": "網路文獻歸檔", "cover": None, "url": url, "summary": "由於對方網站防護較高，已安全備存為連結卡片。"}
