@@ -498,13 +498,19 @@ def insert_media_db(data):
         print(f"寫入 Media 資料庫失敗: {e}")
 
 def fetch_media_by_broad_type(broad_type):
-    """依照大分類 (電影 或 音樂) 讀取資料庫數據"""
+    """依照大分類 (電影 或 音樂) 讀取資料庫數據 (欄位名稱強制小寫標準化化)"""
     try:
         if broad_type == "Movie":
             res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' ORDER BY sort_date DESC")
         else:
             res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%' ORDER BY sort_date DESC")
-        return [dict(zip(res.columns, row)) for row in res.rows] if res.rows else []
+        
+        if not res.rows:
+            return []
+            
+        # 🌟 關鍵核心修復：強制將 res.columns 轉為小寫，防止大小寫變異導致前端 KeyError
+        lowercase_columns = [c.lower() for c in res.columns]
+        return [dict(zip(lowercase_columns, row)) for row in res.rows]
     except Exception as e:
         print(f"讀取 Media 資料庫失敗: {e}")
         return []
@@ -527,12 +533,10 @@ def fetch_media_by_url(user_input, force_type=None):
     if force_type == "Music" or user_input.isdigit() or "music.apple.com" in user_input:
         apple_id = user_input
         if not user_input.isdigit():
-            # 從網址中萃取出純數字 ID
             match = re.search(r'/id(\d+)', user_input) or re.search(r'/(\d+)(?:\?|$)', user_input)
             apple_id = match.group(1) if match else None
             
         if apple_id:
-            # 智慧區域輪詢機制 (依序測試 日本、台灣、美國、香港)
             for country in ['jp', 'tw', 'us', 'hk']:
                 try:
                     api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
@@ -545,9 +549,7 @@ def fetch_media_by_url(user_input, force_type=None):
                         creator = item.get('artistName', '未知歌手')
                         img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
                         
-                        # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
                         img_b64 = fetch_image_base64(img_url) if img_url else None
-                        
                         summary = f"**發行時間:** {item.get('releaseDate', '')[:10]}\n**主要風格:** {item.get('primaryGenreName', '')}"
                         
                         return {
@@ -557,7 +559,6 @@ def fetch_media_by_url(user_input, force_type=None):
                 except:
                     continue
                     
-        # 如果音樂完全查不到，啟動安全防護兜底
         return {
             "type": "🎵 獨立音樂備存", "title": f"音樂典藏 (ID: {apple_id})", "creator": "未知藝術家", 
             "cover": None, "url": f"https://music.apple.com/album/{apple_id}", "summary": "手動快速編號歸檔。"
@@ -579,28 +580,20 @@ def fetch_media_by_url(user_input, force_type=None):
         res = scraper.get(url, headers=amazon_headers, timeout=15)
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 1. 豆瓣電影解析
         if "movie.douban.com" in url:
             title = soup.find('span', property='v:itemreviewed').get_text(strip=True) if soup.find('span', property='v:itemreviewed') else "未知華語電影"
             director = soup.find('a', rel='v:directedBy').get_text(strip=True) if soup.find('a', rel='v:directedBy') else "未知導演"
             img_url = soup.find('img', rel='v:image')['src'] if soup.find('img', rel='v:image') else None
-            
-            # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
             img_b64 = fetch_image_base64(img_url) if img_url else None
-            
             summary = soup.find('span', property='v:summary').get_text(" ", strip=True) if soup.find('span', property='v:summary') else "無劇情簡介"
             return {"type": "🎬 電影/影集", "title": title, "creator": director, "cover": img_b64, "url": url, "summary": summary}
             
-        # 2. IMDb 電影解析
         elif "imdb.com" in url:
             og_title = soup.find('meta', property='og:title') or soup.find('title')
             title = og_title['content'].replace(' - IMDb', '').strip() if og_title and og_title.name == 'meta' else (og_title.get_text(strip=True) if og_title else "未知歐美電影")
             og_img = soup.find('meta', property='og:image')
             img_url = og_img['content'] if og_img else None
-            
-            # 🌟 修正：使用正確的系統內建函式名 fetch_image_base64
             img_b64 = fetch_image_base64(img_url) if img_url else None
-            
             og_desc = soup.find('meta', property='og:description')
             summary = og_desc['content'] if og_desc else "無明細摘要"
             return {"type": "🎬 電影/影集", "title": title, "creator": "IMDb Archive", "cover": img_b64, "url": url, "summary": summary}
@@ -608,7 +601,6 @@ def fetch_media_by_url(user_input, force_type=None):
     except Exception as e:
         print(f"電影網頁解析觸發防禦性兜底: {e}")
 
-    # 核心防護兜底 (IMDb/豆瓣 防火牆阻擋時的救生圈)
     fallback_title = "備存電影資料"
     if "tt" in url:
         tt_id = re.search(r'(tt\d+)', url)
