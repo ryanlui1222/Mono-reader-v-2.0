@@ -521,8 +521,8 @@ def main():
         ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
-        ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center," 15, False)
-        ("https://tyingknots.net/feed/", "结绳志," 15, False)
+        ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False)
+        ("https://tyingknots.net/feed/", "结绳志", 15, False)
         
     ]
     
