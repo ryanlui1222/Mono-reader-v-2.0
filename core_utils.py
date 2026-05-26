@@ -560,6 +560,7 @@ def fetch_apple_music_data(url_or_id):
             
     return None
 
+# 請將這個更新後的函數覆蓋原有的 fetch_movie_data
 def fetch_movie_data(url):
     """擷取電影資料 (TMDB API 優先 -> IMDb 備援)，支援抓取導演"""
     import streamlit as st
@@ -645,6 +646,7 @@ def fetch_movie_data(url):
     except Exception as e:
         print(f"IMDb 爬蟲失敗: {e}")
         return None
+
 # ==========================================
 # 請將以下兩個新函數加到 core_utils.py 的最底端
 # 負責批量管理功能的 SQLite 執行
