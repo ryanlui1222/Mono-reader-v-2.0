@@ -632,3 +632,26 @@ def fetch_movie_data(url):
     except Exception as e:
         print(f"IMDb 爬蟲失敗: {e}")
         return None
+# ==========================================
+# 請將以下兩個新函數加到 core_utils.py 的最底端
+# 負責批量管理功能的 SQLite 執行
+# ==========================================
+def batch_delete_media(media_ids):
+    """批量徹底刪除資源"""
+    if not media_ids: return
+    try:
+        placeholders = ','.join(['?'] * len(media_ids))
+        db.execute(f"DELETE FROM media_vault WHERE id IN ({placeholders})", media_ids)
+        st.toast("🗑️ 批量刪除成功！")
+    except Exception as e:
+        st.error(f"批量刪除失敗: {e}")
+
+def batch_toggle_media_bookmark(media_ids, to_state):
+    """批量修改書籤最愛狀態 (to_state: 1 為最愛，0 為移除)"""
+    if not media_ids: return
+    try:
+        placeholders = ','.join(['?'] * len(media_ids))
+        db.execute(f"UPDATE media_vault SET is_bookmarked = ? WHERE id IN ({placeholders})", [to_state] + media_ids)
+        st.toast("⭐ 批量書籤狀態已更新！")
+    except Exception as e:
+        st.error(f"批量更新書籤失敗: {e}")
