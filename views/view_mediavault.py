@@ -1,17 +1,17 @@
 import streamlit as st
 import core_utils
-import pandas as pd
 import math
+import pandas as pd
 
-def render_media_gallery(media_list, tab_name, style_type="movie"):
+def render_media_gallery(media_list, tab_name, style_type="movie", current_view_state=1):
     """通用的畫廊渲染器：處理分頁、UI排版與批量管理的核取方塊"""
     if not media_list:
-        st.info("目前尚無收藏。")
+        st.info("📦 此清單目前尚無收藏。")
         return
         
     ITEMS_PER_PAGE = 20
     total_pages = max(1, math.ceil(len(media_list) / ITEMS_PER_PAGE))
-    page_key = f"{tab_name}_page"
+    page_key = f"{tab_name}_{current_view_state}_page"
     
     if page_key not in st.session_state:
         st.session_state[page_key] = 1
@@ -28,10 +28,8 @@ def render_media_gallery(media_list, tab_name, style_type="movie"):
         col_idx = i % 5
         with cols[col_idx]:
             with st.container(border=True):
-                
                 # [管理模式] 核取方塊
                 if st.session_state.get("media_edit_mode", False):
-                    # 使用 Callback 防止 Streamlit 重刷新丟失狀態
                     def toggle_cb(m_id):
                         if st.session_state[f"sel_{m_id}"]:
                             if m_id not in st.session_state.selected_media:
@@ -53,9 +51,9 @@ def render_media_gallery(media_list, tab_name, style_type="movie"):
                 else:
                     st.info("無圖片")
                 
-                # 標題與最愛星號
-                star = "⭐ " if str(row.get('is_bookmarked')) == '1' else ""
-                st.markdown(f"**{star}[{row.get('title', '未知')}]({row.get('source_url', '#')})**")
+                # 標題與狀態符號 (1為待看，0為已完食)
+                status_icon = "⏳ " if str(row.get('is_bookmarked')) == '1' else "✅ "
+                st.markdown(f"**{status_icon}[{row.get('title', '未知')}]({row.get('source_url', '#')})**")
                 
                 # 副標題/導演
                 if style_type == "movie":
@@ -67,15 +65,16 @@ def render_media_gallery(media_list, tab_name, style_type="movie"):
     st.markdown("---")
     pc1, pc2, pc3 = st.columns([2, 6, 2])
     with pc1:
-        if st.button("⬅️ 上一頁", disabled=(current_page == 1), key=f"prev_{tab_name}", use_container_width=True):
+        if st.button("⬅️ 上一頁", disabled=(current_page == 1), key=f"prev_{tab_name}_{current_view_state}", use_container_width=True):
             st.session_state[page_key] -= 1
             st.rerun()
     with pc2:
         st.markdown(f"<div style='text-align:center; padding-top: 8px;'>第 <b>{current_page}</b> 頁 / 共 <b>{total_pages}</b> 頁</div>", unsafe_allow_html=True)
     with pc3:
-        if st.button("下一頁 ➡️", disabled=(current_page == total_pages), key=f"next_{tab_name}", use_container_width=True):
+        if st.button("下一頁 ➡️", disabled=(current_page == total_pages), key=f"next_{tab_name}_{current_view_state}", use_container_width=True):
             st.session_state[page_key] += 1
             st.rerun()
+
 
 def render_page():
     # 初始化狀態
@@ -88,17 +87,19 @@ def render_page():
         st.header("🎬 影音與網路資源館 (Media Vault)")
     with col_h2:
         st.write("") # 微調對齊
-        # 開啟批量管理模式
         if st.toggle("🛠️ 啟用批量管理模式", key="media_edit_mode"):
-            pass # 狀態自動綁定
+            pass 
         else:
-            # 關閉時清空選取
             st.session_state.selected_media = []
             st.session_state.show_delete_confirm = False
 
     st.caption("收納跨越文本之外的影視地圖、專輯聲響與社群分享卡片。")
     
-    # === 管理模式工具列 (浮動區塊) ===
+    # 🌟 核心切換器：待播清單(1) vs 典藏庫(0)
+    view_mode = st.radio("📂 選擇視圖區塊：", ["⏳ 待看/待播清單", "🏛️ 已完食/典藏庫"], horizontal=True, label_visibility="collapsed")
+    current_view_state = 1 if "待看" in view_mode else 0
+
+    # === 管理模式工具列 (動態按鈕版) ===
     if st.session_state.get("media_edit_mode", False):
         st.markdown("<div style='background-color:#f0f2f6; padding:15px; border-radius:10px;'>", unsafe_allow_html=True)
         
@@ -115,20 +116,22 @@ def render_page():
                 st.session_state.show_delete_confirm = False
                 st.rerun()
         else:
-            c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
+            c1, c2, c3 = st.columns([4, 3, 3])
             with c1:
                 st.markdown(f"**批量管理** (目前已選: {len(st.session_state.selected_media)} 項)")
             with c2:
-                if st.button("⭐ 加入最愛", use_container_width=True, disabled=len(st.session_state.selected_media)==0):
-                    core_utils.batch_toggle_media_bookmark(st.session_state.selected_media, 1)
-                    st.session_state.selected_media = []
-                    st.rerun()
+                # 動態改變按鈕邏輯與文字
+                if current_view_state == 1:
+                    if st.button("✅ 標記為已完食 (移至典藏)", use_container_width=True, disabled=len(st.session_state.selected_media)==0):
+                        core_utils.batch_toggle_media_bookmark(st.session_state.selected_media, 0) # 0 = 典藏庫
+                        st.session_state.selected_media = []
+                        st.rerun()
+                else:
+                    if st.button("⏳ 退回待播清單", use_container_width=True, disabled=len(st.session_state.selected_media)==0):
+                        core_utils.batch_toggle_media_bookmark(st.session_state.selected_media, 1) # 1 = 待播
+                        st.session_state.selected_media = []
+                        st.rerun()
             with c3:
-                if st.button("💔 移除最愛", use_container_width=True, disabled=len(st.session_state.selected_media)==0):
-                    core_utils.batch_toggle_media_bookmark(st.session_state.selected_media, 0)
-                    st.session_state.selected_media = []
-                    st.rerun()
-            with c4:
                 if st.button("🗑️ 刪除勾選項", type="primary", use_container_width=True, disabled=len(st.session_state.selected_media)==0):
                     st.session_state.show_delete_confirm = True
                     st.rerun()
@@ -138,62 +141,55 @@ def render_page():
     
     tab_movie, tab_music, tab_resource = st.tabs(["🎬 電影與影集", "🎵 音樂與專輯", "🌐 網路資源分享卡"])
 
-    # ====================================================================
-    # 🎬 分頁一：電影與影集
-    # ====================================================================
     with tab_movie:
-        st.markdown("### 📥 引入電影文獻")
-        col_m_in, col_m_btn = st.columns([5, 1])
-        with col_m_in:
-            movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed")
-        with col_m_btn:
-            if st.button("加入電影庫", use_container_width=True, type="primary"):
-                if movie_input:
-                    with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
-                        m_data = core_utils.fetch_movie_data(movie_input)
-                        if m_data:
-                            core_utils.insert_media_db(m_data) 
-                            st.success(f"🎬 已成功加入：{m_data['title']}")
-                            st.rerun()
-                        else:
-                            st.error("❌ 抓取失敗，請確認網址或稍後再試。")
-        
-        st.divider()
-        st.markdown("### 🍿 我的電影庫")
-        movies = core_utils.fetch_media_by_broad_type("Movie")
-        render_media_gallery(movies, tab_name="movie", style_type="movie")
+        if current_view_state == 1: # 只有在待播清單模式才顯示新增框，保持介面乾淨
+            st.markdown("### 📥 引入電影文獻")
+            col_m_in, col_m_btn = st.columns([5, 1])
+            with col_m_in:
+                movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed")
+            with col_m_btn:
+                if st.button("加入待播庫", use_container_width=True, type="primary"):
+                    if movie_input:
+                        with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
+                            m_data = core_utils.fetch_movie_data(movie_input)
+                            if m_data:
+                                core_utils.insert_media_db(m_data) 
+                                st.success(f"🎬 已成功加入待播清單：{m_data['title']}")
+                                st.rerun()
+                            else:
+                                st.error("❌ 抓取失敗，請確認網址或稍後再試。")
+            st.divider()
+            
+        st.markdown(f"### 🍿 {'我的待播電影' if current_view_state == 1 else '電影典藏庫'}")
+        movies = core_utils.fetch_media_by_broad_type("Movie", is_bookmarked=current_view_state)
+        render_media_gallery(movies, tab_name="movie", style_type="movie", current_view_state=current_view_state)
 
-    # ====================================================================
-    # 🎵 分頁二：音樂與專輯
-    # ====================================================================
     with tab_music:
-        st.markdown("### 📥 引入音樂文獻")
-        col_mu_in, col_mu_btn = st.columns([5, 1])
-        with col_mu_in:
-            music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed")
-        with col_mu_btn:
-            if st.button("加入音樂庫", use_container_width=True, type="primary"):
-                if music_input:
-                    with st.spinner("正在跨區輪詢 Apple Music API..."):
-                        mu_data = core_utils.fetch_apple_music_data(music_input)
-                        if mu_data:
-                            core_utils.insert_media_db(mu_data)
-                            st.success(f"🎵 已成功加入：{mu_data['title']}")
-                            st.rerun()
-                        else:
-                            st.error("❌ 抓取失敗，找不到此專輯。")
-        
-        st.divider()
-        st.markdown("### 🎧 我的音樂櫃")
-        music_list = core_utils.fetch_media_by_broad_type("Music")
-        render_media_gallery(music_list, tab_name="music", style_type="music")
+        if current_view_state == 1:
+            st.markdown("### 📥 引入音樂文獻")
+            col_mu_in, col_mu_btn = st.columns([5, 1])
+            with col_mu_in:
+                music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed")
+            with col_mu_btn:
+                if st.button("加入待聽庫", use_container_width=True, type="primary"):
+                    if music_input:
+                        with st.spinner("正在跨區輪詢 Apple Music API..."):
+                            mu_data = core_utils.fetch_apple_music_data(music_input)
+                            if mu_data:
+                                core_utils.insert_media_db(mu_data)
+                                st.success(f"🎵 已成功加入待聽清單：{mu_data['title']}")
+                                st.rerun()
+                            else:
+                                st.error("❌ 抓取失敗，找不到此專輯。")
+            st.divider()
+            
+        st.markdown(f"### 🎧 {'我的待聽專輯' if current_view_state == 1 else '音樂典藏庫'}")
+        music_list = core_utils.fetch_media_by_broad_type("Music", is_bookmarked=current_view_state)
+        render_media_gallery(music_list, tab_name="music", style_type="music", current_view_state=current_view_state)
 
-    # ====================================================================
-    # 🌐 分頁三：網路資源分享卡 (維持原有設計)
-    # ====================================================================
     with tab_resource:
         st.markdown("### 🌐 快收網路社群與卡片連結")
-        st.caption("此分頁適合備存 Twitter、Facebook 貼文。")
+        st.caption("此分頁適合備存 Twitter、Facebook 貼文。此區塊不分待播/典藏。")
         
         col_res_in, col_res_btn = st.columns([5, 1])
         with col_res_in:
