@@ -30,15 +30,51 @@ st.markdown("""
 # ==========================================
 with st.sidebar:
     st.title("☁️ Monoreader Cloud")
-    # 🌟 在清單中新增 "🎬 Media Vault" 選項
+    # 🌟 主選單
     app_mode = st.radio(
         "切換平台模組", 
         ["📚 Monoreader", "🎓 Biblioapp", "🎬 Media Vault"], 
-        index=0, 
         label_visibility="collapsed"
     )
-    st.divider()
+    
+    st.markdown("---")
 
+    # 🌟 爬蟲健康度指示燈 (新增區塊)
+    import core_utils
+    from datetime import datetime
+    
+    health_data = core_utils.fetch_crawler_health()
+    if health_data:
+        has_error = False
+        error_list = []
+        
+        for row in health_data:
+            # 計算距離最後一次檢查的時間差 (小時)
+            try:
+                # 處理 ISO 格式時間 (相容 Python 各版本)
+                clean_iso = row['last_check'].replace('Z', '+00:00')
+                last_check_dt = datetime.fromisoformat(clean_iso).replace(tzinfo=None)
+                hours_diff = (datetime.utcnow() - last_check_dt).total_seconds() / 3600
+            except:
+                hours_diff = 0
+
+            # 判斷異常：直接報錯，或超過 48 小時未更新 (靜默失敗)
+            if row.get('status') == 'ERROR':
+                has_error = True
+                error_list.append(f"🔴 **{row['source_name']}**: 程式崩潰 ({row.get('error_msg','')})")
+            elif hours_diff > 48:
+                has_error = True
+                error_list.append(f"🟡 **{row['source_name']}**: 超過 {int(hours_diff)} 小時未成功抓取新文")
+
+        # 渲染燈號與面板
+        if has_error:
+            with st.expander("🚨 爬蟲系統異常", expanded=True):
+                for err in error_list:
+                    st.caption(err)
+        else:
+            with st.expander("🟢 系統健康度：良好", expanded=False):
+                st.caption("所有來源皆在 48 小時內成功更新。")
+                st.caption(f"最後檢查時間: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} (UTC)")
 # ==========================================
 # 3. 模組渲染導流
 # ==========================================
