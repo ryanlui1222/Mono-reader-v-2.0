@@ -495,14 +495,16 @@ def insert_media_db(data):
     except Exception as e:
         print(f"寫入 Media 資料庫失敗: {e}")
 
-def fetch_media_by_broad_type(broad_type):
-    """讀取資料庫數據，強制將欄位轉為小寫防止 KeyError"""
+def fetch_media_by_broad_type(broad_type, is_bookmarked=1):
+    """讀取資料庫數據，支援待播清單(1)與典藏庫(0)雙軌切換"""
     try:
         if broad_type == "Movie":
-            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%電影%' OR media_type LIKE '%影集%' ORDER BY sort_date DESC")
+            # 加入 is_bookmarked 過濾
+            sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%電影%' OR media_type LIKE '%影集%') AND is_bookmarked = ? ORDER BY sort_date DESC"
         else:
-            res = db.execute("SELECT * FROM media_vault WHERE media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%' ORDER BY sort_date DESC")
+            sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%') AND is_bookmarked = ? ORDER BY sort_date DESC"
         
+        res = db.execute(sql, [is_bookmarked])
         if not res.rows: return []
         lowercase_columns = [c.lower() for c in res.columns]
         return [dict(zip(lowercase_columns, row)) for row in res.rows]
