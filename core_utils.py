@@ -8,6 +8,7 @@ import cloudscraper
 import base64
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+import urllib.parse
 
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/", "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -742,3 +743,70 @@ def fetch_crawler_health():
     except Exception as e:
         print(f"讀取爬蟲健康狀態失敗: {e}")
         return []
+
+def fetch_from_openalex_by_title(title):
+    """當 DOI 或 ISBN 皆失效時的最終備援：利用 OpenAlex 進行標題盲搜"""
+    clean_title = urllib.parse.quote(title.strip())
+    url = f"https://api.openalex.org/works?search={clean_title}&per-page=1"
+    
+    try:
+        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("meta", {}).get("count", 0) > 0:
+                item = data["results"][0]
+                
+                fetched_title = item.get("title", "未命名")
+                authors_list = item.get("authorships", [])
+                author = ", ".join([a.get("author", {}).get("display_name", "") for a in authors_list])
+                
+                work_type = item.get("type", "")
+                is_journal = "article" in work_type
+                
+                primary_location = item.get("primary_location", {}) or {}
+                source = primary_location.get("source", {}) or {}
+                publisher_journal = source.get("display_name") or primary_location.get("publisher", "未知出版方")
+                
+                pub_date = item.get("publication_date", "未知日期")
+                doi_link = item.get("doi", "")
+                clean_id = doi_link.replace("https://doi.org/", "") if doi_link else item.get("id", "")
+                
+                return {
+                    "type": "Journal" if is_journal else "Book",
+                    "title": fetched_title, 
+                    "author": author or "未知",
+                    "publisher_journal": publisher_journal, 
+                    "issue_volume": "",
+                    "identifier": clean_id, 
+                    "publish_date": pub_date,
+                    "abstract": "（由 OpenAlex 標題盲搜匯入）", 
+                    "link": doi_link or item.get("id", ""), 
+                    "image": "", 
+                    "is_bookmarked": 0
+                }
+    except Exception as e:
+        print(f"OpenAlex 標題搜尋失敗: {e}")
+    return None
+
+def add_book_by_title_blind_search(title):
+    """封裝盲搜並寫入資料庫的邏輯"""
+    try:
+        book_data = fetch_from_openalex_by_title(title)
+        if not book_data:
+            return False, "❌ 無法在 OpenAlex 找到相符的文獻，請檢查標題拼字。"
+            
+        sql = """
+        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
+        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
+        """
+        db.execute(sql, [
+            book_data['type'], book_data['title'], book_data['author'], 
+            book_data['publisher_journal'], book_data['issue_volume'], 
+            book_data['identifier'], book_data['publish_date'], 
+            book_data['abstract'], book_data['link'], book_data['image']
+        ])
+        st.cache_data.clear()
+        return True, f"✅ 盲搜成功！已將《{book_data['title']}》加入清單！"
+    except Exception as e: 
+        return False, f"寫入資料庫失敗: {e}"
