@@ -48,7 +48,19 @@ def render_page():
                             else: st.error(msg)
                         else: st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
                 else: st.warning("⚠️ 請輸入有效的網址。")
-        st.markdown("---")
+
+        with st.expander("📥 標題盲搜匯入 (無 ISBN/DOI 時)", expanded=False):
+            blind_search_input = st.text_input("輸入文獻完整標題：", placeholder="例如: Reassembling the Social...", key="blind_search_field")
+            if st.button("OpenAlex 智慧檢索並加入", use_container_width=True, key="blind_search_btn"):
+                if blind_search_input:
+                    with st.spinner("正在呼叫 OpenAlex 進行語意盲搜..."):
+                        success, msg = core_utils.add_book_by_title_blind_search(blind_search_input)
+                        if success: st.success(msg)
+                        else: st.error(msg)
+                else:
+                    st.warning("⚠️ 請輸入文獻標題。")
+                    
+        st.markdown("---") # 這是原本就有的分隔線
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
