@@ -505,7 +505,11 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
-    # 🌟 新增：FNMNL (快訊) 與 The Comics Journal (評論)
+    # 🌟 新增的監控變數
+    health_records = {} # 記錄每個來源的健康狀態
+    futures_map = {}    # 用來對應 Future 與來源名稱，方便捕捉是誰失敗
+    
+    # 🌟 完全保留您的 RSS 清單
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -523,13 +527,15 @@ def main():
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
         ("https://tyingknots.net/feed/", "结绳志", 15, False)
-        
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(fetch_rss, url, name, limit, deep) for url, name, limit, deep in rss_sources]
+        # 1. 提交 RSS 任務並記錄名稱
+        for url, name, limit, deep in rss_sources:
+            future = executor.submit(fetch_rss, url, name, limit, deep)
+            futures_map[future] = name
         
-        # 🌟 新增：fetch_chuapp 至客製化爬蟲陣列
+        # 🌟 完全保留您的客製化爬蟲清單
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
@@ -537,83 +543,132 @@ def main():
             fetch_jiemian, fetch_sabukaru, fetch_biede,
             fetch_tripleampersand, fetch_chuapp
         ]
-        futures.extend([executor.submit(func) for func in custom_scrapers])
         
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if res: all_articles.extend(res)
+        # 2. 提交客製化爬蟲任務並記錄名稱
+        for func in custom_scrapers:
+            future = executor.submit(func)
+            # 若為客製化函數，暫時以函數名稱紀錄 (例如 'fetch_webgenron')
+            futures_map[future] = func.__name__
+        
+        # 3. 🌟 攔截與狀態記錄 (替換掉原本單純的 extend)
+        for future in concurrent.futures.as_completed(futures_map):
+            source_name = futures_map[future]
+            try:
+                res = future.result()
+                # 若執行成功未拋出例外，先標記為 OK
+                health_records[source_name] = {'status': 'OK', 'error_msg': ''}
+                
+                if res:
+                    # 嘗試從爬回來的資料中提取更準確的 Source 名稱 (把 fetch_xxx 換掉)
+                    if len(res) > 0 and 'Source' in res[0]:
+                        actual_source = res[0]['Source']
+                        health_records[actual_source] = health_records.pop(source_name)
+                        source_name = actual_source
+                        
+                    all_articles.extend(res)
+                    print(f"✅ {source_name}: 抓取 {len(res)} 篇")
+                else:
+                    print(f"⚠️ {source_name}: 抓取成功但目前無新文章")
+                    
+            except Exception as exc:
+                print(f"❌ {source_name} 爬取產生嚴重例外: {exc}")
+                # 記錄嚴重崩潰的錯誤訊息
+                health_records[source_name] = {'status': 'ERROR', 'error_msg': str(exc)[:200]}
 
-    if all_articles:
+    # 🌟 修改條件：只要有抓到文章「或」有健康紀錄需要更新，就連線資料庫
+    if all_articles or health_records:
         db = get_db_client()
         if not db:
             print("❌ 找不到 Turso 環境變數，跳過同步。")
             return
 
         try:
-            links_to_check = [a['Link'] for a in all_articles]
-            existing_dates = {}
-            try:
-                chunk_size = 50
-                for i in range(0, len(links_to_check), chunk_size):
-                    chunk = links_to_check[i:i + chunk_size]
-                    placeholders = ','.join(['?'] * len(chunk))
-                    res = db.execute(f"SELECT Link, SortDate FROM articles WHERE Link IN ({placeholders})", chunk)
-                    for row in res.rows:
-                        existing_dates[row[0]] = row[1]
-            except Exception as e:
-                print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
-
-            cleaned_articles = []
-            for a in all_articles:
-                article_data = a.copy()
-                has_valid_date = False
-                
-                if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊", "歷史歸檔"]):
-                    try:
-                        # 觸樂抓下來的「05月15日」等無年份時間字串，如果失敗會自動被指派 utcnow()
-                        dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
-                        if not pd.isna(dt):
-                            article_data['Published'] = dt.strftime('%Y-%m-%d')
-                            article_data['SortDate'] = dt.isoformat()
-                            has_valid_date = True
-                    except: pass
-                
-                if not has_valid_date:
-                    if article_data['Link'] in existing_dates:
-                        article_data['SortDate'] = existing_dates[article_data['Link']]
-                    else:
-                        article_data['SortDate'] = datetime.utcnow().isoformat()
-                        
-                cleaned_articles.append(article_data)
-
-            sql = """
-            INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-            ON CONFLICT(Link) DO UPDATE SET 
-                Title=excluded.Title,
-                Published=excluded.Published,
-                Summary=excluded.Summary,
-                Image=excluded.Image;
-            """
-            
-            success_count = 0
-            error_count = 0
-            
-            for art in cleaned_articles:
-                args = [
-                    art['Source'], art['Title'], art['Link'], 
-                    art['Published'], art['Summary'], art['Image'], art['SortDate']
-                ]
-                
+            # ==========================================
+            # 1. 處理並寫入文章 (完全保留您的原版邏輯)
+            # ==========================================
+            if all_articles:
+                links_to_check = [a['Link'] for a in all_articles]
+                existing_dates = {}
                 try:
-                    db.execute(sql, args)
-                    success_count += 1
-                except Exception as inner_e:
-                    print(f"⚠️ 單筆寫入失敗 ({art['Title'][:10]}...): {inner_e}")
-                    error_count += 1
+                    chunk_size = 50
+                    for i in range(0, len(links_to_check), chunk_size):
+                        chunk = links_to_check[i:i + chunk_size]
+                        placeholders = ','.join(['?'] * len(chunk))
+                        res = db.execute(f"SELECT Link, SortDate FROM articles WHERE Link IN ({placeholders})", chunk)
+                        for row in res.rows:
+                            existing_dates[row[0]] = row[1]
+                except Exception as e:
+                    print(f"⚠️ 獲取歷史時間失敗 (不影響寫入): {e}")
+
+                cleaned_articles = []
+                for a in all_articles:
+                    article_data = a.copy()
+                    has_valid_date = False
                     
-            print(f"✅ 成功同步 {success_count} 篇文章至 Turso 資料庫！(失敗: {error_count} 筆)")
+                    if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊", "歷史歸檔"]):
+                        try:
+                            # 觸樂抓下來的「05月15日」等無年份時間字串，如果失敗會自動被指派 utcnow()
+                            dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
+                            if not pd.isna(dt):
+                                article_data['Published'] = dt.strftime('%Y-%m-%d')
+                                article_data['SortDate'] = dt.isoformat()
+                                has_valid_date = True
+                        except: pass
+                    
+                    if not has_valid_date:
+                        if article_data['Link'] in existing_dates:
+                            article_data['SortDate'] = existing_dates[article_data['Link']]
+                        else:
+                            article_data['SortDate'] = datetime.utcnow().isoformat()
+                            
+                    cleaned_articles.append(article_data)
+
+                sql = """
+                INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                ON CONFLICT(Link) DO UPDATE SET 
+                    Title=excluded.Title,
+                    Published=excluded.Published,
+                    Summary=excluded.Summary,
+                    Image=excluded.Image;
+                """
+                
+                success_count = 0
+                error_count = 0
+                
+                for art in cleaned_articles:
+                    args = [
+                        art['Source'], art['Title'], art['Link'], 
+                        art['Published'], art['Summary'], art['Image'], art['SortDate']
+                    ]
+                    try:
+                        db.execute(sql, args)
+                        success_count += 1
+                    except Exception as inner_e:
+                        print(f"⚠️ 單筆寫入失敗 ({art['Title'][:10]}...): {inner_e}")
+                        error_count += 1
+                        
+                print(f"✅ 成功同步 {success_count} 篇文章至 Turso 資料庫！(失敗: {error_count} 筆)")
             
+            # ==========================================
+            # 2. 🌟 寫入爬蟲健康度紀錄 (全新整合區塊)
+            # ==========================================
+            sql_health = """
+            INSERT INTO crawler_health (source_name, status, last_check, error_msg)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(source_name) DO UPDATE SET 
+                status=excluded.status, last_check=excluded.last_check, error_msg=excluded.error_msg;
+            """
+            for src, h_data in health_records.items():
+                # 優化名稱：如果自訂爬蟲沒有成功抓到文章，名稱會殘留 fetch_，把它移除
+                display_src = src.replace('fetch_', '') if src.startswith('fetch_') else src
+                try:
+                    db.execute(sql_health, [display_src, h_data['status'], datetime.utcnow().isoformat(), h_data['error_msg']])
+                except Exception as he:
+                    print(f"⚠️ 健康度寫入失敗 ({display_src}): {he}")
+                    
+            print("🩺 爬蟲系統健康度報告已更新！")
+
         except Exception as e:
             print(f"❌ 同步過程發生嚴重錯誤: {e}")
             
@@ -623,7 +678,7 @@ def main():
                 print("🔌 資料庫連線已安全關閉。")
 
     else:
-        print("❌ 未抓取到任何資料。")
+        print("❌ 未抓取到任何資料，且無任何需更新之監控紀錄。")
 
 if __name__ == "__main__":
     main()
