@@ -173,6 +173,31 @@ def fetch_google_fallback(isbn):
     except: pass
     return None
 
+def fetch_crossref_isbn(isbn):
+    """專門針對被消費級資料庫忽略的學術出版品與電子書"""
+    try:
+        url = f"https://api.crossref.org/works?filter=isbn:{isbn}"
+        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
+        items = res.get("message", {}).get("items", [])
+        if items:
+            item = items[0]
+            title = item.get("title", ["未命名書籍"])[0]
+            authors_list = item.get("author", [])
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list])
+            
+            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            return {
+                "type": "Book", "title": title, "author": author or "未知",
+                "publisher_journal": item.get("publisher", "手動加入"), "issue_volume": "",
+                "identifier": isbn, "publish_date": pub_date,
+                "abstract": "（由 Crossref 學術庫匯入）", "link": item.get("URL", ""), 
+                "image": "", "is_bookmarked": 0
+            }
+    except: pass
+    return None
+
 def fetch_openbd(isbn):
     try:
         res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10).json()
@@ -229,6 +254,12 @@ def fetch_book_by_isbn(isbn):
         if best_cover: res["image"] = best_cover
         return res
         
+    # 🌟 插入學術資料庫備援 (補足 Google Books 找不到的老學術書或電子版)
+    res_crossref = fetch_crossref_isbn(clean_isbn)
+    if res_crossref:
+        if best_cover: res_crossref["image"] = best_cover
+        return res_crossref
+        
     try:
         ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
@@ -243,7 +274,7 @@ def fetch_book_by_isbn(isbn):
             }
     except: pass
     return None
-
+    
 def fetch_book_by_url(url):
     if not url.startswith("http"): return None
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
@@ -339,16 +370,25 @@ init_bibliography_table()
 
 def fetch_doi_metadata(doi):
     clean_doi = doi.replace("https://doi.org/", "").strip()
-    url = f"https://api.crossref.org/works/{clean_doi}"
+    url = f"https://doi.org/{clean_doi}"
+    
+    # 🌟 使用官方內容協商機制，自動路由所有 DOI 註冊機構
+    headers = {
+        "Accept": "application/vnd.citationstyles.csl+json", 
+        "User-Agent": "BiblioappCloud/1.0"
+    }
     try:
-        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=10)
+        # allow_redirects=True 確保 doi.org 能正確重導向到對應機構的 metadata API
+        res = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
         if res.status_code == 200:
-            item = res.json().get("message", {})
-            title = item.get("title", ["未命名文獻"])[0]
+            item = res.json()
+            # CSL-JSON 格式的 title 通常是字串
+            title = item.get("title", "未命名文獻")
+            
             authors_list = item.get("author", [])
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list])
             
-            container = item.get("container-title", [""])[0]
+            container = item.get("container-title", "")
             publisher = item.get("publisher", "")
             pub_journal = container if container else publisher
             
@@ -356,8 +396,7 @@ def fetch_doi_metadata(doi):
             iss = item.get("issue", "")
             issue_vol = f"Vol. {vol}, Issue {iss}" if vol and iss else (f"Issue {iss}" if iss else "")
             
-            date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
-            date_parts = date_obj.get("date-parts", [[]])[0]
+            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
             pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
             
             link = item.get("URL", f"https://doi.org/{clean_doi}")
@@ -368,9 +407,10 @@ def fetch_doi_metadata(doi):
                 "issue_volume": issue_vol, "identifier": clean_doi, "publish_date": pub_date,
                 "link": link
             }
-    except: pass
+    except Exception as e:
+        print(f"DOI 解析失敗: {e}")
     return None
-
+    
 def add_bibliography_reference(input_val, importance, notes):
     input_val = input_val.strip()
     data = None
