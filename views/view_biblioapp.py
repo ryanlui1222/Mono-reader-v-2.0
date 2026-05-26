@@ -22,45 +22,7 @@ def render_page():
         bib_search_query = st.text_input("輸入關鍵字", placeholder="書名、作者、出版社或摘要...", label_visibility="collapsed", on_change=reset_biblio_page)
         st.markdown("---")
         
-        with st.expander("📥 手動新增待讀書目 (ISBN)", expanded=False):
-            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
-            if st.button("檢索並加入書架", use_container_width=True):
-                if isbn_input:
-                    with st.spinner("正在呼叫多語系智能引擎..."):
-                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
-                        if book_data:
-                            book_data['publisher_journal'] = "手動加入"
-                            success, msg = core_utils.add_manual_book(book_data)
-                            if success: st.success(msg)
-                            else: st.error(msg)
-                        else: st.error("❌ 找不到該 ISBN。請嘗試下方的網址備存功能。")
-                else: st.warning("⚠️ 請輸入 ISBN。")
-        
-        with st.expander("📥 網址備存匯入 (當 ISBN 失敗時)", expanded=False):
-            backup_url_input = st.text_input("貼上出版社或 Amazon 網址：", placeholder="https://...", key="backup_url_field")
-            if st.button("網頁解析並加入備存", use_container_width=True, key="backup_url_btn"):
-                if backup_url_input:
-                    with st.spinner("正在探測網頁元資料..."):
-                        url_book_data = core_utils.fetch_book_by_url(backup_url_input)
-                        if url_book_data:
-                            success, msg = core_utils.add_url_backup(url_book_data)
-                            if success: st.success(msg)
-                            else: st.error(msg)
-                        else: st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
-                else: st.warning("⚠️ 請輸入有效的網址。")
-
-        with st.expander("📥 標題盲搜匯入 (無 ISBN/DOI 時)", expanded=False):
-            blind_search_input = st.text_input("輸入文獻完整標題：", placeholder="例如: Reassembling the Social...", key="blind_search_field")
-            if st.button("OpenAlex 智慧檢索並加入", use_container_width=True, key="blind_search_btn"):
-                if blind_search_input:
-                    with st.spinner("正在呼叫 OpenAlex 進行語意盲搜..."):
-                        success, msg = core_utils.add_book_by_title_blind_search(blind_search_input)
-                        if success: st.success(msg)
-                        else: st.error(msg)
-                else:
-                    st.warning("⚠️ 請輸入文獻標題。")
-                    
-        st.markdown("---") # 這是原本就有的分隔線
+        # 🌟 原本擁擠的手動匯入區塊已經全部移出側邊欄！
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
@@ -105,7 +67,7 @@ def render_page():
             ref_sort_mode = st.selectbox("🔀 排序方式：", ["最新加入", "重要等級 (高至低)", "出版日期 (新到舊)"], key="ref_sort")
         st.markdown("---")
 
-        with st.expander("➕ 新增參考文獻", expanded=False):
+        with st.expander("➕ 新增參考文獻 (DOI / ISBN)", expanded=False):
             col1, col2 = st.columns([2, 1])
             with col1:
                 ref_input = st.text_input("輸入 DOI (如 10.1215/...) 或 ISBN：", placeholder="自動擷取作者、期刊、期號...", key="ref_input_field")
@@ -121,6 +83,18 @@ def render_page():
                         if success: st.cache_data.clear(); st.success(msg); st.rerun()
                         else: st.error(msg)
                 else: st.warning("⚠️ 請輸入 DOI 或 ISBN。")
+                
+        # 🌟 移入：標題盲搜匯入 (放置於參考文獻輸入下方)
+        with st.expander("📥 標題盲搜匯入 (無 ISBN/DOI 時使用 OpenAlex 搜尋)", expanded=False):
+            blind_search_input = st.text_input("輸入文獻完整標題：", placeholder="例如: Reassembling the Social...", key="blind_search_field")
+            if st.button("智慧檢索並加入待讀清單", use_container_width=True, key="blind_search_btn"):
+                if blind_search_input:
+                    with st.spinner("正在呼叫 OpenAlex 進行語意盲搜..."):
+                        success, msg = core_utils.add_book_by_title_blind_search(blind_search_input)
+                        if success: st.success(msg)
+                        else: st.error(msg)
+                else:
+                    st.warning("⚠️ 請輸入文獻標題。")
         
         st.markdown("---")
         df_refs = core_utils.fetch_bibliography_references()
@@ -166,7 +140,6 @@ def render_page():
         if df_pubs.empty: st.info("目前資料庫中沒有符合條件的書目。")
         else:
             if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
-                # 效能精簡：透過 Pandas 取代巢狀迴圈
                 df_sorted = df_pubs.sort_values(by=['publish_date', 'issue_volume'], ascending=[False, False], na_position='last')
                 latest_records = df_sorted.drop_duplicates(subset=['publisher_journal'], keep='first')
                 
@@ -262,6 +235,24 @@ def render_page():
                         st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=st.session_state.biblio_page - 1, key="biblio_page_selector", on_change=update_biblio_page)
 
     elif biblio_view_mode == "🔖 待讀書架":
+        
+        # 🌟 移入：手動新增待讀書目 (放置於待讀書架最上方)
+        with st.expander("📥 手動新增待讀書目 (利用 ISBN 智慧解析)", expanded=False):
+            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
+            if st.button("檢索並加入書架", use_container_width=True):
+                if isbn_input:
+                    with st.spinner("正在呼叫多語系智能引擎..."):
+                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
+                        if book_data:
+                            book_data['publisher_journal'] = "手動加入"
+                            success, msg = core_utils.add_manual_book(book_data)
+                            if success: st.success(msg)
+                            else: st.error(msg)
+                        else: st.error("❌ 找不到該 ISBN。請嘗試「網址備存」或「標題盲搜」。")
+                else: st.warning("⚠️ 請輸入 ISBN。")
+        
+        st.markdown("---")
+
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_search_query)
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
@@ -336,6 +327,23 @@ def render_page():
                         st.rerun()
                         
     elif biblio_view_mode == "🔗 網址備存":
+        
+        # 🌟 移入：網址備存匯入 (放置於網址備存清單最上方)
+        with st.expander("📥 網址備存匯入 (當 ISBN 掃描失敗時強制擷取)", expanded=False):
+            backup_url_input = st.text_input("貼上出版社或 Amazon 網址：", placeholder="https://...", key="backup_url_field")
+            if st.button("網頁解析並加入備存", use_container_width=True, key="backup_url_btn"):
+                if backup_url_input:
+                    with st.spinner("正在探測網頁元資料..."):
+                        url_book_data = core_utils.fetch_book_by_url(backup_url_input)
+                        if url_book_data:
+                            success, msg = core_utils.add_url_backup(url_book_data)
+                            if success: st.success(msg)
+                            else: st.error(msg)
+                        else: st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
+                else: st.warning("⚠️ 請輸入有效的網址。")
+        
+        st.markdown("---")
+        
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_search_query)
         col_title, col_sort = st.columns([3, 1])
         with col_title:
@@ -345,7 +353,7 @@ def render_page():
             web_sort_mode = st.selectbox("🔀 排序方式：", ["加入日期 (新到舊)", "加入日期 (舊到新)", "標題 (A-Z / 五十音)"], key="web_link_sort", on_change=reset_biblio_page)
         st.markdown("---")
         
-        if df_pubs.empty: st.info("目前沒有任何網址備存資料。請在左側側邊欄貼上網址匯入。")
+        if df_pubs.empty: st.info("目前沒有任何網址備存資料。請在上方展開區塊貼上網址匯入。")
         else:
             if web_sort_mode == "加入日期 (舊到新)": df_pubs = df_pubs.sort_values(by='publish_date', ascending=True)
             elif web_sort_mode == "標題 (A-Z / 五十音)": df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower(), ascending=True)
