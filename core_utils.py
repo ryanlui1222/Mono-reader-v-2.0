@@ -672,3 +672,33 @@ def batch_toggle_media_bookmark(media_ids, to_state):
         st.toast("⭐ 批量書籤狀態已更新！")
     except Exception as e:
         st.error(f"批量更新書籤失敗: {e}")
+# ==========================================
+# 🩺 系統健康度監控模組 (Crawler Health)
+# ==========================================
+def init_health_table():
+    """初始化爬蟲健康度監控表"""
+    try:
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS crawler_health (
+            source_name TEXT PRIMARY KEY,
+            status TEXT,
+            last_check TEXT,
+            error_msg TEXT
+        )
+        """)
+    except Exception as e:
+        print(f"初始化 crawler_health 表失敗: {e}")
+
+# 啟動時自動檢查建表
+init_health_table()
+
+def fetch_crawler_health():
+    """獲取所有爬蟲的最新健康狀態"""
+    try:
+        res = db.execute("SELECT * FROM crawler_health ORDER BY source_name ASC")
+        if not res.rows: return []
+        lowercase_columns = [c.lower() for c in res.columns]
+        return [dict(zip(lowercase_columns, row)) for row in res.rows]
+    except Exception as e:
+        print(f"讀取爬蟲健康狀態失敗: {e}")
+        return []
