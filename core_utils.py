@@ -561,8 +561,12 @@ def fetch_apple_music_data(url_or_id):
     return None
 
 def fetch_movie_data(url):
-    """擷取電影資料 (TMDB API 優先 -> IMDb 備援)"""
+    """擷取電影資料 (TMDB API 優先 -> IMDb 備援)，支援抓取導演"""
     import streamlit as st
+    import requests
+    from bs4 import BeautifulSoup
+    import json
+    import re
     
     match = re.search(r'(tt\d+)', url)
     if not match:
@@ -573,15 +577,31 @@ def fetch_movie_data(url):
     tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
     if tmdb_key:
         try:
+            # 呼叫 1：透過 IMDb ID 尋找 TMDB 電影
             tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
             res = requests.get(tmdb_url, timeout=10).json()
+            
             if res.get('movie_results'):
                 data = res['movie_results'][0]
+                tmdb_id = data.get('id')
+                
+                # 呼叫 2：透過 TMDB ID 取得演職員表 (Credits) 尋找導演
+                creator_name = "TMDB"
+                if tmdb_id:
+                    credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW"
+                    try:
+                        credits_res = requests.get(credits_url, timeout=5).json()
+                        directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
+                        if directors:
+                            creator_name = ", ".join(directors)
+                    except Exception as cred_e:
+                        print(f"取得導演資料失敗: {cred_e}")
+                        
                 img_url = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get('poster_path') else None
                 return {
                     "media_type": "🎬 電影", 
                     "title": data.get('title') or data.get('original_title', '未知電影'),
-                    "creator": "TMDB", 
+                    "creator": creator_name,  # 🏆 成功填入真實導演
                     "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
                     "source_url": target_url, 
                     "summary": data.get('overview', '無簡介')
@@ -589,7 +609,7 @@ def fetch_movie_data(url):
         except Exception as e:
             print(f"TMDB 解析失敗: {e}")
 
-    # 策略 B：捨棄 Cloudscraper，改用 requests 強偽裝抓取 OG 標籤
+    # 策略 B：捨棄 Cloudscraper，改用 requests 強偽裝抓取 OG 標籤 (保持不變)
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -602,7 +622,6 @@ def fetch_movie_data(url):
         title = f"IMDb ({imdb_id})"
         img_url = None
         summary = "IMDb 備存"
-
         if ld_json:
             try:
                 data = json.loads(ld_json.string)
@@ -611,23 +630,17 @@ def fetch_movie_data(url):
                 img_url = data.get('image')
                 summary = data.get('description', summary)
             except: pass
-        
-        # 雙重防護：如果 JSON-LD 失敗，強制抓 OG 標籤
         if not img_url:
             og_img = soup.find('meta', property='og:image')
             if og_img: img_url = og_img['content']
-            
         if title == f"IMDb ({imdb_id})":
             og_title = soup.find('meta', property='og:title')
             if og_title: title = og_title['content'].replace(" - IMDb", "")
 
         return {
-            "media_type": "🎬 電影", 
-            "title": title, 
-            "creator": "IMDb",
+            "media_type": "🎬 電影", "title": title, "creator": "IMDb",
             "cover_image": get_secure_image_base64(img_url, "imdb") if img_url else None,
-            "source_url": target_url, 
-            "summary": summary
+            "source_url": target_url, "summary": summary
         }
     except Exception as e:
         print(f"IMDb 爬蟲失敗: {e}")
