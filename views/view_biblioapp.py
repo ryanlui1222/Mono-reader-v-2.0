@@ -67,7 +67,8 @@ def render_page():
             ref_sort_mode = st.selectbox("🔀 排序方式：", ["最新加入", "重要等級 (高至低)", "出版日期 (新到舊)"], key="ref_sort")
         st.markdown("---")
 
-        with st.expander("➕ 新增參考文獻 (DOI / ISBN)", expanded=False):
+        # 原有的 API 自動擷取區塊
+        with st.expander("➕ 新增參考文獻 (API 自動擷取 DOI / ISBN)", expanded=False):
             col1, col2 = st.columns([2, 1])
             with col1:
                 ref_input = st.text_input("輸入 DOI (如 10.1215/...) 或 ISBN：", placeholder="自動擷取作者、期刊、期號...", key="ref_input_field")
@@ -84,19 +85,45 @@ def render_page():
                         else: st.error(msg)
                 else: st.warning("⚠️ 請輸入 DOI 或 ISBN。")
                 
-        # 🌟 移入：標題盲搜匯入 (放置於參考文獻輸入下方)
-        with st.expander("📥 標題盲搜匯入 (無 ISBN/DOI 時使用 OpenAlex 搜尋)", expanded=False):
-            blind_search_input = st.text_input("輸入文獻完整標題：", placeholder="例如: Reassembling the Social...", key="blind_search_field")
-            if st.button("智慧檢索並加入待讀清單", use_container_width=True, key="blind_search_btn"):
-                if blind_search_input:
-                    with st.spinner("正在呼叫 OpenAlex 進行語意盲搜..."):
-                        success, msg = core_utils.add_book_by_title_blind_search(blind_search_input)
-                        if success: st.success(msg)
-                        else: st.error(msg)
+        # 🌟 全新替換：純手動輸入表單 (取代盲搜)
+        with st.expander("📝 手動新增參考文獻 (無 API 紀錄時使用)", expanded=False):
+            st.caption("若無法透過 API 自動獲取，請直接填寫資訊。請注意，DOI 或 ISBN 為必填欄位。")
+            
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                manual_title = st.text_input("書名 / 論文名 (必填)：", key="man_ref_title")
+                manual_author = st.text_input("作者 (必填)：", key="man_ref_author")
+            with col_m2:
+                manual_year = st.text_input("出版年份 (例如: 1998)：", key="man_ref_year", max_chars=4)
+                manual_type = st.radio("文獻類型：", ["專書 (Book)", "期刊/論文 (Journal)"], horizontal=True, key="man_ref_type")
+                
+            # 🌟 變更為必填欄位
+            manual_id = st.text_input("DOI 或 ISBN (必填，作為資料庫防重複的唯一識別碼)：", key="man_ref_id")
+            
+            col_man_imp, col_man_note = st.columns([1, 2])
+            with col_man_imp:
+                manual_importance = st.selectbox("重要等級：", ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"], key="man_ref_imp")
+            with col_man_note:
+                manual_notes = st.text_area("文獻備註 / 核心觀點摘要：", key="man_ref_notes")
+                
+            if st.button("💾 手動寫入參考庫", use_container_width=True):
+                # 🌟 嚴格阻擋：三個欄位都必須有值才能執行
+                if manual_title and manual_author and manual_id:
+                    with st.spinner("正在寫入資料庫..."):
+                        success, msg = core_utils.add_manual_bibliography_reference(
+                            manual_id, manual_title, manual_author, manual_importance, manual_notes, manual_year, manual_type
+                        )
+                        if success: 
+                            st.cache_data.clear()
+                            st.success(msg)
+                            st.rerun()
+                        else: 
+                            st.error(msg)
                 else:
-                    st.warning("⚠️ 請輸入文獻標題。")
+                    st.warning("⚠️ 拒絕寫入：請務必填寫「書名/論文名」、「作者」與「DOI/ISBN」。")
         
         st.markdown("---")
+        
         df_refs = core_utils.fetch_bibliography_references()
         
         if df_refs.empty:
