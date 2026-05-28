@@ -810,3 +810,27 @@ def add_book_by_title_blind_search(title):
         return True, f"✅ 盲搜成功！已將《{book_data['title']}》加入清單！"
     except Exception as e: 
         return False, f"寫入資料庫失敗: {e}"
+
+def add_manual_bibliography_reference(identifier, title, author, importance, notes):
+    """手動新增參考書目至資料庫 (無 API 檢索)"""
+    identifier = str(identifier).strip()
+    # 如果使用者沒有輸入 ISBN 或 DOI，則自動產生一組基於時間的唯一虛擬 ID
+    if not identifier:
+        identifier = f"manual_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+
+    try:
+        sql = """
+        INSERT INTO bibliography_notes 
+        (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(identifier) DO UPDATE SET 
+        title=excluded.title, author=excluded.author, importance=excluded.importance, notes=excluded.notes;
+        """
+        db.execute(sql, [
+            identifier, "Book/Article", title.strip(), author.strip(), 
+            "手動加入", "", datetime.utcnow().strftime("%Y-%m-%d"), 
+            importance, notes, "", datetime.utcnow().isoformat()
+        ])
+        return True, f"✅ 已成功將《{title}》手動加入參考書目庫！"
+    except Exception as e:
+        return False, f"寫入資料庫失敗: {e}"
