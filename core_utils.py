@@ -811,12 +811,20 @@ def add_book_by_title_blind_search(title):
     except Exception as e: 
         return False, f"寫入資料庫失敗: {e}"
 
-def add_manual_bibliography_reference(identifier, title, author, importance, notes):
-    """手動新增參考書目至資料庫 (無 API 檢索)"""
+def add_manual_bibliography_reference(identifier, title, author, importance, notes, pub_year, pub_type):
+    """手動新增參考書目至資料庫 (嚴格要求 DOI/ISBN 版)"""
     identifier = str(identifier).strip()
-    # 如果使用者沒有輸入 ISBN 或 DOI，則自動產生一組基於時間的唯一虛擬 ID
+    title_clean = title.strip()
+    
+    # 🌟 嚴格防護：若沒有提供 DOI/ISBN，直接退回，不產生幽靈代碼
     if not identifier:
-        identifier = f"manual_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        return False, "❌ 必須提供真實的 DOI 或 ISBN 作為唯一識別碼。"
+
+    # 處理出版年份
+    safe_date = f"{pub_year}-01-01" if pub_year and str(pub_year).isdigit() else "未知年份"
+    
+    # 將使用者選擇的類型映射為標準結構
+    db_type = "Book" if pub_type == "專書 (Book)" else "Journal"
 
     try:
         sql = """
@@ -824,13 +832,13 @@ def add_manual_bibliography_reference(identifier, title, author, importance, not
         (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(identifier) DO UPDATE SET 
-        title=excluded.title, author=excluded.author, importance=excluded.importance, notes=excluded.notes;
+        title=excluded.title, author=excluded.author, importance=excluded.importance, notes=excluded.notes, type=excluded.type, publish_date=excluded.publish_date;
         """
         db.execute(sql, [
-            identifier, "Book/Article", title.strip(), author.strip(), 
-            "手動加入", "", datetime.utcnow().strftime("%Y-%m-%d"), 
+            identifier, db_type, title_clean, author.strip(), 
+            "手動加入", "", safe_date, 
             importance, notes, "", datetime.utcnow().isoformat()
         ])
-        return True, f"✅ 已成功將《{title}》手動加入參考書目庫！"
+        return True, f"✅ 已成功將《{title_clean}》手動加入參考庫！"
     except Exception as e:
         return False, f"寫入資料庫失敗: {e}"
