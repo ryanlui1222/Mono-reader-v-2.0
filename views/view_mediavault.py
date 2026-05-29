@@ -141,47 +141,63 @@ def render_page():
     
     tab_movie, tab_music, tab_resource = st.tabs(["🎬 電影與影集", "🎵 音樂與專輯", "🌐 網路資源分享卡"])
 
+# ====================================================================
+    # 🎬 分頁一：電影與影集
+    # ====================================================================
     with tab_movie:
-        if current_view_state == 1: # 只有在待播清單模式才顯示新增框，保持介面乾淨
-            st.markdown("### 📥 引入電影文獻")
-            col_m_in, col_m_btn = st.columns([5, 1])
-            with col_m_in:
-                movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed")
-            with col_m_btn:
-                if st.button("加入待播庫", use_container_width=True, type="primary"):
-                    if movie_input:
-                        with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
-                            m_data = core_utils.fetch_movie_data(movie_input)
-                            if m_data:
-                                core_utils.insert_media_db(m_data) 
-                                st.success(f"🎬 已成功加入待播清單：{m_data['title']}")
-                                st.rerun()
-                            else:
-                                st.error("❌ 抓取失敗，請確認網址或稍後再試。")
-            st.divider()
+        # 🌟 移除限制，讓雙分頁都顯示輸入欄
+        st.markdown("### 📥 引入電影文獻")
+        col_m_in, col_m_btn = st.columns([5, 1])
+        with col_m_in:
+            movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed")
+        with col_m_btn:
+            # 🌟 動態按鈕文字
+            btn_text = "加入待播庫" if current_view_state == 1 else "直接加入典藏"
+            if st.button(btn_text, use_container_width=True, type="primary"):
+                if movie_input:
+                    with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
+                        m_data = core_utils.fetch_movie_data(movie_input)
+                        if m_data:
+                            # 🌟 將當前的介面狀態注入資料字典中
+                            m_data['is_bookmarked'] = current_view_state 
+                            core_utils.insert_media_db(m_data) 
+                            
+                            success_msg = "待播清單" if current_view_state == 1 else "典藏庫"
+                            st.success(f"🎬 已成功加入{success_msg}：{m_data['title']}")
+                            st.rerun()
+                        else:
+                            st.error("❌ 抓取失敗，請確認網址或稍後再試。")
+        st.divider()
             
         st.markdown(f"### 🍿 {'我的待播電影' if current_view_state == 1 else '電影典藏庫'}")
         movies = core_utils.fetch_media_by_broad_type("Movie", is_bookmarked=current_view_state)
         render_media_gallery(movies, tab_name="movie", style_type="movie", current_view_state=current_view_state)
 
+    # ====================================================================
+    # 🎵 分頁二：音樂與專輯
+    # ====================================================================
     with tab_music:
-        if current_view_state == 1:
-            st.markdown("### 📥 引入音樂文獻")
-            col_mu_in, col_mu_btn = st.columns([5, 1])
-            with col_mu_in:
-                music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed")
-            with col_mu_btn:
-                if st.button("加入待聽庫", use_container_width=True, type="primary"):
-                    if music_input:
-                        with st.spinner("正在跨區輪詢 Apple Music API..."):
-                            mu_data = core_utils.fetch_apple_music_data(music_input)
-                            if mu_data:
-                                core_utils.insert_media_db(mu_data)
-                                st.success(f"🎵 已成功加入待聽清單：{mu_data['title']}")
-                                st.rerun()
-                            else:
-                                st.error("❌ 抓取失敗，找不到此專輯。")
-            st.divider()
+        st.markdown("### 📥 引入音樂文獻")
+        col_mu_in, col_mu_btn = st.columns([5, 1])
+        with col_mu_in:
+            music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed")
+        with col_mu_btn:
+            btn_text_mu = "加入待聽庫" if current_view_state == 1 else "直接加入典藏"
+            if st.button(btn_text_mu, use_container_width=True, type="primary"):
+                if music_input:
+                    with st.spinner("正在跨區輪詢 Apple Music API..."):
+                        mu_data = core_utils.fetch_apple_music_data(music_input)
+                        if mu_data:
+                            # 🌟 注入狀態
+                            mu_data['is_bookmarked'] = current_view_state
+                            core_utils.insert_media_db(mu_data)
+                            
+                            success_msg = "待聽清單" if current_view_state == 1 else "典藏庫"
+                            st.success(f"🎵 已成功加入{success_msg}：{mu_data['title']}")
+                            st.rerun()
+                        else:
+                            st.error("❌ 抓取失敗，找不到此專輯。")
+        st.divider()
             
         st.markdown(f"### 🎧 {'我的待聽專輯' if current_view_state == 1 else '音樂典藏庫'}")
         music_list = core_utils.fetch_media_by_broad_type("Music", is_bookmarked=current_view_state)
