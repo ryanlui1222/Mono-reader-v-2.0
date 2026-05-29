@@ -518,19 +518,24 @@ def add_url_backup(url_book_data):
 # ==========================================
 
 def insert_media_db(data):
-    """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版)"""
+    """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版，支援動態書籤狀態)"""
     try:
         sql = """
         INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_url) DO UPDATE SET 
-            title=excluded.title, creator=excluded.creator, cover_image=excluded.cover_image, summary=excluded.summary;
+            title=excluded.title, 
+            creator=excluded.creator, 
+            cover_image=excluded.cover_image, 
+            summary=excluded.summary,
+            is_bookmarked=excluded.is_bookmarked;
         """
-        # 🌟 精準對齊資料字典的鍵名
+        # 🌟 讀取傳入的 is_bookmarked 狀態，若無則預設為 1 (待播)
         args = [
             data.get('media_type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
             data.get('cover_image', ''), '未知時間', data.get('source_url', ''),
-            data.get('summary', ''), datetime.utcnow().isoformat()
+            data.get('summary', ''), datetime.utcnow().isoformat(),
+            data.get('is_bookmarked', 1) 
         ]
         db.execute(sql, args)
     except Exception as e:
