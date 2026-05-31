@@ -848,15 +848,20 @@ def add_manual_bibliography_reference(identifier, title, author, importance, not
     except Exception as e:
         return False, f"寫入資料庫失敗: {e}"
 
-def add_manual_custom_resource(module_name, title, url, comment):
-    """純手動寫入自定義資源表 (不呼叫爬蟲)，用於講座與會議記錄"""
+def add_manual_custom_resource(module, title, url, comment):
+    """純手動寫入自定義資源表 (修正 module 欄位與 URL 唯一性防護)"""
     if not title:
         return False, "❌ 名稱/主題為必填欄位。"
+        
+    # 🌟 防護機制：如果沒有填寫網址，自動生成一組虛擬的唯一網址，避免觸發 UNIQUE 錯誤
+    safe_url = url.strip() if url and url.strip() != "" else f"local_record_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+    
     try:
+        # 🌟 修正欄位名稱：module_name -> module
         db.execute("""
-            INSERT INTO custom_resources (module_name, title, url, comment, added_date) 
+            INSERT INTO custom_resources (module, title, url, comment, added_date) 
             VALUES (?, ?, ?, ?, ?)
-        """, [module_name, title, url, comment, datetime.utcnow().isoformat()])
+        """, [module, title, safe_url, comment, datetime.utcnow().isoformat()])
         st.cache_data.clear()
         return True, f"✅ 已成功記錄：《{title}》"
     except Exception as e:
