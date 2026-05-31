@@ -435,7 +435,7 @@ def render_page():
                             st.button("🗑️ 刪除", key=f"del_bib_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
 
-        # ==========================================
+# ==========================================
         # Tab 2: 講座記錄 (手動寫入模式)
         # ==========================================
         with tab_lec:
@@ -467,8 +467,17 @@ def render_page():
                             st.markdown(f"### {row['title']}")
                             if pd.notna(row.get('url')) and str(row.get('url')).strip() != "":
                                 st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                            if pd.notna(row.get('comment')) and str(row.get('comment')).strip() != "":
-                                st.info(row['comment'])
+                            
+                            # 🌟 智慧折疊邏輯：講座筆記
+                            notes_text = str(row.get('comment', '')).strip()
+                            if pd.notna(row.get('comment')) and notes_text:
+                                if len(notes_text) > 120:
+                                    st.info(f"{notes_text[:120]} ...") 
+                                    with st.expander("📖 展開完整大綱與詳情"):
+                                        st.markdown(notes_text.replace('\n', '  \n'))
+                                else:
+                                    st.info(notes_text)
+                                    
                         with col_btn:
                             with st.popover("⚙️ 管理"):
                                 edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_lec_{row['id']}")
@@ -510,8 +519,17 @@ def render_page():
                             st.markdown(f"### {row['title']}")
                             if pd.notna(row.get('url')) and str(row.get('url')).strip() != "":
                                 st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                            if pd.notna(row.get('comment')) and str(row.get('comment')).strip() != "":
-                                st.info(row['comment'])
+                            
+                            # 🌟 智慧折疊邏輯：會議筆記
+                            notes_text = str(row.get('comment', '')).strip()
+                            if pd.notna(row.get('comment')) and notes_text:
+                                if len(notes_text) > 120:
+                                    st.info(f"{notes_text[:120]} ...") 
+                                    with st.expander("📖 展開完整大綱與詳情"):
+                                        st.markdown(notes_text.replace('\n', '  \n'))
+                                else:
+                                    st.info(notes_text)
+                                    
                         with col_btn:
                             with st.popover("⚙️ 管理"):
                                 edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_conf_{row['id']}")
