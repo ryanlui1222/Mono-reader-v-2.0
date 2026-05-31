@@ -456,7 +456,9 @@ def render_page():
                         st.warning("⚠️ 請務必填寫名稱。")
             st.markdown("---")
 
-            df_lec = core_utils.fetch_custom_resources("biblioapp_lecture")
+            if bib_search_query and not df_lec.empty:
+                mask = df_lec['title'].str.contains(bib_search_query, case=False, na=False) | df_lec['comment'].str.contains(bib_search_query, case=False, na=False)
+                df_lec = df_lec[mask]
             if df_lec.empty:
                 st.info("目前沒有任何講座記錄。")
             else:
@@ -508,7 +510,9 @@ def render_page():
                         st.warning("⚠️ 請務必填寫名稱。")
             st.markdown("---")
 
-            df_conf = core_utils.fetch_custom_resources("biblioapp_conference")
+            if bib_search_query and not df_conf.empty:
+                mask = df_conf['title'].str.contains(bib_search_query, case=False, na=False) | df_conf['comment'].str.contains(bib_search_query, case=False, na=False)
+                df_conf = df_conf[mask]
             if df_conf.empty:
                 st.info("目前沒有任何會議記錄。")
             else:
