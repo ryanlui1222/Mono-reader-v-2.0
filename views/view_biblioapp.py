@@ -456,11 +456,16 @@ def render_page():
                         st.warning("⚠️ 請務必填寫名稱。")
             st.markdown("---")
 
+            # 🌟 補回遺失的這行：先從資料庫抓資料！
+            df_lec = core_utils.fetch_custom_resources("biblioapp_lecture")
+
+            # 🌟 接著再進行全域搜尋過濾
             if bib_search_query and not df_lec.empty:
                 mask = df_lec['title'].str.contains(bib_search_query, case=False, na=False) | df_lec['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_lec = df_lec[mask]
+                
             if df_lec.empty:
-                st.info("目前沒有任何講座記錄。")
+                st.info("目前沒有符合條件的講座記錄。")
             else:
                 for _, row in df_lec.iterrows():
                     with st.container():
@@ -488,8 +493,8 @@ def render_page():
                                 st.button("💾 儲存", key=f"save_lec_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
                                 st.button("🗑️ 刪除", key=f"del_lec_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
-
-        # ==========================================
+                    
+# ==========================================
         # Tab 3: 學術會議 (手動寫入模式)
         # ==========================================
         with tab_conf:
@@ -510,11 +515,16 @@ def render_page():
                         st.warning("⚠️ 請務必填寫名稱。")
             st.markdown("---")
 
+            # 🌟 補回遺失的這行：先從資料庫抓資料！
+            df_conf = core_utils.fetch_custom_resources("biblioapp_conference")
+
+            # 🌟 接著再進行全域搜尋過濾
             if bib_search_query and not df_conf.empty:
                 mask = df_conf['title'].str.contains(bib_search_query, case=False, na=False) | df_conf['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_conf = df_conf[mask]
+                
             if df_conf.empty:
-                st.info("目前沒有任何會議記錄。")
+                st.info("目前沒有符合條件的會議記錄。")
             else:
                 for _, row in df_conf.iterrows():
                     with st.container():
