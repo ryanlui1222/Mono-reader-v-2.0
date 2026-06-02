@@ -273,52 +273,55 @@ def _render_bookshelf(df_pubs):
     _render_pagination_ui(total_pages, "bib_grid_page")
 
 def _render_url_backup(search_query):
-    """🔗 網址備存與智慧解析視圖"""
+    """🔗 網址備存視圖 (已修正：完美對齊 academic_pubs 表與舊有資料)"""
     st.subheader("🔗 網址備存與快照庫")
-    st.caption("將 Amazon、各大出版社新書介紹頁或臨時發現的學術網址備存於此，系統將妥善儲存並提供個人筆記功能。")
+    st.caption("將 Amazon、各大出版社新書介紹頁或臨時發現的學術網址備存於此。")
     st.markdown("---")
     
-    with st.expander("📥 新增網址備存卡片", expanded=False):
-        bk_title = st.text_input("名稱 / 書籍主題 (必填)：", key="add_url_title")
-        bk_url = st.text_input("來源網址 URL (必填)：", key="add_url_link")
-        bk_comment = st.text_area("個人筆記 / 備忘說明：", key="add_url_comment")
+    with st.expander("📥 智慧備存網址 (自動解析 Meta 標籤)", expanded=False):
+        bk_url = st.text_input("輸入網址 URL：", placeholder="https://...", key="add_url_link")
         
-        if st.button("💾 儲存至資源卡片", use_container_width=True, type="primary"):
-            if bk_title and bk_url:
-                with st.spinner("正在寫入自訂資源表..."):
-                    # 統一呼叫 custom_resources 表結構，使用標籤分流
-                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_URL", bk_title, bk_url, bk_comment)
-                    if success: st.success(msg); st.rerun()
-                    else: st.error(msg)
+        if st.button("💾 檢索並備存網址", use_container_width=True, type="primary"):
+            if bk_url:
+                with st.spinner("正在呼叫爬蟲擷取網頁元資料..."):
+                    url_data = core_utils.fetch_book_by_url(bk_url)
+                    if url_data:
+                        success, msg = core_utils.add_url_backup(url_data)
+                        if success: st.success(msg); st.rerun()
+                        else: st.error(msg)
+                    else: st.error("❌ 無法解析該網址，請確認網址是否有效。")
             else:
-                st.warning("⚠️ 請務必填寫「名稱」與「來源網址」。")
+                st.warning("⚠️ 請輸入來源網址。")
                 
     st.markdown("---")
-    # 從 custom_resources 撈取資料
-    df_urls = core_utils.fetch_custom_resources("Biblioapp_URL", search_query)
+    
+    # 🎯 修正點：改回使用 fetch_academic_pubs 撈取 type = 'Web Link' 的歷史資料
+    df_urls = core_utils.fetch_academic_pubs(view_mode="🔗 網址備存", pub_type="Web Link", source_filter="總覽", search_query=search_query)
+    
     if df_urls.empty:
         st.info("目前沒有任何網址備存紀錄。")
         return
         
-    for _, row in df_urls.iterrows():
+    start_idx, total_pages = _handle_pagination(len(df_urls), 15, "biblio_page")
+    for _, row in df_urls.iloc[start_idx:start_idx + 15].iterrows():
         with st.container():
             col_info, col_btn = st.columns([8, 1])
             with col_info:
-                st.markdown(f"#### [{row.get('title', '無標題')}]({row.get('url', '#')})")
-                st.caption(f"🔗 備存網址: {row.get('url')} | 📅 建立時間: {row.get('added_date', '未知')}")
-                if pd.notna(row.get('comment')) and str(row.get('comment')).strip():
-                    st.info(row['comment'])
+                st.markdown(f"#### [{row.get('title', '無標題')}]({row.get('link', '#')})")
+                st.caption(f"🔗 備存網址: {row.get('link')} | 📅 建立時間: {row.get('publish_date', '未知')}")
+                if pd.notna(row.get('abstract')) and str(row.get('abstract')).strip():
+                    st.info(row['abstract'])
             with col_btn:
-                with st.popover("⚙️ 管理"):
-                    edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_url_title_{row['id']}")
-                    current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
-                    edit_comment = st.text_area("修改備註：", value=current_comment, key=f"edit_url_note_{row['id']}", height=120)
-                    st.button("💾 儲存", key=f"save_url_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
-                    st.button("🗑️ 刪除", key=f"del_url_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                with st.popover("⚙️"):
+                    # 使用 academic_pubs 專用的刪除函數
+                    st.button("✅ 確定刪除", key=f"del_url_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
         st.divider()
+        
+    _render_pagination_ui(total_pages, "biblio_page")
+
 
 def _render_available_resources(search_query):
-    """🌐 可用資源視圖 (整合講座與會議雙 Tab 面板)"""
+    """🌐 可用資源視圖 (已修正：還原歷史 Module 標籤)"""
     st.subheader("🌐 學術活動與可用資源")
     st.caption("集中管理線上學術講座（Lectures）與大型國際學術會議（Conferences）的徵稿資訊、直播連結及個人精華大綱。")
     st.markdown("---")
@@ -333,13 +336,15 @@ def _render_available_resources(search_query):
             lec_comment = st.text_area("核心筆記 / 講座大綱與講者資訊：", key="add_lec_comment", height=120)
             if st.button("💾 儲存講座資訊", key="save_new_lec", use_container_width=True, type="primary"):
                 if lec_title:
-                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_Lecture", lec_title, lec_url, lec_comment)
+                    # 🎯 修正點：將標籤改回原先預設的 "Lecture"
+                    success, msg = core_utils.add_manual_custom_resource("Lecture", lec_title, lec_url, lec_comment)
                     if success: st.success(msg); st.rerun()
                     else: st.error(msg)
                 else: st.warning("⚠️ 講座主題為必填欄位。")
                 
         st.markdown("---")
-        df_lec = core_utils.fetch_custom_resources("Biblioapp_Lecture", search_query)
+        # 🎯 修正點：使用 "Lecture" 標籤撈取舊資料
+        df_lec = core_utils.fetch_custom_resources("Lecture", search_query)
         if df_lec.empty:
             st.info("目前沒有任何講座紀錄。")
         else:
@@ -374,13 +379,15 @@ def _render_available_resources(search_query):
             conf_comment = st.text_area("重要日程 (如 Deadline) / 徵稿大綱：", key="add_conf_comment", height=120)
             if st.button("💾 儲存會議資訊", key="save_new_conf", use_container_width=True, type="primary"):
                 if conf_title:
-                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_Conference", conf_title, conf_url, conf_comment)
+                    # 🎯 修正點：將標籤改回原先預設的 "Conference"
+                    success, msg = core_utils.add_manual_custom_resource("Conference", conf_title, conf_url, conf_comment)
                     if success: st.success(msg); st.rerun()
                     else: st.error(msg)
                 else: st.warning("⚠️ 會議名稱為必填欄位。")
                 
         st.markdown("---")
-        df_conf = core_utils.fetch_custom_resources("Biblioapp_Conference", search_query)
+        # 🎯 修正點：使用 "Conference" 標籤撈取舊資料
+        df_conf = core_utils.fetch_custom_resources("Conference", search_query)
         if df_conf.empty:
             st.info("目前沒有任何研討會或會議紀錄。")
         else:
@@ -406,7 +413,6 @@ def _render_available_resources(search_query):
                             st.button("💾 儲存", key=f"save_conf_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
                             st.button("🗑️ 刪除", key=f"del_conf_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
-
 # ==========================================
 # 主路由 (Router Entrance)
 # ==========================================
