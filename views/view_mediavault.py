@@ -149,16 +149,16 @@ def render_page():
         st.markdown("### 📥 引入電影文獻")
         col_m_in, col_m_btn = st.columns([5, 1])
         with col_m_in:
-            movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed")
+            # 💡 加上 key="movie_in_key"
+            movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed", key="movie_in_key")
         with col_m_btn:
-            # 🌟 動態按鈕文字
             btn_text = "加入待播庫" if current_view_state == 1 else "直接加入典藏"
-            if st.button(btn_text, use_container_width=True, type="primary"):
+            # 💡 加上 key="movie_btn_key"
+            if st.button(btn_text, use_container_width=True, type="primary", key="movie_btn_key"):
                 if movie_input:
                     with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
                         m_data = core_utils.fetch_movie_data(movie_input)
                         if m_data:
-                            # 🌟 將當前的介面狀態注入資料字典中
                             m_data['is_bookmarked'] = current_view_state 
                             core_utils.insert_media_db(m_data) 
                             
@@ -180,15 +180,16 @@ def render_page():
         st.markdown("### 📥 引入音樂文獻")
         col_mu_in, col_mu_btn = st.columns([5, 1])
         with col_mu_in:
-            music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed")
+            # 💡 加上 key="music_in_key"
+            music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed", key="music_in_key")
         with col_mu_btn:
             btn_text_mu = "加入待聽庫" if current_view_state == 1 else "直接加入典藏"
-            if st.button(btn_text_mu, use_container_width=True, type="primary"):
+            # 💡 加上 key="music_btn_key" (這樣就算文字一樣，ID也不同了！)
+            if st.button(btn_text_mu, use_container_width=True, type="primary", key="music_btn_key"):
                 if music_input:
                     with st.spinner("正在跨區輪詢 Apple Music API..."):
                         mu_data = core_utils.fetch_apple_music_data(music_input)
                         if mu_data:
-                            # 🌟 注入狀態
                             mu_data['is_bookmarked'] = current_view_state
                             core_utils.insert_media_db(mu_data)
                             
@@ -198,6 +199,7 @@ def render_page():
                         else:
                             st.error("❌ 抓取失敗，找不到此專輯。")
         st.divider()
+        # ...下方的畫廊渲染代碼保持不變...
             
         st.markdown(f"### 🎧 {'我的待聽專輯' if current_view_state == 1 else '音樂典藏庫'}")
         music_list = core_utils.fetch_media_by_broad_type("Music", is_bookmarked=current_view_state)
