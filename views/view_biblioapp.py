@@ -35,6 +35,7 @@ def _render_pagination_ui(total_pages, session_key):
 # ==========================================
 # 子視圖元件 (Components)
 # ==========================================
+
 def _render_reference_lib():
     """📚 參考書目與註釋管理視圖"""
     col_title, col_sort = st.columns([3, 1])
@@ -83,7 +84,7 @@ def _render_reference_lib():
                     success, msg = core_utils.add_manual_bibliography_reference(manual_id, manual_title, manual_author, manual_importance, manual_notes, manual_year, manual_type)
                     if success: st.cache_data.clear(); st.success(msg); st.rerun()
                     else: st.error(msg)
-            else: st.warning("⚠️ 拒絕寫入：請務必填寫「書名/論文名」、「作者」與「DOI/ISBN」。")
+            else: st.warning("⚠️ 拒絕寫入：請務必填寫「書名/論文名」、「作者」與「DOI/ISBNftp」。")
     
     st.markdown("---")
     df_refs = core_utils.fetch_bibliography_references()
@@ -129,7 +130,6 @@ def _render_exploration(df_pubs, db_type, active_filter, selected_issue):
         st.info("目前資料庫中沒有符合條件的書目。")
         return
 
-    # 期刊總覽特例：依期刊群組顯示最新一期
     if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
         df_sorted = df_pubs.sort_values(by=['publish_date', 'issue_volume'], ascending=[False, False], na_position='last')
         latest_records = df_sorted.drop_duplicates(subset=['publisher_journal'], keep='first')
@@ -162,7 +162,6 @@ def _render_exploration(df_pubs, db_type, active_filter, selected_issue):
         
         _render_pagination_ui(total_pages, "biblio_page")
     else:
-        # 常規探索清單
         start_idx, total_pages = _handle_pagination(len(df_pubs), 20, "biblio_page")
         for _, row in df_pubs.iloc[start_idx:start_idx + 20].iterrows():
             with st.container():
@@ -273,8 +272,143 @@ def _render_bookshelf(df_pubs):
 
     _render_pagination_ui(total_pages, "bib_grid_page")
 
+def _render_url_backup(search_query):
+    """🔗 網址備存與智慧解析視圖"""
+    st.subheader("🔗 網址備存與快照庫")
+    st.caption("將 Amazon、各大出版社新書介紹頁或臨時發現的學術網址備存於此，系統將妥善儲存並提供個人筆記功能。")
+    st.markdown("---")
+    
+    with st.expander("📥 新增網址備存卡片", expanded=False):
+        bk_title = st.text_input("名稱 / 書籍主題 (必填)：", key="add_url_title")
+        bk_url = st.text_input("來源網址 URL (必填)：", key="add_url_link")
+        bk_comment = st.text_area("個人筆記 / 備忘說明：", key="add_url_comment")
+        
+        if st.button("💾 儲存至資源卡片", use_container_width=True, type="primary"):
+            if bk_title and bk_url:
+                with st.spinner("正在寫入自訂資源表..."):
+                    # 統一呼叫 custom_resources 表結構，使用標籤分流
+                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_URL", bk_title, bk_url, bk_comment)
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+            else:
+                st.warning("⚠️ 請務必填寫「名稱」與「來源網址」。")
+                
+    st.markdown("---")
+    # 從 custom_resources 撈取資料
+    df_urls = core_utils.fetch_custom_resources("Biblioapp_URL", search_query)
+    if df_urls.empty:
+        st.info("目前沒有任何網址備存紀錄。")
+        return
+        
+    for _, row in df_urls.iterrows():
+        with st.container():
+            col_info, col_btn = st.columns([8, 1])
+            with col_info:
+                st.markdown(f"#### [{row.get('title', '無標題')}]({row.get('url', '#')})")
+                st.caption(f"🔗 備存網址: {row.get('url')} | 📅 建立時間: {row.get('added_date', '未知')}")
+                if pd.notna(row.get('comment')) and str(row.get('comment')).strip():
+                    st.info(row['comment'])
+            with col_btn:
+                with st.popover("⚙️ 管理"):
+                    edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_url_title_{row['id']}")
+                    current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                    edit_comment = st.text_area("修改備註：", value=current_comment, key=f"edit_url_note_{row['id']}", height=120)
+                    st.button("💾 儲存", key=f"save_url_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
+                    st.button("🗑️ 刪除", key=f"del_url_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+        st.divider()
+
+def _render_available_resources(search_query):
+    """🌐 可用資源視圖 (整合講座與會議雙 Tab 面板)"""
+    st.subheader("🌐 學術活動與可用資源")
+    st.caption("集中管理線上學術講座（Lectures）與大型國際學術會議（Conferences）的徵稿資訊、直播連結及個人精華大綱。")
+    st.markdown("---")
+    
+    tab_lec, tab_conf = st.tabs(["🎓 學術講座 (Lectures)", "🏛️ 學術會議 (Conferences)"])
+    
+    # --- Tab 1: 講座管理 ---
+    with tab_lec:
+        with st.expander("➕ 新增線上學術講座", expanded=False):
+            lec_title = st.text_input("講座主題/講者名稱：", key="add_lec_title")
+            lec_url = st.text_input("直播連結 / 詳情網址：", key="add_lec_url")
+            lec_comment = st.text_area("核心筆記 / 講座大綱與講者資訊：", key="add_lec_comment", height=120)
+            if st.button("💾 儲存講座資訊", key="save_new_lec", use_container_width=True, type="primary"):
+                if lec_title:
+                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_Lecture", lec_title, lec_url, lec_comment)
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+                else: st.warning("⚠️ 講座主題為必填欄位。")
+                
+        st.markdown("---")
+        df_lec = core_utils.fetch_custom_resources("Biblioapp_Lecture", search_query)
+        if df_lec.empty:
+            st.info("目前沒有任何講座紀錄。")
+        else:
+            for _, row in df_lec.iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([8, 1])
+                    with col_info:
+                        st.markdown(f"### [{row['title']}]({row.get('url', '#')})")
+                        st.caption(f"🔗 連結網址: {row.get('url', '#')} | 📅 建立日期: {row.get('added_date','')}")
+                        notes_text = str(row.get('comment', '')).strip()
+                        if pd.notna(row.get('comment')) and notes_text:
+                            if len(notes_text) > 120:
+                                st.info(f"{notes_text[:120]} ...") 
+                                with st.expander("📖 展開完整大綱與詳情"):
+                                    st.markdown(notes_text.replace('\n', '  \n'))
+                            else:
+                                st.info(notes_text)
+                    with col_btn:
+                        with st.popover("⚙️ 管理"):
+                            edit_title = st.text_input("修改主題：", value=row['title'], key=f"edit_lec_t_{row['id']}")
+                            current_notes = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                            edit_notes = st.text_area("修改筆記：", value=current_notes, key=f"edit_lec_note_{row['id']}", height=150)
+                            st.button("💾 儲存", key=f"save_lec_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
+                            st.button("🗑️ 刪除", key=f"del_lec_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
+
+    # --- Tab 2: 會議管理 ---
+    with tab_conf:
+        with st.expander("➕ 新增國際學術會議 (CFP)", expanded=False):
+            conf_title = st.text_input("會議名稱 / 研討會主題：", key="add_conf_title")
+            conf_url = st.text_input("會議官網 / 投稿入口 URL：", key="add_conf_url")
+            conf_comment = st.text_area("重要日程 (如 Deadline) / 徵稿大綱：", key="add_conf_comment", height=120)
+            if st.button("💾 儲存會議資訊", key="save_new_conf", use_container_width=True, type="primary"):
+                if conf_title:
+                    success, msg = core_utils.add_manual_custom_resource("Biblioapp_Conference", conf_title, conf_url, conf_comment)
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+                else: st.warning("⚠️ 會議名稱為必填欄位。")
+                
+        st.markdown("---")
+        df_conf = core_utils.fetch_custom_resources("Biblioapp_Conference", search_query)
+        if df_conf.empty:
+            st.info("目前沒有任何研討會或會議紀錄。")
+        else:
+            for _, row in df_conf.iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([8, 1])
+                    with col_info:
+                        st.markdown(f"### [{row['title']}]({row.get('url', '#')})")
+                        st.caption(f"🔗 會議官網: {row.get('url', '#')} | 📅 建立日期: {row.get('added_date','')}")
+                        notes_text = str(row.get('comment', '')).strip()
+                        if pd.notna(row.get('comment')) and notes_text:
+                            if len(notes_text) > 120:
+                                st.info(f"{notes_text[:120]} ...") 
+                                with st.expander("📖 展開完整日程與詳情"):
+                                    st.markdown(notes_text.replace('\n', '  \n'))
+                            else:
+                                st.info(notes_text)
+                    with col_btn:
+                        with st.popover("⚙️ 管理"):
+                            edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_conf_t_{row['id']}")
+                            current_notes = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                            edit_notes = st.text_area("修改日程/筆記：", value=current_notes, key=f"edit_conf_note_{row['id']}", height=150)
+                            st.button("💾 儲存", key=f"save_conf_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
+                            st.button("🗑️ 刪除", key=f"del_conf_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
+
 # ==========================================
-# 主路由 (Router)
+# 主路由 (Router Entrance)
 # ==========================================
 def render_page():
     if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
@@ -292,6 +426,7 @@ def render_page():
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
         selected_issue = None
+        
         if biblio_view_mode == "🔍 文獻探索":
             st.subheader("文獻篩選")
             biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed", on_change=reset_biblio_page)
@@ -315,7 +450,7 @@ def render_page():
                 else:
                     active_filter = selected_main
 
-    # 路由分發
+    # 路由精準分發 (無任何省略)
     if biblio_view_mode == "📚 參考書目":
         _render_reference_lib()
     elif biblio_view_mode == "🔍 文獻探索":
@@ -324,4 +459,7 @@ def render_page():
     elif biblio_view_mode == "🔖 待讀書架":
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_search_query)
         _render_bookshelf(df_pubs)
-    # (註：由於篇幅考量，🔗網址備存與🌐可用資源的渲染函數可依照上述邏輯輕易封裝，此處先保留原始結構或交由您接續完成)
+    elif biblio_view_mode == "🔗 網址備存":
+        _render_url_backup(bib_search_query)
+    elif biblio_view_mode == "🌐 可用資源":
+        _render_available_resources(bib_search_query)
