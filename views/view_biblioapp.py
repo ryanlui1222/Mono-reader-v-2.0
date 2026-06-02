@@ -321,32 +321,70 @@ def _render_url_backup(search_query):
 
 
 def _render_available_resources(search_query):
-    """🌐 可用資源視圖 (已修正：還原歷史 Module 標籤)"""
+    """🌐 可用資源視圖 (已修正：完美對齊 biblioapp、biblioapp_lecture、biblioapp_conference 歷史資料)"""
     st.subheader("🌐 學術活動與可用資源")
-    st.caption("集中管理線上學術講座（Lectures）與大型國際學術會議（Conferences）的徵稿資訊、直播連結及個人精華大綱。")
+    st.caption("集中管理可用資源、線上學術講座（Lectures）與大型國際學術會議（Conferences）的資訊與個人精華筆記。")
     st.markdown("---")
     
-    tab_lec, tab_conf = st.tabs(["🎓 學術講座 (Lectures)", "🏛️ 學術會議 (Conferences)"])
+    # 建立三個分流頁籤面板
+    tab_res, tab_lec, tab_conf = st.tabs(["🌐 可用資源", "🎓 學術講座 (Lectures)", "🏛️ 學術會議 (Conferences)"])
     
-    # --- Tab 1: 講座管理 ---
+    # ==========================================
+    # --- Tab 1: 可用資源 (module: biblioapp) ---
+    # ==========================================
+    with tab_res:
+        with st.expander("➕ 新增可用資源項目", expanded=False):
+            res_title = st.text_input("資源名稱 / 主題 (必填)：", key="add_res_title")
+            res_url = st.text_input("資源網址 / 詳情連結：", key="add_res_url")
+            res_comment = st.text_area("備註說明 / 使用指南：", key="add_res_comment", height=120)
+            if st.button("💾 儲存資源項目", key="save_new_res", use_container_width=True, type="primary"):
+                if res_title:
+                    success, msg = core_utils.add_manual_custom_resource("biblioapp", res_title, res_url, res_comment)
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+                else: st.warning("⚠️ 資源名稱為必填欄位。")
+                
+        st.markdown("---")
+        df_res = core_utils.fetch_custom_resources("biblioapp", search_query)
+        if df_res.empty:
+            st.info("目前沒有任何可用資源紀錄。")
+        else:
+            for _, row in df_res.iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([8, 1])
+                    with col_info:
+                        st.markdown(f"### [{row['title']}]({row.get('url', '#')})")
+                        st.caption(f"🔗 連結網址: {row.get('url', '#')} | 📅 建立日期: {row.get('added_date','')}")
+                        notes_text = str(row.get('comment', '')).strip() if pd.notna(row.get('comment')) else ""
+                        if notes_text: st.info(notes_text)
+                    with col_btn:
+                        with st.popover("⚙️ 管理"):
+                            edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_res_t_{row['id']}")
+                            current_notes = row.get('comment', '') if pd.notna(row.get('comment')) else ""
+                            edit_notes = st.text_area("修改筆記：", value=current_notes, key=f"edit_res_note_{row['id']}", height=150)
+                            st.button("💾 儲存", key=f"save_res_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
+                            st.button("🗑️ 刪除", key=f"del_res_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
+                st.divider()
+
+    # ==================================================
+    # --- Tab 2: 學術講座 (module: biblioapp_lecture) ---
+    # ==================================================
     with tab_lec:
         with st.expander("➕ 新增線上學術講座", expanded=False):
-            lec_title = st.text_input("講座主題/講者名稱：", key="add_lec_title")
+            lec_title = st.text_input("講座主題 / 講者名稱 (必填)：", key="add_lec_title")
             lec_url = st.text_input("直播連結 / 詳情網址：", key="add_lec_url")
             lec_comment = st.text_area("核心筆記 / 講座大綱與講者資訊：", key="add_lec_comment", height=120)
             if st.button("💾 儲存講座資訊", key="save_new_lec", use_container_width=True, type="primary"):
                 if lec_title:
-                    # 🎯 修正點：將標籤改回原先預設的 "Lecture"
-                    success, msg = core_utils.add_manual_custom_resource("Lecture", lec_title, lec_url, lec_comment)
+                    success, msg = core_utils.add_manual_custom_resource("biblioapp_lecture", lec_title, lec_url, lec_comment)
                     if success: st.success(msg); st.rerun()
                     else: st.error(msg)
                 else: st.warning("⚠️ 講座主題為必填欄位。")
                 
         st.markdown("---")
-        # 🎯 修正點：使用 "Lecture" 標籤撈取舊資料
-        df_lec = core_utils.fetch_custom_resources("Lecture", search_query)
+        df_lec = core_utils.fetch_custom_resources("biblioapp_lecture", search_query)
         if df_lec.empty:
-            st.info("目前沒有任何講座紀錄。")
+            st.info("目前沒有任何線上講座紀錄。")
         else:
             for _, row in df_lec.iterrows():
                 with st.container():
@@ -354,8 +392,8 @@ def _render_available_resources(search_query):
                     with col_info:
                         st.markdown(f"### [{row['title']}]({row.get('url', '#')})")
                         st.caption(f"🔗 連結網址: {row.get('url', '#')} | 📅 建立日期: {row.get('added_date','')}")
-                        notes_text = str(row.get('comment', '')).strip()
-                        if pd.notna(row.get('comment')) and notes_text:
+                        notes_text = str(row.get('comment', '')).strip() if pd.notna(row.get('comment')) else ""
+                        if notes_text:
                             if len(notes_text) > 120:
                                 st.info(f"{notes_text[:120]} ...") 
                                 with st.expander("📖 展開完整大綱與詳情"):
@@ -371,23 +409,23 @@ def _render_available_resources(search_query):
                             st.button("🗑️ 刪除", key=f"del_lec_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
 
-    # --- Tab 2: 會議管理 ---
+    # =======================================================
+    # --- Tab 3: 學術會議 (module: biblioapp_conference) ---
+    # =======================================================
     with tab_conf:
         with st.expander("➕ 新增國際學術會議 (CFP)", expanded=False):
-            conf_title = st.text_input("會議名稱 / 研討會主題：", key="add_conf_title")
+            conf_title = st.text_input("會議名稱 / 研討會主題 (必填)：", key="add_conf_title")
             conf_url = st.text_input("會議官網 / 投稿入口 URL：", key="add_conf_url")
             conf_comment = st.text_area("重要日程 (如 Deadline) / 徵稿大綱：", key="add_conf_comment", height=120)
             if st.button("💾 儲存會議資訊", key="save_new_conf", use_container_width=True, type="primary"):
                 if conf_title:
-                    # 🎯 修正點：將標籤改回原先預設的 "Conference"
-                    success, msg = core_utils.add_manual_custom_resource("Conference", conf_title, conf_url, conf_comment)
+                    success, msg = core_utils.add_manual_custom_resource("biblioapp_conference", conf_title, conf_url, conf_comment)
                     if success: st.success(msg); st.rerun()
                     else: st.error(msg)
                 else: st.warning("⚠️ 會議名稱為必填欄位。")
                 
         st.markdown("---")
-        # 🎯 修正點：使用 "Conference" 標籤撈取舊資料
-        df_conf = core_utils.fetch_custom_resources("Conference", search_query)
+        df_conf = core_utils.fetch_custom_resources("biblioapp_conference", search_query)
         if df_conf.empty:
             st.info("目前沒有任何研討會或會議紀錄。")
         else:
@@ -397,14 +435,14 @@ def _render_available_resources(search_query):
                     with col_info:
                         st.markdown(f"### [{row['title']}]({row.get('url', '#')})")
                         st.caption(f"🔗 會議官網: {row.get('url', '#')} | 📅 建立日期: {row.get('added_date','')}")
-                        notes_text = str(row.get('comment', '')).strip()
-                        if pd.notna(row.get('comment')) and notes_text:
+                        notes_text = str(row.get('comment', '')).strip() if pd.notna(row.get('comment')) else ""
+                        if notes_text:
                             if len(notes_text) > 120:
                                 st.info(f"{notes_text[:120]} ...") 
                                 with st.expander("📖 展開完整日程與詳情"):
                                     st.markdown(notes_text.replace('\n', '  \n'))
                             else:
-                                st.info(notes_text)
+                                        st.info(notes_text)
                     with col_btn:
                         with st.popover("⚙️ 管理"):
                             edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_conf_t_{row['id']}")
