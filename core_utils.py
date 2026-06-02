@@ -100,22 +100,10 @@ def delete_biblio_db(pub_id):
     try: db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id]); st.cache_data.clear(); st.toast("🗑️ 紀錄已徹底刪除！")
     except Exception as e: st.error(f"刪除失敗: {e}")
 
-def fetch_custom_resources(module_name, search_query=""):
-    """讀取自訂資源，並支援關鍵字搜尋"""
-    sql = "SELECT * FROM custom_resources WHERE module = ?"
-    args = [module_name]
-    
-    # 若有輸入搜尋關鍵字，則針對標題或備註進行模糊比對
-    if search_query:
-        sql += " AND (title LIKE ? OR comment LIKE ?)"
-        like_term = f"%{search_query}%"
-        args.extend([like_term, like_term])
-        
-    sql += " ORDER BY added_date DESC"
-    
-    res = db.execute(sql, args)
+def fetch_custom_resources(module_name):
+    res = db.execute("SELECT * FROM custom_resources WHERE module = ? ORDER BY added_date DESC", [module_name])
     return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows]) if res.rows else pd.DataFrame()
-    
+
 def add_custom_resource(module_name, url):
     if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
     title = "未命名網站"
