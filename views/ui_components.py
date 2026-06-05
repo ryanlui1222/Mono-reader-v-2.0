@@ -197,10 +197,10 @@ def render_smart_popover(row, table_name, context=""):
 # ==========================================
 # 4. 全域批量試算表編輯器 (Batch Data Editor)
 # ==========================================
-def render_batch_editor(df, table_name):
+def render_batch_editor(df, table_name, key_prefix=""):
     """
     全域試算表模式。接收 DataFrame，渲染為可勾選/編輯的 Excel 介面。
-    目前優先支援 custom_resources 與 media_vault 的打勾選取。
+    加入了 key_prefix 防止在同一頁面多個分頁中渲染時產生 Element ID 衝突。
     """
     if df.empty:
         st.info("此分類目前沒有資料可供管理。")
@@ -220,7 +220,7 @@ def render_batch_editor(df, table_name):
     if table_name == "custom_resources":
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date'] # 網址和時間不准改
-    elif table_name == "media_vault":
+    elif table_name == "media_vault":  
         display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
         disabled_cols = ['source_url']
     elif table_name == "academic_pubs":
@@ -234,22 +234,27 @@ def render_batch_editor(df, table_name):
     safe_cols = [c for c in display_cols if c in df_edit.columns]
     df_edit = df_edit[safe_cols]
 
+    # 🌟 產生唯一 Key 防撞名
+    editor_key = f"editor_{key_prefix}_{table_name}"
+    del_btn_key = f"del_btn_{key_prefix}_{table_name}"
+    save_btn_key = f"save_btn_{key_prefix}_{table_name}"
+
     # 渲染編輯器，並捕捉使用者的修改結果 (edited_df)
     edited_df = st.data_editor(
         df_edit,
         use_container_width=True,
         hide_index=True,
         disabled=disabled_cols,
-        height=400
+        height=400,
+        key=editor_key  # 🌟 綁定唯一識別碼
     )
 
     col1, col2 = st.columns([1, 1])
     with col1:
         # 計算目前被勾選的數量
         selected_count = edited_df['Select'].sum()
-        if st.button(f"🗑️ 刪除已勾選的 {selected_count} 筆資料", type="primary", disabled=(selected_count == 0), use_container_width=True):
+        if st.button(f"🗑️ 刪除已勾選的 {selected_count} 筆資料", type="primary", disabled=(selected_count == 0), use_container_width=True, key=del_btn_key): # 🌟 綁定唯一識別碼
             # 這裡實作批次刪除邏輯
-            # 我們需要拿到被勾選的列的原始 ID (或 Link)
             selected_rows = edited_df[edited_df['Select'] == True]
             if table_name == "articles":
                 for link in selected_rows['Link']: core_utils.delete_article_db(link)
@@ -262,7 +267,7 @@ def render_batch_editor(df, table_name):
             st.rerun()
 
     with col2:
-        if st.button("💾 儲存所有文字與狀態修改", use_container_width=True):
+        if st.button("💾 儲存所有文字與狀態修改", use_container_width=True, key=save_btn_key): # 🌟 綁定唯一識別碼
             # 這裡實作批次 Update 邏輯 (留作下一步我們調整 core_utils 時實作)
             st.toast("已記錄修改差異 (後端寫入功能準備中)")
             st.rerun()
