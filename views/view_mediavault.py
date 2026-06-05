@@ -1,26 +1,18 @@
 import streamlit as st
 import core_utils
-import math
 import pandas as pd
+from views import ui_components  # 🌟 引入全域元件
 
 def render_media_gallery(media_list, tab_name, style_type="movie", current_view_state=1):
-    """通用的畫廊渲染器：處理分頁、UI排版與批量管理的核取方塊"""
+    """通用的畫廊渲染器：處理UI排版與批量管理的核取方塊 (分頁已交由 ui_components 處理)"""
     if not media_list:
         st.info("📦 此清單目前尚無收藏。")
         return
         
-    ITEMS_PER_PAGE = 20
-    total_pages = max(1, math.ceil(len(media_list) / ITEMS_PER_PAGE))
     page_key = f"{tab_name}_{current_view_state}_page"
     
-    if page_key not in st.session_state:
-        st.session_state[page_key] = 1
-    if st.session_state[page_key] > total_pages:
-        st.session_state[page_key] = total_pages
-        
-    current_page = st.session_state[page_key]
-    start_idx = (current_page - 1) * ITEMS_PER_PAGE
-    page_items = media_list[start_idx : start_idx + ITEMS_PER_PAGE]
+    # 🌟 套用全域分頁引擎
+    page_items = ui_components.get_paginated_data(media_list, per_page=20, session_key=page_key)
     
     # === 渲染卡片畫廊 ===
     cols = st.columns(5)
@@ -41,7 +33,7 @@ def render_media_gallery(media_list, tab_name, style_type="movie", current_view_
                     is_selected = (row['id'] in st.session_state.get('selected_media', []))
                     st.checkbox("勾選選取", value=is_selected, key=f"sel_{row['id']}", on_change=toggle_cb, args=(row['id'],))
                 
-                # 封面渲染
+                # 封面渲染 (保留音樂特有圓角)
                 cover = row.get('cover_image')
                 if cover and str(cover).startswith('data:image'):
                     if style_type == "music":
@@ -60,20 +52,6 @@ def render_media_gallery(media_list, tab_name, style_type="movie", current_view_
                     st.caption(f"🎬 {str(row.get('creator', '未知導演'))[:30]}")
                 else:
                     st.caption(f"🎵 {str(row.get('creator', '未知音樂家'))[:30]}")
-                
-    # === 底部分頁控制列 ===
-    st.markdown("---")
-    pc1, pc2, pc3 = st.columns([2, 6, 2])
-    with pc1:
-        if st.button("⬅️ 上一頁", disabled=(current_page == 1), key=f"prev_{tab_name}_{current_view_state}", use_container_width=True):
-            st.session_state[page_key] -= 1
-            st.rerun()
-    with pc2:
-        st.markdown(f"<div style='text-align:center; padding-top: 8px;'>第 <b>{current_page}</b> 頁 / 共 <b>{total_pages}</b> 頁</div>", unsafe_allow_html=True)
-    with pc3:
-        if st.button("下一頁 ➡️", disabled=(current_page == total_pages), key=f"next_{tab_name}_{current_view_state}", use_container_width=True):
-            st.session_state[page_key] += 1
-            st.rerun()
 
 
 def render_page():
@@ -141,19 +119,16 @@ def render_page():
     
     tab_movie, tab_music, tab_resource = st.tabs(["🎬 電影與影集", "🎵 音樂與專輯", "🌐 網路資源分享卡"])
 
-# ====================================================================
+    # ====================================================================
     # 🎬 分頁一：電影與影集
     # ====================================================================
     with tab_movie:
-        # 🌟 移除限制，讓雙分頁都顯示輸入欄
         st.markdown("### 📥 引入電影文獻")
         col_m_in, col_m_btn = st.columns([5, 1])
         with col_m_in:
-            # 💡 加上 key="movie_in_key"
             movie_input = st.text_input("輸入 IMDb 網址或 ID：", placeholder="例如貼上 IMDb 網址，或輸入 tt4003440", label_visibility="collapsed", key="movie_in_key")
         with col_m_btn:
             btn_text = "加入待播庫" if current_view_state == 1 else "直接加入典藏"
-            # 💡 加上 key="movie_btn_key"
             if st.button(btn_text, use_container_width=True, type="primary", key="movie_btn_key"):
                 if movie_input:
                     with st.spinner("正在呼叫 TMDB API 解鎖數據與導演..."):
@@ -180,11 +155,9 @@ def render_page():
         st.markdown("### 📥 引入音樂文獻")
         col_mu_in, col_mu_btn = st.columns([5, 1])
         with col_mu_in:
-            # 💡 加上 key="music_in_key"
             music_input = st.text_input("輸入 Apple Music 網址或 ID：", placeholder="支援全區 Apple Music 網址", label_visibility="collapsed", key="music_in_key")
         with col_mu_btn:
             btn_text_mu = "加入待聽庫" if current_view_state == 1 else "直接加入典藏"
-            # 💡 加上 key="music_btn_key" (這樣就算文字一樣，ID也不同了！)
             if st.button(btn_text_mu, use_container_width=True, type="primary", key="music_btn_key"):
                 if music_input:
                     with st.spinner("正在跨區輪詢 Apple Music API..."):
@@ -199,12 +172,14 @@ def render_page():
                         else:
                             st.error("❌ 抓取失敗，找不到此專輯。")
         st.divider()
-        # ...下方的畫廊渲染代碼保持不變...
             
         st.markdown(f"### 🎧 {'我的待聽專輯' if current_view_state == 1 else '音樂典藏庫'}")
         music_list = core_utils.fetch_media_by_broad_type("Music", is_bookmarked=current_view_state)
         render_media_gallery(music_list, tab_name="music", style_type="music", current_view_state=current_view_state)
 
+    # ====================================================================
+    # 🌐 分頁三：網路資源分享卡
+    # ====================================================================
     with tab_resource:
         st.markdown("### 🌐 快收網路社群與卡片連結")
         st.caption("此分頁適合備存 Twitter、Facebook 貼文。此區塊不分待播/典藏。")
@@ -227,7 +202,10 @@ def render_page():
         if df_res is None or df_res.empty:
             st.info("📦 目前還沒有儲存任何社群資源卡片。")
         else:
-            for _, row in df_res.iterrows():
+            # 🌟 套用全域分頁引擎
+            page_data = ui_components.get_paginated_data(df_res, per_page=15, session_key="media_res_page")
+            
+            for _, row in page_data.iterrows():
                 with st.container():
                     col_card_meta, col_card_opt = st.columns([5, 1])
                     with col_card_meta:
