@@ -1,8 +1,6 @@
 name: Weekly Database Cleanup
 
 on:
-  schedule:
-    - cron: '0 0 * * 0'  # 🌟 每週日凌晨 00:00 (UTC) 定時執行大掃除
   workflow_dispatch:       # 允許在 GitHub 網頁上手動點擊按鈕測試
 
 jobs:
@@ -26,7 +24,7 @@ jobs:
     - name: 執行資料庫大掃除
       env:
         # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
-        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
       run: |
         python maintenance.py
