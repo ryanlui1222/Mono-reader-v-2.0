@@ -1,12 +1,11 @@
 import streamlit as st
-import math
 import re
 import pandas as pd
 import core_utils
+from views import ui_components  # 🌟 引入全域元件
 
 def reset_mono_page(): st.session_state.mono_page = 1
-def update_mono_page(): 
-    if "mono_page_selector" in st.session_state: st.session_state.mono_page = st.session_state.mono_page_selector
+def reset_mono_res_page(): st.session_state.mono_res_page = 1
 
 def render_page():
     if 'mono_page' not in st.session_state: st.session_state.mono_page = 1
@@ -85,7 +84,10 @@ def render_page():
         if df_res.empty:
             st.info("目前沒有任何記錄。請在上方輸入網址。")
         else:
-            for _, row in df_res.iterrows():
+            # 🌟 套用全域分頁引擎
+            page_data_res = ui_components.get_paginated_data(df_res, per_page=15, session_key="mono_res_page")
+            
+            for _, row in page_data_res.iterrows():
                 col_link, col_action = st.columns([7, 1])
                 with col_link:
                     st.markdown(f"### {row['title']}")
@@ -131,12 +133,10 @@ def render_page():
             if search_input: st.info("找不到符合關鍵字的文章。")
             else: st.info("暫無符合條件的新文章。")
         else:
-            PER_PAGE = 20
-            total_pages = math.ceil(len(df) / PER_PAGE)
-            if st.session_state.mono_page > total_pages and total_pages > 0: st.session_state.mono_page = total_pages
-            start_idx = (st.session_state.mono_page - 1) * PER_PAGE
+            # 🌟 套用全域分頁引擎
+            page_data = ui_components.get_paginated_data(df, per_page=20, session_key="mono_page")
             
-            for _, row in df.iloc[start_idx:start_idx + PER_PAGE].iterrows():
+            for _, row in page_data.iterrows():
                 with st.container():
                     st.markdown(f"#### [{row['Title']}]({row['Link']})")
                     col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
@@ -158,9 +158,3 @@ def render_page():
                     st.markdown(img_html, unsafe_allow_html=True)
                 st.write(row['Summary'])
                 st.markdown("---")
-
-            if total_pages > 1:
-                st.write("")
-                col_space, col_page, col_space2 = st.columns([1, 2, 1])
-                with col_page:
-                    st.selectbox("📄 選擇頁數 (跳轉至)：", range(1, total_pages + 1), index=st.session_state.mono_page - 1, key="mono_page_selector", on_change=update_mono_page)
