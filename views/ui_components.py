@@ -1,6 +1,7 @@
 import streamlit as st
 import math
 import pandas as pd
+import core_utils # 必須引入，因為按鈕要執行資料庫操作
 
 # ==========================================
 # 1. 全域分頁引擎 (Universal Pagination) - 兩階段版
@@ -100,8 +101,6 @@ def render_grid_card(row):
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
-
-import core_utils # 必須引入，因為按鈕要執行資料庫操作
 
 
 # ==========================================
