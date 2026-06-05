@@ -134,7 +134,7 @@ def render_page():
             else: st.info("暫無符合條件的新文章。")
         else:
             # 🌟 套用全域分頁引擎
-            page_data = ui_components.get_paginated_data(df, per_page=20, session_key="mono_page")
+            page_data, total_pages, current_page = ui_components.paginate_data(df, per_page=20, session_key="mono_page")
             
             for _, row in page_data.iterrows():
                 with st.container():
@@ -158,3 +158,4 @@ def render_page():
                     st.markdown(img_html, unsafe_allow_html=True)
                 st.write(row['Summary'])
                 st.markdown("---")
+            ui_components.render_pagination_ui(total_pages, current_page, "mono_page")
