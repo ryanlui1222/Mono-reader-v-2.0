@@ -200,7 +200,7 @@ def render_smart_popover(row, table_name, context=""):
 def render_batch_editor(df, table_name):
     """
     全域試算表模式。接收 DataFrame，渲染為可勾選/編輯的 Excel 介面。
-    目前優先支援 custom_resources 與 media_db 的打勾選取。
+    目前優先支援 custom_resources 與 media_vault 的打勾選取。
     """
     if df.empty:
         st.info("此分類目前沒有資料可供管理。")
@@ -220,7 +220,7 @@ def render_batch_editor(df, table_name):
     if table_name == "custom_resources":
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date'] # 網址和時間不准改
-    elif table_name == "media_db":
+    elif table_name == "media_vault":
         display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
         disabled_cols = ['source_url']
     elif table_name == "academic_pubs":
@@ -255,7 +255,7 @@ def render_batch_editor(df, table_name):
                 for link in selected_rows['Link']: core_utils.delete_article_db(link)
             elif table_name == "custom_resources":
                 for idx in selected_rows.index: core_utils.delete_custom_resource(df.iloc[idx]['id'])
-            elif table_name == "media_db":
+            elif table_name == "media_vault":
                 ids_to_delete = [df.iloc[idx]['id'] for idx in selected_rows.index]
                 core_utils.batch_delete_media(ids_to_delete)
             st.success("批次刪除完成！")
