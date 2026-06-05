@@ -2,10 +2,14 @@ import streamlit as st
 import pandas as pd
 import core_utils
 from datetime import datetime
-from views import ui_components  # 🌟 引入我們的新元件庫
+from views import ui_components 
 
-def reset_biblio_page(): st.session_state.biblio_page = 1
-# 🌟 已移除 update_biblio_page()，因為 ui_components 內部已經接管了分頁更新邏輯
+def reset_biblio_page(): 
+    st.session_state.biblio_page = 1
+    st.session_state.bib_ref_page = 1
+    st.session_state.bib_res_page = 1
+    st.session_state.bib_lec_page = 1
+    st.session_state.bib_conf_page = 1
 
 def render_page():
     if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
@@ -14,7 +18,6 @@ def render_page():
     st.header("🎓 Biblioapp：學術文獻與出版追蹤")
     
     with st.sidebar:
-        # 🌟 恢復清爽的側邊欄，將講座與會議收納進「可用資源」中
         biblio_view_mode = st.radio("功能模式", ["🔍 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
         st.markdown("---")
         
@@ -84,7 +87,6 @@ def render_page():
                 
         with st.expander("📝 手動新增參考文獻 (無 API 紀錄時使用)", expanded=False):
             st.caption("若無法透過 API 自動獲取，請直接填寫資訊。請注意，DOI 或 ISBN 為必填欄位。")
-            
             col_m1, col_m2 = st.columns(2)
             with col_m1:
                 manual_title = st.text_input("書名 / 論文名 (必填)：", key="man_ref_title")
@@ -107,12 +109,8 @@ def render_page():
                         success, msg = core_utils.add_manual_bibliography_reference(
                             manual_id, manual_title, manual_author, manual_importance, manual_notes, manual_year, manual_type
                         )
-                        if success: 
-                            st.cache_data.clear()
-                            st.success(msg)
-                            st.rerun()
-                        else: 
-                            st.error(msg)
+                        if success: st.cache_data.clear(); st.success(msg); st.rerun()
+                        else: st.error(msg)
                 else:
                     st.warning("⚠️ 拒絕寫入：請務必填寫「書名/論文名」、「作者」與「DOI/ISBN」。")
         
@@ -129,7 +127,10 @@ def render_page():
                 df_refs = df_refs.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
             elif ref_sort_mode == "出版日期 (新到舊)": df_refs = df_refs.sort_values(by='publish_date', ascending=False)
             
-            for _, row in df_refs.iterrows():
+            # 🌟 兩階段分頁：先拿資料，渲染，最後畫 UI
+            page_data, total_pages, current_page = ui_components.paginate_data(df_refs, per_page=15, session_key="bib_ref_page")
+            
+            for _, row in page_data.iterrows():
                 with st.container():
                     col_info, col_btn = st.columns([8, 1])
                     with col_info:
@@ -148,6 +149,8 @@ def render_page():
                             st.button("💾 儲存", key=f"save_ref_{row['id']}", on_click=core_utils.update_bibliography_reference, args=(row['id'], new_imp, new_notes), use_container_width=True)
                             st.button("🗑️ 刪除", key=f"del_ref_{row['id']}", on_click=core_utils.delete_bibliography_reference, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
+                
+            ui_components.render_pagination_ui(total_pages, current_page, "bib_ref_page")
                 
     elif biblio_view_mode == "🔍 文獻探索":
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_search_query)
@@ -176,11 +179,10 @@ def render_page():
                 
                 df_aggregated = pd.concat(latest_dfs) if latest_dfs else pd.DataFrame()
                     
-                # 🌟 套用全域分頁元件
-                current_page_df = ui_components.get_paginated_data(df_aggregated, per_page=100, session_key="biblio_page")
+                page_data, total_pages, current_page = ui_components.paginate_data(df_aggregated, per_page=100, session_key="biblio_page")
                 
                 current_rendering_journal = ""
-                for _, row in current_page_df.iterrows():
+                for _, row in page_data.iterrows():
                     journal_name = row.get('publisher_journal', '未知期刊')
                     if journal_name != current_rendering_journal:
                         if current_rendering_journal != "":
@@ -200,10 +202,11 @@ def render_page():
                     with col_btn:
                         is_bk = bool(row.get('is_bookmarked', 0))
                         st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
+                        
+                ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
             
             else:
-                # 🌟 套用全域分頁元件
-                page_data = ui_components.get_paginated_data(df_pubs, per_page=20, session_key="biblio_page")
+                page_data, total_pages, current_page = ui_components.paginate_data(df_pubs, per_page=20, session_key="biblio_page")
                 
                 for _, row in page_data.iterrows():
                     with st.container():
@@ -236,6 +239,8 @@ def render_page():
                                 with st.popover("🗑️ 刪除"):
                                     st.button("✅ 確定刪除", key=f"del_list_jour_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                         st.divider()
+                        
+                ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
 
     elif biblio_view_mode == "🔖 待讀書架":
         with st.expander("📥 手動新增待讀書目 (利用 ISBN 智慧解析)", expanded=False):
@@ -277,15 +282,13 @@ def render_page():
             if bib_sort_mode == "英文首字母 (A-Z)": df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower())
             elif bib_sort_mode in ["日文五十音", "漢字筆劃/部首"]: df_pubs = df_pubs.sort_values(by='title')
 
-            # 🌟 套用全域分頁元件
-            df_grid_page = ui_components.get_paginated_data(df_pubs, per_page=15, session_key="bib_grid_page")
+            # 🌟 兩階段分頁
+            df_grid_page, total_grid_pages, current_grid_page = ui_components.paginate_data(df_pubs, per_page=15, session_key="bib_grid_page")
 
             cols = st.columns(5)
             for idx, row in df_grid_page.reset_index(drop=True).iterrows():
                 with cols[idx % 5]:
-                    # 🌟 替換為統一卡片元件，消滅一大坨 HTML 拼接
                     ui_components.render_grid_card(row)
-                    
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1: st.button("💔 移除", key=f"unmark_{row['id']}_{idx}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], 1), use_container_width=True)
                     with btn_col2:
@@ -300,6 +303,8 @@ def render_page():
                             st.divider()
                             st.button("✅ 確定刪除", key=f"del_grid_{row['id']}_{idx}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                     st.write("") 
+            
+            ui_components.render_pagination_ui(total_grid_pages, current_grid_page, "bib_grid_page")
                         
     elif biblio_view_mode == "🔗 網址備存":
         with st.expander("📥 網址備存匯入 (當 ISBN 掃描失敗時強制擷取)", expanded=False):
@@ -330,8 +335,7 @@ def render_page():
             if web_sort_mode == "加入日期 (舊到新)": df_pubs = df_pubs.sort_values(by='publish_date', ascending=True)
             elif web_sort_mode == "標題 (A-Z / 五十音)": df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower(), ascending=True)
 
-            # 🌟 套用全域分頁元件
-            page_data = ui_components.get_paginated_data(df_pubs, per_page=20, session_key="biblio_page")
+            page_data, total_pages, current_page = ui_components.paginate_data(df_pubs, per_page=20, session_key="biblio_page")
             
             for _, row in page_data.iterrows():
                 with st.container():
@@ -345,12 +349,13 @@ def render_page():
                             st.button("✅ 確定", key=f"del_web_{row['id']}", on_click=core_utils.delete_biblio_db, args=(row['id'],), type="primary", use_container_width=True)
                 st.divider()
 
+            ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
+
     elif biblio_view_mode == "🌐 可用資源":
-        # 🌟 核心更新：使用 st.tabs 完美分流資源與紀錄
         tab_res, tab_lec, tab_conf = st.tabs(["🌐 網路資源", "🎙️ 講座記錄", "🏛️ 學術會議"])
         
         # ==========================================
-        # Tab 1: 網路資源 (自動爬取模式)
+        # Tab 1: 網路資源
         # ==========================================
         with tab_res:
             st.subheader("🌐 網路資源")
@@ -371,7 +376,8 @@ def render_page():
             df_res = core_utils.fetch_custom_resources("biblioapp")
             if df_res.empty: st.info("目前沒有任何記錄。請在上方輸入網址。")
             else:
-                for _, row in df_res.iterrows():
+                page_data, total_pages, current_page = ui_components.paginate_data(df_res, per_page=15, session_key="bib_res_page")
+                for _, row in page_data.iterrows():
                     col_link, col_action = st.columns([7, 1])
                     with col_link:
                         st.markdown(f"### {row['title']}")
@@ -385,9 +391,10 @@ def render_page():
                             st.button("💾 儲存", key=f"save_bib_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
                             st.button("🗑️ 刪除", key=f"del_bib_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
+                ui_components.render_pagination_ui(total_pages, current_page, "bib_res_page")
 
         # ==========================================
-        # Tab 2: 講座記錄 (手動寫入模式)
+        # Tab 2: 講座記錄 
         # ==========================================
         with tab_lec:
             st.subheader("🎙️ 講座記錄")
@@ -408,7 +415,6 @@ def render_page():
             st.markdown("---")
 
             df_lec = core_utils.fetch_custom_resources("biblioapp_lecture")
-
             if bib_search_query and not df_lec.empty:
                 mask = df_lec['title'].str.contains(bib_search_query, case=False, na=False) | df_lec['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_lec = df_lec[mask]
@@ -416,14 +422,14 @@ def render_page():
             if df_lec.empty:
                 st.info("目前沒有符合條件的講座記錄。")
             else:
-                for _, row in df_lec.iterrows():
+                page_data, total_pages, current_page = ui_components.paginate_data(df_lec, per_page=15, session_key="bib_lec_page")
+                for _, row in page_data.iterrows():
                     with st.container():
                         col_info, col_btn = st.columns([8, 1])
                         with col_info:
                             st.markdown(f"### {row['title']}")
                             if pd.notna(row.get('url')) and str(row.get('url')).strip() != "":
                                 st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                            
                             notes_text = str(row.get('comment', '')).strip()
                             if pd.notna(row.get('comment')) and notes_text:
                                 if len(notes_text) > 120:
@@ -432,7 +438,6 @@ def render_page():
                                         st.markdown(notes_text.replace('\n', '  \n'))
                                 else:
                                     st.info(notes_text)
-                                    
                         with col_btn:
                             with st.popover("⚙️ 管理"):
                                 edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_lec_{row['id']}")
@@ -441,9 +446,10 @@ def render_page():
                                 st.button("💾 儲存", key=f"save_lec_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
                                 st.button("🗑️ 刪除", key=f"del_lec_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
+                ui_components.render_pagination_ui(total_pages, current_page, "bib_lec_page")
                     
         # ==========================================
-        # Tab 3: 學術會議 (手動寫入模式)
+        # Tab 3: 學術會議
         # ==========================================
         with tab_conf:
             st.subheader("🏛️ 學術會議")
@@ -464,7 +470,6 @@ def render_page():
             st.markdown("---")
 
             df_conf = core_utils.fetch_custom_resources("biblioapp_conference")
-
             if bib_search_query and not df_conf.empty:
                 mask = df_conf['title'].str.contains(bib_search_query, case=False, na=False) | df_conf['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_conf = df_conf[mask]
@@ -472,14 +477,14 @@ def render_page():
             if df_conf.empty:
                 st.info("目前沒有符合條件的會議記錄。")
             else:
-                for _, row in df_conf.iterrows():
+                page_data, total_pages, current_page = ui_components.paginate_data(df_conf, per_page=15, session_key="bib_conf_page")
+                for _, row in page_data.iterrows():
                     with st.container():
                         col_info, col_btn = st.columns([8, 1])
                         with col_info:
                             st.markdown(f"### {row['title']}")
                             if pd.notna(row.get('url')) and str(row.get('url')).strip() != "":
                                 st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                            
                             notes_text = str(row.get('comment', '')).strip()
                             if pd.notna(row.get('comment')) and notes_text:
                                 if len(notes_text) > 120:
@@ -488,7 +493,6 @@ def render_page():
                                         st.markdown(notes_text.replace('\n', '  \n'))
                                 else:
                                     st.info(notes_text)
-                                    
                         with col_btn:
                             with st.popover("⚙️ 管理"):
                                 edit_title = st.text_input("修改名稱：", value=row['title'], key=f"edit_conf_{row['id']}")
@@ -497,3 +501,4 @@ def render_page():
                                 st.button("💾 儲存", key=f"save_conf_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_notes), use_container_width=True)
                                 st.button("🗑️ 刪除", key=f"del_conf_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
                     st.divider()
+                ui_components.render_pagination_ui(total_pages, current_page, "bib_conf_page")
