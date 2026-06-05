@@ -866,3 +866,27 @@ def add_manual_custom_resource(module, title, url, comment):
         return True, f"✅ 已成功記錄：《{title}》"
     except Exception as e:
         return False, f"寫入失敗: {e}"
+
+def update_article_meta(link, new_title):
+    """更新 articles 表的標題 (Monoreader 手動改名)"""
+    try:
+        db.execute("UPDATE articles SET Title = ? WHERE Link = ?", [new_title, link])
+        return True, "✅ 文章標題已更新"
+    except Exception as e:
+        return False, f"更新失敗: {e}"
+
+def update_academic_pub_meta(item_id, new_title, new_abstract):
+    """更新 academic_pubs 表的標題與摘要 (Biblioapp 手動改名與摘要)"""
+    try:
+        db.execute("UPDATE academic_pubs SET title = ?, abstract = ? WHERE id = ?", [new_title, new_abstract, item_id])
+        return True, "✅ 文獻元資料已儲存"
+    except Exception as e:
+        return False, f"更新失敗: {e}"
+
+def update_media_vault_meta(item_id, new_title, new_summary):
+    """更新 media_vault 表的標題與簡介 (Media Vault 手動改名)"""
+    try:
+        db.execute("UPDATE media_vault SET title = ?, summary = ? WHERE id = ?", [new_title, new_summary, item_id])
+        return True, "✅ 影音資料已儲存"
+    except Exception as e:
+        return False, f"更新失敗: {e}"
