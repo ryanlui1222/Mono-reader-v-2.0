@@ -1,9 +1,7 @@
 name: Auto Culture Crawler
 
-#on:
-  #schedule:
-    #- cron: '0 */6 * * *'  # 每 6 小時執行一次
-  workflow_dispatch:       # 允許手動執行測試
+on:
+  workflow_dispatch:       # 🎯 唯一啟用的觸發條件：僅允許在 GitHub 網頁上手動點擊執行
 
 jobs:
   run-crawler:
@@ -23,9 +21,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: 執行爬蟲腳本並同步雲端
+    - name: 執行爬蟲腳本並同步雲端 (DEV 環境)
       env:
-        # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
+        # 🎯 完美綁定：Python 認得左邊的名字，GitHub 負責把測試庫的金鑰從右邊塞進去
         TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
         TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
       run: |
