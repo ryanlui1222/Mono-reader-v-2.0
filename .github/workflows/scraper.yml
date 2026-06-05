@@ -26,8 +26,8 @@ jobs:
     - name: 執行爬蟲腳本並同步雲端
       env:
         # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
-        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
       run: |
         python crawler.py
 
