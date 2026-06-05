@@ -94,7 +94,7 @@ def render_page():
         if is_edit_mode:
             if movies:
                 df_movies = pd.DataFrame(movies) # 轉成 DataFrame 給編輯器吃
-                ui_components.render_batch_editor(df_movies, table_name="media_vault")
+                ui_components.render_batch_editor(df_movies, table_name="media_vault", key_prefix="movie")
             else:
                 st.info("目前無資料可供編輯。")
         else:
@@ -131,7 +131,7 @@ def render_page():
         if is_edit_mode:
             if music_list:
                 df_music = pd.DataFrame(music_list)
-                ui_components.render_batch_editor(df_music, table_name="media_vault")
+                ui_components.render_batch_editor(df_music, table_name="media_vault", key_prefix="music")
             else:
                 st.info("目前無資料可供編輯。")
         else:
@@ -162,7 +162,7 @@ def render_page():
         # 🌟 【植入點 4】視圖分流：資源卡列表 vs 試算表
         if is_edit_mode:
             if df_res is not None and not df_res.empty:
-                ui_components.render_batch_editor(df_res, table_name="custom_resources")
+                ui_components.render_batch_editor(df_res, table_name="custom_resources", key_prefix="resource")
             else:
                 st.info("目前無資料可供編輯。")
         else:
