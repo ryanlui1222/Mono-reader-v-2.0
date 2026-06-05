@@ -2,7 +2,7 @@ import streamlit as st
 import re
 import pandas as pd
 import core_utils
-from views import ui_components  # 🌟 引入全域元件
+from views import ui_components
 
 def reset_mono_page(): st.session_state.mono_page = 1
 def reset_mono_res_page(): st.session_state.mono_res_page = 1
@@ -34,7 +34,6 @@ def render_page():
                         except Exception as e: st.error(f"寫入資料庫時發生錯誤: {e}")
                     else: st.error("❌ 無法解析該網址。")
             else: st.warning("⚠️ 請輸入包含 http 的完整網址。")
-
     st.sidebar.markdown("---")
     
     selected_source = "全部來源總覽"
@@ -60,8 +59,12 @@ def render_page():
             all_sub_sources = sorted(raw_sources, key=extract_issue_number, reverse=True)
             if all_sub_sources:
                 selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources, on_change=reset_mono_page)
-        else:
-            selected_source = selected_main
+        else: selected_source = selected_main
+
+    # 🌟 頁面頂部的全域編輯開關
+    col_t1, col_t2 = st.columns([7, 3])
+    with col_t2:
+        is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="mono_edit_mode")
 
     if view_mode == "⏳ 未來典藏":
         st.subheader("⏳ 未來典藏 (Future Archive)")
@@ -69,8 +72,7 @@ def render_page():
         
         with st.container():
             col1, col2 = st.columns([5, 1])
-            with col1:
-                new_res_url = st.text_input("新增網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="mono_res_input")
+            with col1: new_res_url = st.text_input("新增網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="mono_res_input")
             with col2:
                 if st.button("➕ 擷取並加入", use_container_width=True, key="mono_res_btn"):
                     if new_res_url:
@@ -81,29 +83,28 @@ def render_page():
         st.markdown("---")
 
         df_res = core_utils.fetch_custom_resources("monoreader")
-        if df_res.empty:
-            st.info("目前沒有任何記錄。請在上方輸入網址。")
+        
+        # 🌟 視圖分流：卡片 vs 試算表
+        if is_edit_mode:
+            if df_res.empty: st.info("目前無資料可供編輯。")
+            else: ui_components.render_batch_editor(df_res, table_name="custom_resources", key_prefix="future")
         else:
-            # 🌟 套用全域分頁引擎
-            page_data_res = ui_components.get_paginated_data(df_res, per_page=15, session_key="mono_res_page")
-            
-            for _, row in page_data_res.iterrows():
-                col_link, col_action = st.columns([7, 1])
-                with col_link:
-                    st.markdown(f"### {row['title']}")
-                    st.markdown(f"🔗 **[前往官網探索]({row['url']})**")
-                    comment_text = row.get('comment', '')
-                    if pd.notna(comment_text) and str(comment_text).strip() != "":
-                        st.info(f"{comment_text}")
-                        
-                with col_action:
-                    with st.popover("⚙️ 管理"):
-                        edit_title = st.text_input("修改顯示名稱：", value=row['title'], key=f"edit_{row['id']}")
-                        current_comment = row.get('comment', '') if pd.notna(row.get('comment')) else ""
-                        edit_comment = st.text_area("編輯網站功能/內容介紹：", value=current_comment, key=f"edit_cmt_{row['id']}", height=100)
-                        st.button("💾 儲存修改", key=f"save_{row['id']}", on_click=core_utils.update_custom_resource, args=(row['id'], edit_title, edit_comment), use_container_width=True)
-                        st.button("🗑️ 刪除網站", key=f"del_{row['id']}", on_click=core_utils.delete_custom_resource, args=(row['id'],), type="primary", use_container_width=True)
-                st.divider()
+            if df_res.empty: st.info("目前沒有任何記錄。請在上方輸入網址。")
+            else:
+                page_data_res, total_pages, current_page = ui_components.paginate_data(df_res, per_page=15, session_key="mono_res_page")
+                for _, row in page_data_res.iterrows():
+                    col_link, col_action = st.columns([7, 1])
+                    with col_link:
+                        st.markdown(f"### {row['title']}")
+                        st.markdown(f"🔗 **[前往官網探索]({row['url']})**")
+                        comment_text = row.get('comment', '')
+                        if pd.notna(comment_text) and str(comment_text).strip() != "":
+                            st.info(f"{comment_text}")
+                    with col_action:
+                        # 🌟 單張卡片管理按鈕
+                        ui_components.render_smart_popover(row, table_name="custom_resources")
+                    st.divider()
+                ui_components.render_pagination_ui(total_pages, current_page, "mono_res_page")
 
     else:
         df = core_utils.fetch_data(view_mode, selected_source, search_input)
@@ -126,36 +127,37 @@ def render_page():
                 if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
             else:
                 st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
-
         st.markdown("---")
 
-        if df.empty:
-            if search_input: st.info("找不到符合關鍵字的文章。")
-            else: st.info("暫無符合條件的新文章。")
+        # 🌟 視圖分流：卡片 vs 試算表
+        if is_edit_mode:
+            if df.empty: st.info("目前無資料可供編輯。")
+            else: ui_components.render_batch_editor(df, table_name="articles", key_prefix="articles")
         else:
-            # 🌟 套用全域分頁引擎
-            page_data, total_pages, current_page = ui_components.paginate_data(df, per_page=20, session_key="mono_page")
-            
-            for _, row in page_data.iterrows():
-                with st.container():
-                    st.markdown(f"#### [{row['Title']}]({row['Link']})")
-                    col_meta, col_btn1, col_btn2 = st.columns([6, 1, 1])
-                    with col_meta:
-                        raw_pub = str(row['Published'])
-                        sort_date = row.get('SortDate')
-                        safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
-                        display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
-                        st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
+            if df.empty:
+                if search_input: st.info("找不到符合關鍵字的文章。")
+                else: st.info("暫無符合條件的新文章。")
+            else:
+                page_data, total_pages, current_page = ui_components.paginate_data(df, per_page=20, session_key="mono_page")
+                for _, row in page_data.iterrows():
+                    with st.container():
+                        st.markdown(f"#### [{row['Title']}]({row['Link']})")
+                        col_meta, col_btn = st.columns([7, 1])
+                        with col_meta:
+                            raw_pub = str(row['Published'])
+                            sort_date = row.get('SortDate')
+                            safe_sort_date = str(sort_date).split('T')[0] if pd.notna(sort_date) and sort_date else "未知時間"
+                            display_date = f"擷取於 {safe_sort_date}" if any(k in raw_pub for k in ["最新", "Issue", "刊", "None", "nan", "歷史歸檔"]) else raw_pub
+                            st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
+                        
+                        with col_btn:
+                            # 🌟 單張卡片管理按鈕
+                            ui_components.render_smart_popover(row, table_name="articles")
                     
-                    is_bk = bool(row.get('is_bookmarked', 0))
-                    with col_btn1: st.button("❤️ 已收藏" if is_bk else "🤍 收藏", key=f"bk_{row['Link']}", on_click=core_utils.toggle_bookmark_db, args=(row['Link'], is_bk))
-                    with col_btn2:
-                        with st.popover("🗑️"):
-                            st.button("確定刪除", key=f"del_{row['Link']}", on_click=core_utils.delete_article_db, args=(row['Link'],), type="primary", use_container_width=True)
-                
-                if row['Image'] and str(row['Image']).startswith('http'):
-                    img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
-                    st.markdown(img_html, unsafe_allow_html=True)
-                st.write(row['Summary'])
-                st.markdown("---")
-            ui_components.render_pagination_ui(total_pages, current_page, "mono_page")
+                    if row['Image'] and str(row['Image']).startswith('http'):
+                        img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
+                        st.markdown(img_html, unsafe_allow_html=True)
+                    st.write(row['Summary'])
+                    st.markdown("---")
+
+                ui_components.render_pagination_ui(total_pages, current_page, "mono_page")
