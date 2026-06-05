@@ -200,7 +200,7 @@ def render_smart_popover(row, table_name, context=""):
 def render_batch_editor(df, table_name, key_prefix=""):
     """
     全域試算表模式。接收 DataFrame，渲染為可勾選/編輯的 Excel 介面。
-    具備隱藏主鍵追蹤功能，確保 CRUD 操作絕對精準，並自動過濾與比對變更差異。
+    具備 Numpy 強制轉型防護與隱藏主鍵追蹤功能，確保 CRUD 操作絕對精準。
     """
     if df.empty:
         st.info("此分類目前沒有資料可供管理。")
@@ -263,15 +263,16 @@ def render_batch_editor(df, table_name, key_prefix=""):
         if st.button(f"🗑️ 徹底刪除已勾選的 {selected_count} 筆資料", type="primary", disabled=(selected_count == 0), use_container_width=True, key=f"del_btn_{editor_key}"):
             selected_rows = edited_df[edited_df['Select'] == True]
             if not selected_rows.empty:
+                # 🛡️ 轉型防護網：強制將 Numpy Int64 轉為 Python 原生 int/str
                 if table_name == "articles":
-                    for item_id in selected_rows['_id']: core_utils.delete_article_db(item_id)
+                    for item_id in selected_rows['_id']: core_utils.delete_article_db(str(item_id))
                 elif table_name == "custom_resources":
-                    for item_id in selected_rows['_id']: core_utils.delete_custom_resource(item_id)
+                    for item_id in selected_rows['_id']: core_utils.delete_custom_resource(int(item_id))
                 elif table_name == "media_vault":
-                    ids_to_delete = [int(x) for x in selected_rows['_id']] # 確保轉型防報錯
+                    ids_to_delete = [int(x) for x in selected_rows['_id']]
                     core_utils.batch_delete_media(ids_to_delete)
                 elif table_name == "academic_pubs":
-                    for item_id in selected_rows['_id']: core_utils.delete_biblio_db(item_id)
+                    for item_id in selected_rows['_id']: core_utils.delete_biblio_db(int(item_id))
                 
                 st.cache_data.clear() # 🌟 強制清除快取，確保表格立刻更新
                 st.success("✅ 批次刪除完成！")
@@ -297,34 +298,45 @@ def render_batch_editor(df, table_name, key_prefix=""):
                         break
                         
                 if changed:
-                    item_id = row_edit['_id']
+                    raw_id = row_edit['_id']
+                    # 🛡️ 轉型防護網：Turso 嚴格要求原生 Python 型態
+                    item_id = str(raw_id) if table_name == "articles" else int(raw_id)
                     
                     if table_name == "custom_resources":
-                        core_utils.update_custom_resource(item_id, row_edit['title'], row_edit.get('comment', ''))
+                        orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
+                        new_c = row_edit.get('comment', orig_c)
+                        core_utils.update_custom_resource(item_id, str(row_edit['title']), str(new_c) if pd.notna(new_c) else "")
                     
                     elif table_name == "media_vault":
-                        orig_summary = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
-                        core_utils.update_media_vault_meta(item_id, row_edit['title'], orig_summary)
+                        orig_s = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
+                        core_utils.update_media_vault_meta(item_id, str(row_edit['title']), str(orig_s) if pd.notna(orig_s) else "")
+                        
                         if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
+                            # Media Vault 的 API 是直接吃目標狀態
                             core_utils.batch_toggle_media_bookmark([item_id], int(row_edit['is_bookmarked']))
                             
                     elif table_name == "academic_pubs":
-                        orig_abstract = df.loc[idx, 'abstract'] if 'abstract' in df.columns else ""
-                        core_utils.update_academic_pub_meta(item_id, row_edit['title'], orig_abstract)
+                        orig_a = df.loc[idx, 'abstract'] if 'abstract' in df.columns else ""
+                        core_utils.update_academic_pub_meta(item_id, str(row_edit['title']), str(orig_a) if pd.notna(orig_a) else "")
+                        
                         if 'category' in row_edit and row_edit['category'] != row_orig['category']:
-                            core_utils.update_biblio_category(item_id, row_edit['category'])
+                            core_utils.update_biblio_category(item_id, str(row_edit['category']))
+                        
                         if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
-                            core_utils.toggle_biblio_bookmark_db(item_id, int(row_edit['is_bookmarked']))
+                            # ⚠️ 雙重反轉破解：傳入原始狀態，讓後端將其反轉為新狀態
+                            core_utils.toggle_biblio_bookmark_db(item_id, int(row_orig['is_bookmarked']))
                             
                     elif table_name == "articles":
-                        core_utils.update_article_meta(item_id, row_edit['Title'])
+                        core_utils.update_article_meta(item_id, str(row_edit['Title']))
+                        
                         if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
-                            core_utils.toggle_bookmark_db(item_id, int(row_edit['is_bookmarked']))
+                            # ⚠️ 雙重反轉破解：傳入原始狀態
+                            core_utils.toggle_bookmark_db(item_id, int(row_orig['is_bookmarked']))
                     
                     changes_applied += 1
             
             if changes_applied > 0:
-                st.cache_data.clear() # 🌟 強制清除快取
+                st.cache_data.clear() # 🌟 寫入後強制洗掉暫存
                 st.success(f"✅ 成功儲存 {changes_applied} 筆修改！")
             else:
                 st.info("未偵測到任何修改。")
