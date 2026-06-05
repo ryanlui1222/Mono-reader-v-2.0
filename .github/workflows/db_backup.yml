@@ -1,9 +1,6 @@
 name: 🗄️ Monthly Database Backup
 
 on:
-  schedule:
-    # 這是 Cron 語法，代表每個月的 1 號凌晨 00:00 (UTC 時間) 執行
-    - cron: '0 0 1 * *'
   workflow_dispatch: # 允許您在 GitHub 網頁上手動點擊執行測試
 
 jobs:
@@ -25,8 +22,8 @@ jobs:
 
       - name: 💾 執行資料庫備份腳本
         env:
-          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
         run: |
           python backup_db.py
 
