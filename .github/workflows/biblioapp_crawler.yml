@@ -1,11 +1,6 @@
 name: 🎓 Biblioapp Crawler Sync
 
-#on:
-  # 排程執行：每週日凌晨 00:00 (UTC) 執行一次
-  schedule:
-    - cron: '0 0 * * 0'
-  
-  # 允許在 GitHub Actions 頁面上點擊按鈕手動執行
+on:
   workflow_dispatch:
 
 jobs:
