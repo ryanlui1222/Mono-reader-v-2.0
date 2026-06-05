@@ -4,15 +4,15 @@ import pandas as pd
 from views import ui_components  # 🌟 引入全域元件
 
 def render_media_gallery(media_list, tab_name, style_type="movie", current_view_state=1):
-    """通用的畫廊渲染器：處理UI排版與批量管理的核取方塊 (分頁已交由 ui_components 處理)"""
+    """通用的畫廊渲染器：處理UI排版與批量管理的核取方塊"""
     if not media_list:
         st.info("📦 此清單目前尚無收藏。")
         return
         
     page_key = f"{tab_name}_{current_view_state}_page"
     
-    # 🌟 套用全域分頁引擎
-    page_items = ui_components.get_paginated_data(media_list, per_page=20, session_key=page_key)
+    # 🌟 套用全域分頁引擎 (兩階段版：第一階段切資料)
+    page_items, total_pages, current_page = ui_components.paginate_data(media_list, per_page=20, session_key=page_key)
     
     # === 渲染卡片畫廊 ===
     cols = st.columns(5)
@@ -52,6 +52,9 @@ def render_media_gallery(media_list, tab_name, style_type="movie", current_view_
                     st.caption(f"🎬 {str(row.get('creator', '未知導演'))[:30]}")
                 else:
                     st.caption(f"🎵 {str(row.get('creator', '未知音樂家'))[:30]}")
+                    
+    # 🌟 套用全域分頁引擎 (兩階段版：第二階段畫底部 UI)
+    ui_components.render_pagination_ui(total_pages, current_page, page_key)
 
 
 def render_page():
@@ -202,8 +205,8 @@ def render_page():
         if df_res is None or df_res.empty:
             st.info("📦 目前還沒有儲存任何社群資源卡片。")
         else:
-            # 🌟 套用全域分頁引擎
-            page_data, total_pages, current_page = ui_components.paginate_data(df, per_page=20, session_key="mono_page")
+            # 🌟 修復處：傳入 df_res，並修改為 media_res_page
+            page_data, total_pages, current_page = ui_components.paginate_data(df_res, per_page=20, session_key="media_res_page")
             
             for _, row in page_data.iterrows():
                 with st.container():
@@ -229,4 +232,6 @@ def render_page():
                                 core_utils.delete_custom_resource(row['id'])
                                 st.rerun()
                 st.markdown("<br>", unsafe_allow_html=True)
-            ui_components.render_pagination_ui(total_pages, current_page, "mono_page")
+                
+            # 🌟 第二階段：畫出分頁選單
+            ui_components.render_pagination_ui(total_pages, current_page, "media_res_page")
