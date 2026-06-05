@@ -195,12 +195,12 @@ def render_smart_popover(row, table_name, context=""):
             st.rerun()
 
 # ==========================================
-# 4. 全域批量試算表編輯器 (Batch Data Editor)
+# 4. 全域批量試算表編輯器 (Batch Data Editor) - 完全體
 # ==========================================
 def render_batch_editor(df, table_name, key_prefix=""):
     """
     全域試算表模式。接收 DataFrame，渲染為可勾選/編輯的 Excel 介面。
-    加入了 key_prefix 防止在同一頁面多個分頁中渲染時產生 Element ID 衝突。
+    具備隱藏主鍵追蹤功能，確保 CRUD 操作絕對精準，並自動過濾與比對變更差異。
     """
     if df.empty:
         st.info("此分類目前沒有資料可供管理。")
@@ -208,68 +208,127 @@ def render_batch_editor(df, table_name, key_prefix=""):
 
     st.markdown("<div style='background-color:#1E293B; padding:15px; border-radius:10px; margin-bottom:15px;'>", unsafe_allow_html=True)
     st.markdown("##### 🛠️ 資料庫試算表管理模式")
-    st.caption("您可以直接在表格中點擊打勾、修改名稱，最後點擊底部的「儲存所有變更」。點擊表頭可排序。")
+    st.caption("您可以直接在表格中點擊打勾、修改名稱與狀態，最後點擊底部的「儲存所有變更」。點擊表頭可排序。")
 
-    # 為了讓 UI 乾淨，我們挑選關鍵欄位顯示，並在前面強制加一個布林值欄位供勾選
     df_edit = df.copy()
+    
+    # 🌟 核心防錯：植入隱藏的絕對主鍵
+    df_edit['_id'] = df['id'] if 'id' in df.columns else df['Link']
     
     # 統一把勾選框叫做 'Select'
     df_edit.insert(0, 'Select', False) 
     
+    # 🌟 UX 優化：將 1/0 轉換為 True/False，讓試算表顯示為漂亮的打勾方塊
+    if 'is_bookmarked' in df_edit.columns:
+        df_edit['is_bookmarked'] = df_edit['is_bookmarked'].astype(bool)
+
     # 根據不同資料表，決定哪些欄位可以顯示與編輯
     if table_name == "custom_resources":
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date'] # 網址和時間不准改
     elif table_name == "media_vault":  
         display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
-        disabled_cols = ['source_url']
+        disabled_cols = ['source_url', 'creator'] # 鎖定無法單純儲存的欄位
     elif table_name == "academic_pubs":
         display_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked']
-        disabled_cols = ['publisher_journal']
+        disabled_cols = ['publisher_journal', 'author']
     else:
         display_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked']
         disabled_cols = ['Link', 'Source']
 
-    # 確保我們要顯示的欄位真的存在於 df 中
-    safe_cols = [c for c in display_cols if c in df_edit.columns]
+    # 確保我們要顯示的欄位真的存在於 df 中，並加上我們的隱藏主鍵 _id
+    safe_cols = [c for c in display_cols if c in df_edit.columns] + ['_id']
     df_edit = df_edit[safe_cols]
 
-    # 🌟 產生唯一 Key 防撞名
     editor_key = f"editor_{key_prefix}_{table_name}"
-    del_btn_key = f"del_btn_{key_prefix}_{table_name}"
-    save_btn_key = f"save_btn_{key_prefix}_{table_name}"
 
-    # 渲染編輯器，並捕捉使用者的修改結果 (edited_df)
+    # 渲染編輯器
     edited_df = st.data_editor(
         df_edit,
         use_container_width=True,
         hide_index=True,
         disabled=disabled_cols,
         height=400,
-        key=editor_key  # 🌟 綁定唯一識別碼
+        key=editor_key,
+        column_config={"_id": None}  # 🌟 告訴 Streamlit 隱藏這個欄位，但內部要記住
     )
 
     col1, col2 = st.columns([1, 1])
+    
+    # ==========================
+    # 🗑️ 批次刪除邏輯
+    # ==========================
     with col1:
-        # 計算目前被勾選的數量
         selected_count = edited_df['Select'].sum()
-        if st.button(f"🗑️ 刪除已勾選的 {selected_count} 筆資料", type="primary", disabled=(selected_count == 0), use_container_width=True, key=del_btn_key): # 🌟 綁定唯一識別碼
-            # 這裡實作批次刪除邏輯
+        if st.button(f"🗑️ 徹底刪除已勾選的 {selected_count} 筆資料", type="primary", disabled=(selected_count == 0), use_container_width=True, key=f"del_btn_{editor_key}"):
             selected_rows = edited_df[edited_df['Select'] == True]
-            if table_name == "articles":
-                for link in selected_rows['Link']: core_utils.delete_article_db(link)
-            elif table_name == "custom_resources":
-                for idx in selected_rows.index: core_utils.delete_custom_resource(df.iloc[idx]['id'])
-            elif table_name == "media_vault":
-                ids_to_delete = [df.iloc[idx]['id'] for idx in selected_rows.index]
-                core_utils.batch_delete_media(ids_to_delete)
-            st.success("批次刪除完成！")
-            st.rerun()
+            if not selected_rows.empty:
+                if table_name == "articles":
+                    for item_id in selected_rows['_id']: core_utils.delete_article_db(item_id)
+                elif table_name == "custom_resources":
+                    for item_id in selected_rows['_id']: core_utils.delete_custom_resource(item_id)
+                elif table_name == "media_vault":
+                    ids_to_delete = [int(x) for x in selected_rows['_id']] # 確保轉型防報錯
+                    core_utils.batch_delete_media(ids_to_delete)
+                elif table_name == "academic_pubs":
+                    for item_id in selected_rows['_id']: core_utils.delete_biblio_db(item_id)
+                
+                st.cache_data.clear() # 🌟 強制清除快取，確保表格立刻更新
+                st.success("✅ 批次刪除完成！")
+                st.rerun()
 
+    # ==========================
+    # 💾 批次儲存編輯邏輯
+    # ==========================
     with col2:
-        if st.button("💾 儲存所有文字與狀態修改", use_container_width=True, key=save_btn_key): # 🌟 綁定唯一識別碼
-            # 這裡實作批次 Update 邏輯 (留作下一步我們調整 core_utils 時實作)
-            st.toast("已記錄修改差異 (後端寫入功能準備中)")
+        if st.button("💾 儲存所有文字與狀態修改", use_container_width=True, key=f"save_btn_{editor_key}"):
+            changes_applied = 0
+            
+            # 遍歷表格，找出與原始資料不同的列
+            for idx in edited_df.index:
+                row_edit = edited_df.loc[idx]
+                row_orig = df_edit.loc[idx]
+                
+                changed = False
+                for col in safe_cols:
+                    if col in ['Select', '_id']: continue # 略過核取框與主鍵比對
+                    if row_edit[col] != row_orig[col]:
+                        changed = True
+                        break
+                        
+                if changed:
+                    item_id = row_edit['_id']
+                    
+                    if table_name == "custom_resources":
+                        core_utils.update_custom_resource(item_id, row_edit['title'], row_edit.get('comment', ''))
+                    
+                    elif table_name == "media_vault":
+                        orig_summary = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
+                        core_utils.update_media_vault_meta(item_id, row_edit['title'], orig_summary)
+                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
+                            core_utils.batch_toggle_media_bookmark([item_id], int(row_edit['is_bookmarked']))
+                            
+                    elif table_name == "academic_pubs":
+                        orig_abstract = df.loc[idx, 'abstract'] if 'abstract' in df.columns else ""
+                        core_utils.update_academic_pub_meta(item_id, row_edit['title'], orig_abstract)
+                        if 'category' in row_edit and row_edit['category'] != row_orig['category']:
+                            core_utils.update_biblio_category(item_id, row_edit['category'])
+                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
+                            core_utils.toggle_biblio_bookmark_db(item_id, int(row_edit['is_bookmarked']))
+                            
+                    elif table_name == "articles":
+                        core_utils.update_article_meta(item_id, row_edit['Title'])
+                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
+                            core_utils.toggle_bookmark_db(item_id, int(row_edit['is_bookmarked']))
+                    
+                    changes_applied += 1
+            
+            if changes_applied > 0:
+                st.cache_data.clear() # 🌟 強制清除快取
+                st.success(f"✅ 成功儲存 {changes_applied} 筆修改！")
+            else:
+                st.info("未偵測到任何修改。")
+                
             st.rerun()
             
     st.markdown("</div>", unsafe_allow_html=True)
