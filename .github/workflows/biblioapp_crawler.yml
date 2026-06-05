@@ -1,6 +1,6 @@
 name: 🎓 Biblioapp Crawler Sync
 
-on:
+#on:
   # 排程執行：每週日凌晨 00:00 (UTC) 執行一次
   schedule:
     - cron: '0 0 * * 0'
