@@ -8,8 +8,7 @@ import core_utils
 # ==========================================
 def paginate_data(data, per_page, session_key):
     total_items = len(data)
-    if total_items == 0:
-        return data, 0, 1
+    if total_items == 0: return data, 0, 1
 
     total_pages = max(1, math.ceil(total_items / per_page))
     if session_key not in st.session_state: st.session_state[session_key] = 1
@@ -34,11 +33,9 @@ def render_pagination_ui(total_pages, current_page, session_key):
         if st.button("⬅️ 上一頁", disabled=(current_page <= 1), key=f"prev_{session_key}", use_container_width=True):
             st.session_state[session_key] -= 1
             st.rerun()
-            
     with col_page:
         def update_page(): st.session_state[session_key] = st.session_state[f"{session_key}_selector"]
         st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=current_page - 1, key=f"{session_key}_selector", on_change=update_page, label_visibility="collapsed")
-        
     with col_next:
         if st.button("下一頁 ➡️", disabled=(current_page >= total_pages), key=f"next_{session_key}", use_container_width=True):
             st.session_state[session_key] += 1
@@ -71,139 +68,124 @@ def render_grid_card(row):
     st.markdown(html, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 智慧管理按鈕 (Smart CRUD Popover) - 最終快取修正版
+# 3. 智慧管理按鈕 (升級版：置中大螢幕視窗)
 # ==========================================
+@st.dialog("⚙️ 項目管理與編輯")
+def _edit_dialog(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id):
+    """內部對話框渲染器，提供超大空間編輯備註"""
+    st.markdown(f"**(ID: `{str(item_id)[:20]}...`)**")
+    
+    # 1. 編輯區塊分流
+    if table_name == "custom_resources":
+        edit_title = st.text_input("修改名稱:", value=current_title, key=f"t_{k_id}")
+        edit_summary = st.text_area("說明文字:", value=current_summary, key=f"c_{k_id}", height=250) # 🌟 放大文字框
+        
+        if st.button("💾 儲存修改", key=f"save_{k_id}", use_container_width=True, type="primary"):
+            core_utils.update_custom_resource(item_id, edit_title, edit_summary)
+            st.cache_data.clear() 
+            st.rerun()
+
+    elif table_name == "bibliography_notes":
+        edit_title = st.text_input("修改標題:", value=current_title, key=f"t_{k_id}")
+        current_imp = row.get('importance', '待讀')
+        valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"]
+        imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 7
+        edit_imp = st.selectbox("評級 (Importance):", valid_imps, index=imp_idx, key=f"imp_{k_id}")
+        edit_notes = st.text_area("備註 (Notes):", value=row.get('notes', ''), key=f"n_{k_id}", height=300) # 🌟 放大筆記框
+        
+        if st.button("💾 儲存修改", key=f"save_{k_id}", use_container_width=True, type="primary"):
+            core_utils.update_bibliography_reference(item_id, edit_imp, edit_notes)
+            core_utils.db.execute("UPDATE bibliography_notes SET title = ? WHERE id = ?", [edit_title, item_id])
+            st.cache_data.clear() 
+            st.rerun()
+            
+    else:
+        # articles, academic_pubs, media_vault
+        edit_title = st.text_input("手動改名:", value=current_title, key=f"t_{k_id}")
+        
+        if table_name in ["academic_pubs", "media_vault"]:
+            edit_summary = st.text_area("修改摘要/簡介:", value=current_summary, key=f"c_{k_id}", height=250)
+        
+        if context == "bookshelf":
+            current_cat = row.get('category', '未分類')
+            valid_cats = ["未分類", "研究", "學術", "小說", "詩", "次文化", "藝術", "音樂"]
+            cat_idx = valid_cats.index(current_cat) if current_cat in valid_cats else 0
+            new_cat = st.selectbox("📚 變更書架分類：", valid_cats, index=cat_idx, key=f"cat_{k_id}")
+
+        if st.button("💾 儲存文字變更", key=f"save_{k_id}", use_container_width=True, type="primary"):
+            if table_name == "articles":
+                core_utils.update_article_meta(item_id, edit_title)
+            elif table_name == "academic_pubs":
+                core_utils.update_academic_pub_meta(item_id, edit_title, edit_summary)
+                if context == "bookshelf":
+                    core_utils.update_biblio_category(item_id, new_cat)
+            elif table_name == "media_vault":
+                core_utils.update_media_vault_meta(item_id, edit_title, edit_summary)
+            
+            st.cache_data.clear() 
+            st.rerun()
+
+    st.divider()
+    
+    # 2. ⭐ 狀態管理 
+    if table_name not in ["custom_resources", "bibliography_notes"]:
+        st.markdown("**⭐ 狀態管理**")
+        if table_name == "articles":
+            if st.button("💔 移除收藏" if is_bk else "❤️ 加入收藏", key=f"toggle_bk_{k_id}", use_container_width=True):
+                core_utils.toggle_bookmark_db(item_id, is_bk)
+                st.cache_data.clear()
+                st.rerun()
+                
+        elif table_name == "academic_pubs":
+            btn_label = "💔 移出書架" if context == "bookshelf" else ("💔 取消收藏" if is_bk else "❤️ 收藏文獻")
+            if st.button(btn_label, key=f"toggle_bk_{k_id}", use_container_width=True):
+                core_utils.toggle_biblio_bookmark_db(item_id, is_bk)
+                st.cache_data.clear()
+                st.rerun()
+                
+        elif table_name == "media_vault":
+            mv_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
+            next_state = 0 if is_bk else 1
+            if st.button(mv_label, key=f"toggle_bk_{k_id}", use_container_width=True):
+                core_utils.batch_toggle_media_bookmark([item_id], next_state)
+                st.cache_data.clear()
+                st.rerun()
+
+    # 3. 🚨 二次確認徹底刪除
+    st.divider()
+    st.markdown("<span style='color:#EF4444;'>**⚠️ 危險區域**</span>", unsafe_allow_html=True)
+    confirm_del = st.checkbox("我確定要解鎖徹底刪除", key=f"conf_{k_id}")
+    
+    if st.button("💥 執行徹底刪除", key=f"del_{k_id}", type="primary", disabled=not confirm_del, use_container_width=True):
+        if table_name == "articles": core_utils.delete_article_db(item_id)
+        elif table_name == "academic_pubs": core_utils.delete_biblio_db(item_id)
+        elif table_name == "media_vault": core_utils.batch_delete_media([item_id])
+        elif table_name == "custom_resources": core_utils.delete_custom_resource(item_id)
+        elif table_name == "bibliography_notes": core_utils.delete_bibliography_reference(item_id)
+        
+        st.cache_data.clear() 
+        st.rerun()
+
 def render_smart_popover(row, table_name, context=""):
     """
-    全域智慧管理按鈕：一鍵包攬手動改名、摘要修改、收藏切換、變更分類與二次確認刪除。
-    已修復快取未清除 (Cache Not Cleared) 導致的 UI 不更新問題，並加入參考書目專屬評級介面。
+    對外接口：只負責渲染一顆按鈕，點擊後開啟正中央的置中編輯視窗。
     """
-    import core_utils # 延遲引入防止循環 import
-    
-    # 🎯 智慧定位主鍵
-    raw_id = row.get('Link') if table_name == "articles" else row.get('id')
-    item_id = str(raw_id) if table_name == "articles" else int(raw_id)
-    
-    # 🎯 智慧擷取現有文字
+    item_id = row.get('Link') if table_name == "articles" else row.get('id')
     current_title = row.get('Title') or row.get('title') or "未命名"
-    current_summary = row.get('Summary') or row.get('abstract') or row.get('summary') or row.get('comment') or ""
+    current_summary = row.get('Summary') or row.get('abstract') or row.get('summary') or row.get('comment') or row.get('notes') or ""
     is_bk = bool(row.get('is_bookmarked', 0))
 
     k_id = f"{table_name}_{context}_{item_id}"
 
-    with st.popover("⚙️ 管理", use_container_width=True):
-        st.markdown(f"**📝 編輯項目** (ID: `{str(item_id)[:15]}...`)")
-        
-        # ----------------------------------------------------
-        # 1. 編輯區塊分流
-        # ----------------------------------------------------
-        if table_name == "custom_resources":
-            edit_title = st.text_input("修改名稱:", value=current_title, key=f"t_{k_id}")
-            edit_summary = st.text_area("說明文字:", value=current_summary, key=f"c_{k_id}", height=100)
-            
-            if st.button("💾 儲存修改", key=f"save_{k_id}", use_container_width=True, type="primary"):
-                core_utils.update_custom_resource(item_id, edit_title, edit_summary)
-                st.cache_data.clear() # 🌟 核心修復：強制清除快取
-                st.rerun()
+    # 只渲染按鈕，點擊觸發上面的 @st.dialog
+    if st.button("⚙️ 管理", key=f"btn_open_dialog_{k_id}", use_container_width=True):
+        _edit_dialog(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id)
 
-        elif table_name == "bibliography_notes":
-            # 🌟 修復 2：加回參考書目獨有的評級與筆記功能
-            edit_title = st.text_input("修改標題:", value=current_title, key=f"t_{k_id}")
-            
-            current_imp = row.get('importance', '待讀')
-            valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"]
-            imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 7
-            edit_imp = st.selectbox("評級 (Importance):", valid_imps, index=imp_idx, key=f"imp_{k_id}")
-            
-            edit_notes = st.text_area("備註 (Notes):", value=row.get('notes', ''), key=f"n_{k_id}", height=100)
-            
-            if st.button("💾 儲存修改", key=f"save_{k_id}", use_container_width=True, type="primary"):
-                core_utils.update_bibliography_reference(item_id, edit_imp, edit_notes)
-                # 直接使用 DB 執行標題更新 (相容既有架構)
-                core_utils.db.execute("UPDATE bibliography_notes SET title = ? WHERE id = ?", [edit_title, item_id])
-                st.cache_data.clear() # 🌟 核心修復：強制清除快取
-                st.rerun()
-                
-        else:
-            # articles, academic_pubs, media_vault
-            edit_title = st.text_input("手動改名:", value=current_title, key=f"t_{k_id}")
-            
-            if table_name in ["academic_pubs", "media_vault"]:
-                edit_summary = st.text_area("修改摘要/簡介:", value=current_summary, key=f"c_{k_id}", height=100)
-            
-            if context == "bookshelf":
-                current_cat = row.get('category', '未分類')
-                valid_cats = ["未分類", "研究", "學術", "小說", "詩", "次文化", "藝術", "音樂"]
-                cat_idx = valid_cats.index(current_cat) if current_cat in valid_cats else 0
-                new_cat = st.selectbox("📚 變更書架分類：", valid_cats, index=cat_idx, key=f"cat_{k_id}")
-
-            if st.button("💾 儲存文字變更", key=f"save_{k_id}", use_container_width=True, type="primary"):
-                if table_name == "articles":
-                    core_utils.update_article_meta(item_id, edit_title)
-                elif table_name == "academic_pubs":
-                    core_utils.update_academic_pub_meta(item_id, edit_title, edit_summary)
-                    if context == "bookshelf":
-                        core_utils.update_biblio_category(item_id, new_cat)
-                elif table_name == "media_vault":
-                    core_utils.update_media_vault_meta(item_id, edit_title, edit_summary)
-                
-                st.cache_data.clear() # 🌟 核心修復：強制清除快取
-                st.rerun()
-
-        st.divider()
-        
-        # ----------------------------------------------------
-        # 2. ⭐ 狀態管理 (客製化資源與參考書目不需要)
-        # ----------------------------------------------------
-        if table_name not in ["custom_resources", "bibliography_notes"]:
-            st.markdown("**⭐ 狀態管理**")
-            
-            # 🌟 核心修復：放棄使用 on_click，改為 standard button 以便執行 cache_data.clear()
-            if table_name == "articles":
-                if st.button("💔 移除收藏" if is_bk else "❤️ 加入收藏", key=f"toggle_bk_{k_id}", use_container_width=True):
-                    core_utils.toggle_bookmark_db(item_id, is_bk)
-                    st.cache_data.clear()
-                    st.rerun()
-                    
-            elif table_name == "academic_pubs":
-                btn_label = "💔 移出書架" if context == "bookshelf" else ("💔 取消收藏" if is_bk else "❤️ 收藏文獻")
-                if st.button(btn_label, key=f"toggle_bk_{k_id}", use_container_width=True):
-                    core_utils.toggle_biblio_bookmark_db(item_id, is_bk)
-                    st.cache_data.clear()
-                    st.rerun()
-                    
-            elif table_name == "media_vault":
-                mv_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
-                next_state = 0 if is_bk else 1
-                if st.button(mv_label, key=f"toggle_bk_{k_id}", use_container_width=True):
-                    core_utils.batch_toggle_media_bookmark([item_id], next_state)
-                    st.cache_data.clear()
-                    st.rerun()
-
-        # ----------------------------------------------------
-        # 3. 🚨 二次確認徹底刪除
-        # ----------------------------------------------------
-        st.divider()
-        st.markdown("<span style='color:#EF4444;'>**⚠️ 危險區域**</span>", unsafe_allow_html=True)
-        confirm_del = st.checkbox("我確定要解鎖徹底刪除", key=f"conf_{k_id}")
-        
-        if st.button("💥 執行徹底刪除", key=f"del_{k_id}", type="primary", disabled=not confirm_del, use_container_width=True):
-            if table_name == "articles": core_utils.delete_article_db(item_id)
-            elif table_name == "academic_pubs": core_utils.delete_biblio_db(item_id)
-            elif table_name == "media_vault": core_utils.batch_delete_media([item_id])
-            elif table_name == "custom_resources": core_utils.delete_custom_resource(item_id)
-            elif table_name == "bibliography_notes": core_utils.delete_bibliography_reference(item_id)
-            
-            st.cache_data.clear() # 🌟 強制清除快取
-            st.rerun()
 
 # ==========================================
 # 4. 全域批量試算表編輯器 (Batch Data Editor)
 # ==========================================
 def render_batch_editor(df, table_name, key_prefix=""):
-    """
-    全域試算表模式，具備防呆主鍵、自動差異比對，與「安全二次確認刪除視窗」。
-    """
     if df.empty:
         st.info("此分類目前沒有資料可供管理。")
         return
@@ -213,12 +195,13 @@ def render_batch_editor(df, table_name, key_prefix=""):
     st.caption("您可以直接在表格中點擊打勾、修改名稱與狀態，最後點擊底部的「儲存所有變更」。")
 
     df_edit = df.copy()
-    df_edit['_id'] = df['id'] if 'id' in df.columns else df['Link']
+    
+    # 🌟 核心修復 1：精準辨識 articles 的主鍵是 Link，其他是 id！
+    df_edit['_id'] = df['Link'] if table_name == "articles" else df['id']
     df_edit.insert(0, 'Select', False) 
     
     if 'is_bookmarked' in df_edit.columns: df_edit['is_bookmarked'] = df_edit['is_bookmarked'].astype(bool)
 
-    # 針對不同資料表限制可編輯欄位
     if table_name == "custom_resources":
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date']
@@ -248,9 +231,7 @@ def render_batch_editor(df, table_name, key_prefix=""):
 
     col1, col2 = st.columns([1, 1])
     
-    # ==========================
-    # 🗑️ 批次刪除邏輯 (加入 Popover 二次確認)
-    # ==========================
+    # 🗑️ 批次刪除邏輯
     with col1:
         selected_count = edited_df['Select'].sum()
         if selected_count == 0:
@@ -277,9 +258,7 @@ def render_batch_editor(df, table_name, key_prefix=""):
                         st.success("✅ 批次刪除完成！")
                         st.rerun()
 
-    # ==========================
     # 💾 批次儲存邏輯
-    # ==========================
     with col2:
         if st.button("💾 儲存所有文字與狀態修改", use_container_width=True, key=f"save_btn_{editor_key}"):
             changes_applied = 0
