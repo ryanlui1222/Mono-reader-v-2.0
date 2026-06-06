@@ -70,11 +70,9 @@ def render_grid_card(row):
 # ==========================================
 # 3. 智慧管理按鈕 (混合模式：Popover + Dialog)
 # ==========================================
-import core_utils # 確保引入後端函數
-
 @st.dialog("⚙️ 項目管理與編輯 (進階)")
 def _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id):
-    """【軌道 A】用於大量文字編輯的獨立大型視窗 (適用 custom_resources, bibliography_notes)"""
+    """【軌道 A】用於大量文字編輯的獨立大型視窗"""
     st.markdown(f"**(ID: `{str(item_id)[:20]}...`)**")
     
     if table_name == "custom_resources":
@@ -84,6 +82,16 @@ def _edit_dialog(row, table_name, context, item_id, current_title, current_summa
         if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
             core_utils.update_custom_resource(item_id, edit_title, edit_summary)
             st.cache_data.clear() 
+            st.rerun()
+
+    elif table_name == "omni_vault":  # 🌟 萬物收藏匣專屬編輯邏輯
+        edit_cat = st.text_input("分類標籤 (可自訂):", value=row.get('category', ''), key=f"d_cat_{k_id}")
+        edit_title = st.text_input("修改名稱:", value=current_title, key=f"d_t_{k_id}")
+        edit_summary = st.text_area("說明文字/筆記:", value=current_summary, key=f"d_c_{k_id}", height=200)
+        
+        if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
+            core_utils.update_omni_item(item_id, edit_cat, edit_title, edit_summary)
+            st.cache_data.clear()
             st.rerun()
 
     elif table_name == "bibliography_notes":
@@ -106,12 +114,13 @@ def _edit_dialog(row, table_name, context, item_id, current_title, current_summa
     if st.button("💥 執行徹底刪除", key=f"d_del_{k_id}", type="primary", disabled=not confirm_del, use_container_width=True):
         if table_name == "custom_resources": core_utils.delete_custom_resource(item_id)
         elif table_name == "bibliography_notes": core_utils.delete_bibliography_reference(item_id)
+        elif table_name == "omni_vault": core_utils.delete_omni_item(item_id) # 🌟 萬物收藏匣刪除邏輯
         st.cache_data.clear() 
         st.rerun()
 
 
 def _edit_popover(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id):
-    """【軌道 B】用於快速編輯的輕量級氣泡視窗 (適用 articles, academic_pubs, media_vault)"""
+    """【軌道 B】用於快速編輯的輕量級氣泡視窗"""
     with st.popover("⚙️ 管理", use_container_width=True):
         st.markdown(f"**📝 編輯項目** (ID: `{str(item_id)[:15]}...`)")
         
@@ -171,17 +180,15 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
             st.rerun()
 
 def render_smart_popover(row, table_name, context=""):
-    """
-    對外接口：智慧判斷該渲染為 Popover 還是 Dialog
-    """
+    """對外接口：智慧判斷該渲染為 Popover 還是 Dialog"""
     item_id = row.get('Link') if table_name == "articles" else row.get('id')
     current_title = row.get('Title') or row.get('title') or "未命名"
     current_summary = row.get('Summary') or row.get('abstract') or row.get('summary') or row.get('comment') or row.get('notes') or ""
     is_bk = bool(row.get('is_bookmarked', 0))
     k_id = f"{table_name}_{context}_{item_id}"
 
-    # 🌟 核心路由：大表用 Dialog，小表用 Popover
-    if table_name in ["custom_resources", "bibliography_notes"]:
+    # 🌟 核心路由：將 omni_vault 也導向大型文字編輯 Dialog 視窗
+    if table_name in ["custom_resources", "bibliography_notes", "omni_vault"]:
         if st.button("⚙️ 管理", key=f"btn_open_dialog_{k_id}", use_container_width=True):
             _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id)
     else:
@@ -200,8 +207,6 @@ def render_batch_editor(df, table_name, key_prefix=""):
     st.caption("您可以直接在表格中點擊打勾、修改名稱與狀態，最後點擊底部的「儲存所有變更」。")
 
     df_edit = df.copy()
-    
-    # 🌟 核心修復 1：精準辨識 articles 的主鍵是 Link，其他是 id！
     df_edit['_id'] = df['Link'] if table_name == "articles" else df['id']
     df_edit.insert(0, 'Select', False) 
     
@@ -209,6 +214,9 @@ def render_batch_editor(df, table_name, key_prefix=""):
 
     if table_name == "custom_resources":
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
+        disabled_cols = ['url', 'added_date']
+    elif table_name == "omni_vault":  # 🌟 加入萬物收藏匣欄位設定
+        display_cols = ['Select', 'category', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date']
     elif table_name == "media_vault":  
         display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
@@ -251,6 +259,8 @@ def render_batch_editor(df, table_name, key_prefix=""):
                             for item_id in selected_rows['_id']: core_utils.delete_article_db(str(item_id))
                         elif table_name == "custom_resources":
                             for item_id in selected_rows['_id']: core_utils.delete_custom_resource(int(item_id))
+                        elif table_name == "omni_vault": # 🌟 萬物收藏匣批次刪除
+                            for item_id in selected_rows['_id']: core_utils.delete_omni_item(int(item_id))
                         elif table_name == "media_vault":
                             ids_to_delete = [int(x) for x in selected_rows['_id']]
                             core_utils.batch_delete_media(ids_to_delete)
@@ -280,6 +290,11 @@ def render_batch_editor(df, table_name, key_prefix=""):
                         orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
                         new_c = row_edit.get('comment', orig_c)
                         core_utils.update_custom_resource(item_id, str(row_edit['title']), str(new_c) if pd.notna(new_c) else "")
+
+                    elif table_name == "omni_vault": # 🌟 萬物收藏匣批次儲存
+                        orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
+                        new_c = row_edit.get('comment', orig_c)
+                        core_utils.update_omni_item(item_id, str(row_edit['category']), str(row_edit['title']), str(new_c) if pd.notna(new_c) else "")
                     
                     elif table_name == "media_vault":
                         orig_s = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
