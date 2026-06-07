@@ -33,3 +33,9 @@ jobs:
 
     # 🌟 結構優化：已移除 git-auto-commit-action 
     # 因為我們現在直接同步到 Turso，不再需要把 json 檔推回 GitHub 了
+
+# ... 原本的 python crawler.py 步驟下方 ...
+      
+    - name: 📡 發送心跳訊號防止 Streamlit 休眠 (Keep-Alive)
+      run: |
+        curl -I -s https://monoreaderv2.streamlit.app/
