@@ -890,3 +890,69 @@ def update_media_vault_meta(item_id, new_title, new_summary):
         return True, "✅ 影音資料已儲存"
     except Exception as e:
         return False, f"更新失敗: {e}"
+
+# ==========================================
+# 🗃️ 萬物收藏匣 (Omni-Vault) 專用 API
+# ==========================================
+def fetch_omni_categories():
+    """獲取目前所有的分類清單"""
+    try:
+        res = db.execute("SELECT DISTINCT category FROM omni_vault ORDER BY category")
+        return [row[0] for row in res.rows] if res.rows else []
+    except Exception as e:
+        return []
+
+def fetch_omni_items(category=None, search_query=""):
+    """獲取收藏匣項目，支援分類與關鍵字過濾"""
+    query = "SELECT * FROM omni_vault WHERE 1=1"
+    params = []
+    
+    if category and category != "全部":
+        query += " AND category = ?"
+        params.append(category)
+        
+    if search_query:
+        query += " AND (title LIKE ? OR comment LIKE ?)"
+        params.extend([f"%{search_query}%", f"%{search_query}%"])
+        
+    query += " ORDER BY added_date DESC"
+    
+    try:
+        res = db.execute(query, params)
+        if not res.rows: return pd.DataFrame()
+        # 🌟 加入了 image_url
+        cols = ["id", "category", "title", "url", "comment", "added_date", "image_url"]
+        return pd.DataFrame(res.rows, columns=cols)
+    except Exception as e:
+        return pd.DataFrame()
+
+def add_omni_item(category, title, url, comment, image_url=""):
+    """新增項目 (支援圖片)"""
+    if not title or not category:
+        return False, "分類與名稱為必填欄位。"
+    try:
+        db.execute(
+            "INSERT INTO omni_vault (category, title, url, comment, image_url) VALUES (?, ?, ?, ?, ?)",
+            [category, title, url, comment, image_url]
+        )
+        return True, "✅ 收藏成功！"
+    except Exception as e:
+        return False, f"寫入失敗: {e}"
+
+def update_omni_item(item_id, category, title, comment, image_url=""):
+    """更新項目 (支援圖片)"""
+    try:
+        db.execute(
+            "UPDATE omni_vault SET category = ?, title = ?, comment = ?, image_url = ? WHERE id = ?",
+            [category, title, comment, image_url, item_id]
+        )
+        return True, "✅ 更新成功！"
+    except Exception as e:
+        return False, f"更新失敗: {e}"
+
+def delete_omni_item(item_id):
+    """刪除項目"""
+    try:
+        db.execute("DELETE FROM omni_vault WHERE id = ?", [item_id])
+    except Exception:
+        pass
