@@ -87,10 +87,13 @@ def _edit_dialog(row, table_name, context, item_id, current_title, current_summa
     elif table_name == "omni_vault":  # 🌟 萬物收藏匣專屬編輯邏輯
         edit_cat = st.text_input("分類標籤 (可自訂):", value=row.get('category', ''), key=f"d_cat_{k_id}")
         edit_title = st.text_input("修改名稱:", value=current_title, key=f"d_t_{k_id}")
+        # 🌟 加入編輯圖片
+        edit_image = st.text_input("圖片網址 (選填):", value=row.get('image_url', ''), key=f"d_img_{k_id}")
         edit_summary = st.text_area("說明文字/筆記:", value=current_summary, key=f"d_c_{k_id}", height=200)
         
         if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
-            core_utils.update_omni_item(item_id, edit_cat, edit_title, edit_summary)
+            # 🌟 傳入 edit_image
+            core_utils.update_omni_item(item_id, edit_cat, edit_title, edit_summary, edit_image)
             st.cache_data.clear()
             st.rerun()
 
