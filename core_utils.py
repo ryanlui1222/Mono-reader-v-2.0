@@ -920,30 +920,31 @@ def fetch_omni_items(category=None, search_query=""):
     try:
         res = db.execute(query, params)
         if not res.rows: return pd.DataFrame()
-        cols = ["id", "category", "title", "url", "comment", "added_date"]
+        # 🌟 加入了 image_url
+        cols = ["id", "category", "title", "url", "comment", "added_date", "image_url"]
         return pd.DataFrame(res.rows, columns=cols)
     except Exception as e:
         return pd.DataFrame()
 
-def add_omni_item(category, title, url, comment):
-    """新增項目"""
+def add_omni_item(category, title, url, comment, image_url=""):
+    """新增項目 (支援圖片)"""
     if not title or not category:
         return False, "分類與名稱為必填欄位。"
     try:
         db.execute(
-            "INSERT INTO omni_vault (category, title, url, comment) VALUES (?, ?, ?, ?)",
-            [category, title, url, comment]
+            "INSERT INTO omni_vault (category, title, url, comment, image_url) VALUES (?, ?, ?, ?, ?)",
+            [category, title, url, comment, image_url]
         )
         return True, "✅ 收藏成功！"
     except Exception as e:
         return False, f"寫入失敗: {e}"
 
-def update_omni_item(item_id, category, title, comment):
-    """更新項目 (不改網址)"""
+def update_omni_item(item_id, category, title, comment, image_url=""):
+    """更新項目 (支援圖片)"""
     try:
         db.execute(
-            "UPDATE omni_vault SET category = ?, title = ?, comment = ? WHERE id = ?",
-            [category, title, comment, item_id]
+            "UPDATE omni_vault SET category = ?, title = ?, comment = ?, image_url = ? WHERE id = ?",
+            [category, title, comment, image_url, item_id]
         )
         return True, "✅ 更新成功！"
     except Exception as e:
