@@ -1,5 +1,5 @@
 import streamlit as st
-from views import view_monoreader, view_biblioapp, view_mediavault
+from views import view_monoreader, view_biblioapp, view_mediavault, view_omnivault
 
 # ==========================================
 # 1. 介面基礎設定 & 全域 CSS 注入
@@ -30,16 +30,16 @@ st.markdown("""
 # ==========================================
 with st.sidebar:
     st.title("☁️ Monoreader Cloud")
-    # 🌟 主選單
+    # 🌟 主選單 (加入萬物收藏匣)
     app_mode = st.radio(
         "切換平台模組", 
-        ["📚 Monoreader", "🎓 Biblioapp", "🎬 Media Vault"], 
+        ["📚 Monoreader", "🎓 Biblioapp", "🎬 Media Vault", "🗃️ 萬物收藏匣"], 
         label_visibility="collapsed"
     )
     
     st.markdown("---")
 
-    # 🌟 爬蟲健康度指示燈 (新增區塊)
+    # 🌟 爬蟲健康度指示燈
     import core_utils
     from datetime import datetime
     
@@ -75,6 +75,7 @@ with st.sidebar:
             with st.expander("🟢 系統健康度：良好", expanded=False):
                 st.caption("所有來源皆在 48 小時內成功更新。")
                 st.caption(f"最後檢查時間: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} (UTC)")
+
 # ==========================================
 # 3. 模組渲染導流
 # ==========================================
@@ -83,7 +84,9 @@ if app_mode == "📚 Monoreader":
 elif app_mode == "🎓 Biblioapp":
     view_biblioapp.render_page()
 elif app_mode == "🎬 Media Vault":
-    view_mediavault.render_page()  # 🌟 導流至影音館純視圖
+    view_mediavault.render_page() 
+elif app_mode == "🗃️ 萬物收藏匣":
+    view_omnivault.render_page()  # 🌟 導流至萬物收藏匣
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Monoreader Cloud v4.3 (Modular Architecture Edition)")
+st.sidebar.caption("Monoreader Cloud v5.0 (Omni-Vault Edition)")
