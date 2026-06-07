@@ -4,7 +4,7 @@ import pandas as pd
 import core_utils 
 
 # ==========================================
-# 1. 全域分頁引擎 (Universal Pagination) - 兩階段版
+# 1. 全域分頁引擎 (Universal Pagination)
 # ==========================================
 def paginate_data(data, per_page, session_key):
     total_items = len(data)
@@ -68,134 +68,104 @@ def render_grid_card(row):
     st.markdown(html, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 智慧管理按鈕 (混合模式：Popover + Dialog)
+# 3. 智慧管理按鈕 (對接終極 CRUD 引擎)
 # ==========================================
 @st.dialog("⚙️ 項目管理與編輯 (進階)")
-def _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id):
+def _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id, id_col):
     """【軌道 A】用於大量文字編輯的獨立大型視窗"""
     st.markdown(f"**(ID: `{str(item_id)[:20]}...`)**")
     
     if table_name == "custom_resources":
         edit_title = st.text_input("修改名稱:", value=current_title, key=f"d_t_{k_id}")
         edit_summary = st.text_area("說明文字:", value=current_summary, key=f"d_c_{k_id}", height=250)
-        
         if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
-            core_utils.update_custom_resource(item_id, edit_title, edit_summary)
-            st.cache_data.clear() 
+            core_utils.update_record(table_name, item_id, id_column=id_col, title=edit_title, comment=edit_summary)
             st.rerun()
 
-    elif table_name == "omni_vault":  # 🌟 萬物收藏匣專屬編輯邏輯
+    elif table_name == "omni_vault":
         edit_cat = st.text_input("分類標籤 (可自訂):", value=row.get('category', ''), key=f"d_cat_{k_id}")
         edit_title = st.text_input("修改名稱:", value=current_title, key=f"d_t_{k_id}")
-        # 🌟 加入編輯圖片
         edit_image = st.text_input("圖片網址 (選填):", value=row.get('image_url', ''), key=f"d_img_{k_id}")
         edit_summary = st.text_area("說明文字/筆記:", value=current_summary, key=f"d_c_{k_id}", height=200)
-        
         if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
-            # 🌟 傳入 edit_image
-            core_utils.update_omni_item(item_id, edit_cat, edit_title, edit_summary, edit_image)
-            st.cache_data.clear()
+            core_utils.update_record(table_name, item_id, id_column=id_col, category=edit_cat, title=edit_title, image_url=edit_image, comment=edit_summary)
             st.rerun()
 
     elif table_name == "bibliography_notes":
         edit_title = st.text_input("修改標題:", value=current_title, key=f"d_t_{k_id}")
         current_imp = row.get('importance', '待讀')
         valid_imps = ["S", "A", "A-", "B", "B-", "C", "C-", "待讀"]
-        imp_idx = valid_imps.index(current_imp) if current_imp in valid_imps else 7
-        edit_imp = st.selectbox("評級 (Importance):", valid_imps, index=imp_idx, key=f"d_imp_{k_id}")
+        edit_imp = st.selectbox("評級 (Importance):", valid_imps, index=valid_imps.index(current_imp) if current_imp in valid_imps else 7, key=f"d_imp_{k_id}")
         edit_notes = st.text_area("備註 (Notes):", value=row.get('notes', ''), key=f"d_n_{k_id}", height=300)
-        
         if st.button("💾 儲存修改", key=f"d_save_{k_id}", use_container_width=True, type="primary"):
-            core_utils.update_bibliography_reference(item_id, edit_imp, edit_notes)
-            core_utils.db.execute("UPDATE bibliography_notes SET title = ? WHERE id = ?", [edit_title, item_id])
-            st.cache_data.clear() 
+            core_utils.update_record(table_name, item_id, id_column=id_col, title=edit_title, importance=edit_imp, notes=edit_notes)
             st.rerun()
 
     st.divider()
     st.markdown("<span style='color:#EF4444;'>**⚠️ 危險區域**</span>", unsafe_allow_html=True)
     confirm_del = st.checkbox("我確定要解鎖徹底刪除", key=f"d_conf_{k_id}")
     if st.button("💥 執行徹底刪除", key=f"d_del_{k_id}", type="primary", disabled=not confirm_del, use_container_width=True):
-        if table_name == "custom_resources": core_utils.delete_custom_resource(item_id)
-        elif table_name == "bibliography_notes": core_utils.delete_bibliography_reference(item_id)
-        elif table_name == "omni_vault": core_utils.delete_omni_item(item_id) # 🌟 萬物收藏匣刪除邏輯
-        st.cache_data.clear() 
+        core_utils.delete_records(table_name, [item_id], id_column=id_col)
         st.rerun()
 
 
-def _edit_popover(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id):
+def _edit_popover(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id, id_col):
     """【軌道 B】用於快速編輯的輕量級氣泡視窗"""
     with st.popover("⚙️ 管理", use_container_width=True):
         st.markdown(f"**📝 編輯項目** (ID: `{str(item_id)[:15]}...`)")
-        
         edit_title = st.text_input("手動改名:", value=current_title, key=f"p_t_{k_id}")
         
+        edit_summary = current_summary
         if table_name in ["academic_pubs", "media_vault"]:
             edit_summary = st.text_area("修改摘要/簡介:", value=current_summary, key=f"p_c_{k_id}", height=100)
-        else:
-            edit_summary = current_summary
         
+        new_cat = None
         if context == "bookshelf":
             current_cat = row.get('category', '未分類')
             valid_cats = ["未分類", "研究", "學術", "小說", "詩", "次文化", "藝術", "音樂"]
-            cat_idx = valid_cats.index(current_cat) if current_cat in valid_cats else 0
-            new_cat = st.selectbox("📚 變更書架分類：", valid_cats, index=cat_idx, key=f"p_cat_{k_id}")
+            new_cat = st.selectbox("📚 變更書架分類：", valid_cats, index=valid_cats.index(current_cat) if current_cat in valid_cats else 0, key=f"p_cat_{k_id}")
 
         if st.button("💾 儲存文字變更", key=f"p_save_{k_id}", use_container_width=True, type="primary"):
-            if table_name == "articles":
-                core_utils.update_article_meta(item_id, edit_title)
-            elif table_name == "academic_pubs":
-                core_utils.update_academic_pub_meta(item_id, edit_title, edit_summary)
-                if context == "bookshelf": core_utils.update_biblio_category(item_id, new_cat)
-            elif table_name == "media_vault":
-                core_utils.update_media_vault_meta(item_id, edit_title, edit_summary)
-            st.cache_data.clear() 
+            kwargs = {}
+            if table_name == "articles": kwargs['Title'] = edit_title
+            elif table_name == "media_vault": kwargs.update({'title': edit_title, 'summary': edit_summary})
+            elif table_name == "academic_pubs": 
+                kwargs.update({'title': edit_title, 'abstract': edit_summary})
+                if new_cat: kwargs['category'] = new_cat
+            core_utils.update_record(table_name, item_id, id_column=id_col, **kwargs)
             st.rerun()
 
         st.divider()
         st.markdown("**⭐ 狀態管理**")
-        if table_name == "articles":
-            if st.button("💔 移除收藏" if is_bk else "❤️ 加入收藏", key=f"p_toggle_bk_{k_id}", use_container_width=True):
-                core_utils.toggle_bookmark_db(item_id, is_bk)
-                st.cache_data.clear()
-                st.rerun()
-        elif table_name == "academic_pubs":
-            btn_label = "💔 移出書架" if context == "bookshelf" else ("💔 取消收藏" if is_bk else "❤️ 收藏文獻")
-            if st.button(btn_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
-                core_utils.toggle_biblio_bookmark_db(item_id, is_bk)
-                st.cache_data.clear()
-                st.rerun()
-        elif table_name == "media_vault":
-            mv_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
+        btn_label = "💔 移出書架" if context == "bookshelf" else ("💔 移除收藏" if is_bk else "❤️ 加入收藏")
+        if table_name == "media_vault": btn_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
+        
+        if st.button(btn_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
             next_state = 0 if is_bk else 1
-            if st.button(mv_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
-                core_utils.batch_toggle_media_bookmark([item_id], next_state)
-                st.cache_data.clear()
-                st.rerun()
+            core_utils.toggle_bookmark(table_name, [item_id], next_state, id_column=id_col)
+            st.rerun()
 
         st.divider()
         st.markdown("<span style='color:#EF4444;'>**⚠️ 危險區域**</span>", unsafe_allow_html=True)
         confirm_del = st.checkbox("我確定要解鎖徹底刪除", key=f"p_conf_{k_id}")
         if st.button("💥 執行徹底刪除", key=f"p_del_{k_id}", type="primary", disabled=not confirm_del, use_container_width=True):
-            if table_name == "articles": core_utils.delete_article_db(item_id)
-            elif table_name == "academic_pubs": core_utils.delete_biblio_db(item_id)
-            elif table_name == "media_vault": core_utils.batch_delete_media([item_id])
-            st.cache_data.clear() 
+            core_utils.delete_records(table_name, [item_id], id_column=id_col)
             st.rerun()
 
 def render_smart_popover(row, table_name, context=""):
-    """對外接口：智慧判斷該渲染為 Popover 還是 Dialog"""
-    item_id = row.get('Link') if table_name == "articles" else row.get('id')
+    """對外接口：智慧判斷渲染軌道"""
+    id_col = "Link" if table_name == "articles" else "id"
+    item_id = str(row.get(id_col)) if table_name == "articles" else int(row.get(id_col, 0))
     current_title = row.get('Title') or row.get('title') or "未命名"
     current_summary = row.get('Summary') or row.get('abstract') or row.get('summary') or row.get('comment') or row.get('notes') or ""
     is_bk = bool(row.get('is_bookmarked', 0))
     k_id = f"{table_name}_{context}_{item_id}"
 
-    # 🌟 核心路由：將 omni_vault 也導向大型文字編輯 Dialog 視窗
     if table_name in ["custom_resources", "bibliography_notes", "omni_vault"]:
         if st.button("⚙️ 管理", key=f"btn_open_dialog_{k_id}", use_container_width=True):
-            _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id)
+            _edit_dialog(row, table_name, context, item_id, current_title, current_summary, k_id, id_col)
     else:
-        _edit_popover(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id)
+        _edit_popover(row, table_name, context, item_id, current_title, current_summary, is_bk, k_id, id_col)
         
 # ==========================================
 # 4. 全域批量試算表編輯器 (Batch Data Editor)
@@ -210,127 +180,85 @@ def render_batch_editor(df, table_name, key_prefix=""):
     st.caption("您可以直接在表格中點擊打勾、修改名稱與狀態，最後點擊底部的「儲存所有變更」。")
 
     df_edit = df.copy()
-    df_edit['_id'] = df['Link'] if table_name == "articles" else df['id']
+    id_col = "Link" if table_name == "articles" else "id"
+    df_edit['_id'] = df[id_col]
     df_edit.insert(0, 'Select', False) 
     
     if 'is_bookmarked' in df_edit.columns: df_edit['is_bookmarked'] = df_edit['is_bookmarked'].astype(bool)
 
+    # 欄位顯示設定
     if table_name == "custom_resources":
-        display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
-        disabled_cols = ['url', 'added_date']
-    elif table_name == "omni_vault":  # 🌟 加入萬物收藏匣欄位設定
-        display_cols = ['Select', 'category', 'title', 'url', 'image_url', 'comment', 'added_date']
-        disabled_cols = ['url', 'added_date']
+        display_cols, disabled_cols = ['Select', 'title', 'url', 'comment', 'added_date'], ['url', 'added_date']
+    elif table_name == "omni_vault":
+        display_cols, disabled_cols = ['Select', 'category', 'title', 'url', 'image_url', 'comment', 'added_date'], ['url', 'added_date']
     elif table_name == "media_vault":  
-        display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
-        disabled_cols = ['source_url', 'creator']
+        display_cols, disabled_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked'], ['source_url', 'creator']
     elif table_name == "academic_pubs":
-        display_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked']
-        disabled_cols = ['publisher_journal', 'author']
+        display_cols, disabled_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked'], ['publisher_journal', 'author']
     elif table_name == "bibliography_notes":
-        display_cols = ['Select', 'title', 'author', 'importance']
-        disabled_cols = ['title', 'author']
+        display_cols, disabled_cols = ['Select', 'title', 'author', 'importance', 'notes'], ['title', 'author']
     else:
-        display_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked']
-        disabled_cols = ['Link', 'Source']
+        display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked'], ['Link', 'Source']
 
     safe_cols = [c for c in display_cols if c in df_edit.columns] + ['_id']
     df_edit = df_edit[safe_cols]
-
     editor_key = f"editor_{key_prefix}_{table_name}"
 
     edited_df = st.data_editor(
         df_edit, use_container_width=True, hide_index=True,
-        disabled=disabled_cols, height=400, key=editor_key,
-        column_config={"_id": None} 
+        disabled=disabled_cols, height=400, key=editor_key, column_config={"_id": None} 
     )
 
     col1, col2 = st.columns([1, 1])
     
-    # 🗑️ 批次刪除邏輯
+    # 🗑️ 全域一行刪除
     with col1:
         selected_count = edited_df['Select'].sum()
         if selected_count == 0:
             st.button("🗑️ 批次刪除 (請先勾選)", disabled=True, use_container_width=True, key=f"del_dummy_{editor_key}")
         else:
             with st.popover(f"🗑️ 徹底刪除已勾選的 {selected_count} 筆資料", use_container_width=True):
-                st.error(f"⚠️ 警告：即將從資料庫中永久刪除這 {selected_count} 筆資料。此操作無法復原！")
+                st.error(f"⚠️ 警告：此操作無法復原！")
                 if st.button("💥 確認徹底刪除", type="primary", use_container_width=True, key=f"confirm_del_{editor_key}"):
                     selected_rows = edited_df[edited_df['Select'] == True]
-                    if not selected_rows.empty:
-                        if table_name == "articles":
-                            for item_id in selected_rows['_id']: core_utils.delete_article_db(str(item_id))
-                        elif table_name == "custom_resources":
-                            for item_id in selected_rows['_id']: core_utils.delete_custom_resource(int(item_id))
-                        elif table_name == "omni_vault": # 🌟 萬物收藏匣批次刪除
-                            for item_id in selected_rows['_id']: core_utils.delete_omni_item(int(item_id))
-                        elif table_name == "media_vault":
-                            ids_to_delete = [int(x) for x in selected_rows['_id']]
-                            core_utils.batch_delete_media(ids_to_delete)
-                        elif table_name == "academic_pubs":
-                            for item_id in selected_rows['_id']: core_utils.delete_biblio_db(int(item_id))
-                        elif table_name == "bibliography_notes":
-                            for item_id in selected_rows['_id']: core_utils.delete_bibliography_reference(int(item_id))
-                        
-                        st.cache_data.clear()
-                        st.success("✅ 批次刪除完成！")
-                        st.rerun()
+                    target_ids = [str(x) if table_name == "articles" else int(x) for x in selected_rows['_id']]
+                    core_utils.delete_records(table_name, target_ids, id_column=id_col)
+                    st.rerun()
 
-    # 💾 批次儲存邏輯
+    # 💾 全域動態組裝更新
     with col2:
         if st.button("💾 儲存所有文字與狀態修改", use_container_width=True, key=f"save_btn_{editor_key}"):
             changes_applied = 0
             for idx in edited_df.index:
-                row_edit = edited_df.loc[idx]
-                row_orig = df_edit.loc[idx]
-                changed = any(row_edit[col] != row_orig[col] for col in safe_cols if col not in ['Select', '_id'])
-                        
-                if changed:
-                    raw_id = row_edit['_id']
-                    item_id = str(raw_id) if table_name == "articles" else int(raw_id)
+                row_edit, row_orig = edited_df.loc[idx], df_edit.loc[idx]
+                if any(row_edit[col] != row_orig[col] for col in safe_cols if col not in ['Select', '_id']):
+                    item_id = str(row_edit['_id']) if table_name == "articles" else int(row_edit['_id'])
+                    kwargs = {}
                     
                     if table_name == "custom_resources":
-                        orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
-                        new_c = row_edit.get('comment', orig_c)
-                        core_utils.update_custom_resource(item_id, str(row_edit['title']), str(new_c) if pd.notna(new_c) else "")
-
-                    elif table_name == "omni_vault": # 🌟 萬物收藏匣批次儲存
-                        orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
-                        new_c = row_edit.get('comment', orig_c)
-                        # 🌟 抓取新的圖片網址
-                        orig_img = df.loc[idx, 'image_url'] if 'image_url' in df.columns else ""
-                        new_img = row_edit.get('image_url', orig_img)
-        
-                        core_utils.update_omni_item(item_id, str(row_edit['category']), str(row_edit['title']), str(new_c) if pd.notna(new_c) else "", str(new_img) if pd.notna(new_img) else "")
-                    
+                        kwargs = {'title': str(row_edit['title']), 'comment': str(row_edit.get('comment', ''))}
+                    elif table_name == "omni_vault":
+                        kwargs = {'category': str(row_edit['category']), 'title': str(row_edit['title']), 'comment': str(row_edit.get('comment', '')), 'image_url': str(row_edit.get('image_url', ''))}
                     elif table_name == "media_vault":
-                        orig_s = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
-                        core_utils.update_media_vault_meta(item_id, str(row_edit['title']), str(orig_s) if pd.notna(orig_s) else "")
-                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
-                            core_utils.batch_toggle_media_bookmark([item_id], int(row_edit['is_bookmarked']))
-                            
+                        kwargs = {'title': str(row_edit['title'])}
                     elif table_name == "academic_pubs":
-                        orig_a = df.loc[idx, 'abstract'] if 'abstract' in df.columns else ""
-                        core_utils.update_academic_pub_meta(item_id, str(row_edit['title']), str(orig_a) if pd.notna(orig_a) else "")
-                        if 'category' in row_edit and row_edit['category'] != row_orig['category']:
-                            core_utils.update_biblio_category(item_id, str(row_edit['category']))
-                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
-                            core_utils.toggle_biblio_bookmark_db(item_id, int(row_orig['is_bookmarked']))
-                            
+                        kwargs = {'title': str(row_edit['title'])}
+                        if 'category' in row_edit and row_edit['category'] != row_orig['category']: kwargs['category'] = str(row_edit['category'])
                     elif table_name == "articles":
-                        core_utils.update_article_meta(item_id, str(row_edit['Title']))
-                        if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
-                            core_utils.toggle_bookmark_db(item_id, int(row_orig['is_bookmarked']))
-                            
+                        kwargs = {'Title': str(row_edit['Title'])}
                     elif table_name == "bibliography_notes":
-                        orig_n = df.loc[idx, 'notes'] if 'notes' in df.columns else ""
-                        core_utils.update_bibliography_reference(item_id, str(row_edit.get('importance', '待讀')), str(orig_n))
+                        kwargs = {'importance': str(row_edit.get('importance', '待讀')), 'notes': str(row_edit.get('notes', ''))}
+
+                    # 獨立處理需要 cache_data.clear 的書籤 toggle
+                    if 'is_bookmarked' in row_edit and row_edit['is_bookmarked'] != row_orig['is_bookmarked']:
+                        core_utils.toggle_bookmark(table_name, [item_id], int(row_edit['is_bookmarked']), id_column=id_col)
                     
+                    if kwargs:
+                        core_utils.update_record(table_name, item_id, id_column=id_col, **kwargs)
+                        
                     changes_applied += 1
             
-            if changes_applied > 0:
-                st.cache_data.clear() 
-                st.success(f"✅ 成功儲存 {changes_applied} 筆修改！")
+            if changes_applied > 0: st.success(f"✅ 成功儲存 {changes_applied} 筆修改！")
             else: st.info("未偵測到任何修改。")
             st.rerun()
             
