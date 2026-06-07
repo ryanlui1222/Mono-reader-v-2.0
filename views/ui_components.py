@@ -219,7 +219,7 @@ def render_batch_editor(df, table_name, key_prefix=""):
         display_cols = ['Select', 'title', 'url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date']
     elif table_name == "omni_vault":  # 🌟 加入萬物收藏匣欄位設定
-        display_cols = ['Select', 'category', 'title', 'url', 'comment', 'added_date']
+        display_cols = ['Select', 'category', 'title', 'url', 'image_url', 'comment', 'added_date']
         disabled_cols = ['url', 'added_date']
     elif table_name == "media_vault":  
         display_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked']
@@ -297,7 +297,11 @@ def render_batch_editor(df, table_name, key_prefix=""):
                     elif table_name == "omni_vault": # 🌟 萬物收藏匣批次儲存
                         orig_c = df.loc[idx, 'comment'] if 'comment' in df.columns else ""
                         new_c = row_edit.get('comment', orig_c)
-                        core_utils.update_omni_item(item_id, str(row_edit['category']), str(row_edit['title']), str(new_c) if pd.notna(new_c) else "")
+                        # 🌟 抓取新的圖片網址
+                        orig_img = df.loc[idx, 'image_url'] if 'image_url' in df.columns else ""
+                        new_img = row_edit.get('image_url', orig_img)
+        
+                        core_utils.update_omni_item(item_id, str(row_edit['category']), str(row_edit['title']), str(new_c) if pd.notna(new_c) else "", str(new_img) if pd.notna(new_img) else "")
                     
                     elif table_name == "media_vault":
                         orig_s = df.loc[idx, 'summary'] if 'summary' in df.columns else ""
