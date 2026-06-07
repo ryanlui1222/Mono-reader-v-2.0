@@ -38,6 +38,67 @@ def get_source_link(source_name): return SOURCE_URLS.get(source_name.split(" (")
 def init_connection(): return libsql_client.create_client_sync(url=st.secrets["TURSO_DATABASE_URL"], auth_token=st.secrets["TURSO_AUTH_TOKEN"])
 db = init_connection()
 
+# ==========================================
+# 🛠️ 核心共用引擎 (Helpers)
+# ==========================================
+def get_scraper():
+    """全域爬蟲實體生成器，統一管理瀏覽器偽裝與 Timeout"""
+    return cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+
+def query_to_df(sql, params=None, lower_cols=False):
+    """全域 SQL 轉 DataFrame 引擎，取代原本重複的 50 行防呆邏輯"""
+    try:
+        res = db.execute(sql, params or [])
+        if not res.rows: return pd.DataFrame()
+        cols = [c.lower() if lower_cols else c for c in res.columns]
+        return pd.DataFrame([dict(zip(cols, row)) for row in res.rows])
+    except Exception as e:
+        print(f"資料庫讀取失敗: {e}")
+        return pd.DataFrame()
+
+# ==========================================
+# 🛠️ 終極全域 CRUD 引擎 (取代 16 個舊函數)
+# ==========================================
+def delete_records(table_name, item_ids, id_column="id"):
+    """全域統一刪除：支援單筆與多筆，自動清除快取"""
+    if not isinstance(item_ids, list): item_ids = [item_ids]
+    if not item_ids: return
+    try:
+        placeholders = ','.join(['?'] * len(item_ids))
+        db.execute(f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders})", item_ids)
+        st.cache_data.clear()
+        st.toast("🗑️ 資料已刪除！")
+    except Exception as e:
+        st.error(f"刪除失敗: {e}")
+
+def update_record(table_name, item_id, id_column="id", **kwargs):
+    """全域統一更新：自動將 kwargs 轉為 SQL 的 SET 語法"""
+    if not kwargs: return False
+    try:
+        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        values = list(kwargs.values()) + [item_id]
+        db.execute(f"UPDATE {table_name} SET {set_clause} WHERE {id_column} = ?", values)
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"更新失敗: {e}")
+        return False
+
+def toggle_bookmark(table_name, item_ids, to_state, id_column="id"):
+    """全域狀態切換：自動將指定的 ID 切換至 to_state 狀態"""
+    if not isinstance(item_ids, list): item_ids = [item_ids]
+    if not item_ids: return
+    try:
+        placeholders = ','.join(['?'] * len(item_ids))
+        db.execute(f"UPDATE {table_name} SET is_bookmarked = ? WHERE {id_column} IN ({placeholders})", [to_state] + item_ids)
+        st.cache_data.clear()
+        st.toast("⭐ 狀態已更新！")
+    except Exception as e:
+        st.error(f"狀態更新失敗: {e}")
+
+# ==========================================
+# 📥 資料庫讀取區 (全面採用 query_to_df 瘦身)
+# ==========================================
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     sql, args = "SELECT * FROM articles WHERE 1=1", []
@@ -50,113 +111,139 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
         elif view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽": sql += " AND Source = ?"; args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫": sql += " AND is_bookmarked = 1"
     sql += " ORDER BY SortDate DESC LIMIT 500"
-    res = db.execute(sql, args)
-    if not res.rows: return pd.DataFrame()
-    df = pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows])
-    if view_mode == "✍️ 最新評論": df = df[~df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)]
-    elif view_mode == "⚡ 文化快訊": df = df[df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)]
+    
+    df = query_to_df(sql, args)
+    if not df.empty:
+        if view_mode == "✍️ 最新評論": df = df[~df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)]
+        elif view_mode == "⚡ 文化快訊": df = df[df['Source'].str.contains('|'.join(FAST_NEWS_SOURCES), case=False, na=False)]
     return df
 
 @st.cache_data(ttl=600)
 def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總覽", search_query=""):
     sql, args = "SELECT * FROM academic_pubs WHERE 1=1", []
-    
-    # 🌟 處理全域搜尋：若有輸入字串，對多個欄位進行模糊比對
     if search_query:
         sql += " AND (title LIKE ? OR author LIKE ? OR abstract LIKE ? OR publisher_journal LIKE ?)"
         like_term = f"%{search_query}%"
         args.extend([like_term, like_term, like_term, like_term])
         
-    if view_mode == "🔖 待讀書架":
-        sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
-    elif view_mode == "🔗 網址備存":
-        sql += " AND type = 'Web Link'"
+    if view_mode == "🔖 待讀書架": sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
+    elif view_mode == "🔗 網址備存": sql += " AND type = 'Web Link'"
     else:
         sql += " AND type = ?"; args.append(pub_type)
-        
-        if source_filter == "手動加入":
-            sql += " AND is_manual = 1"
-        elif source_filter != "總覽 (依日期遞減)": 
-            sql += " AND publisher_journal = ?"; args.append(source_filter)
+        if source_filter == "手動加入": sql += " AND is_manual = 1"
+        elif source_filter != "總覽 (依日期遞減)": sql += " AND publisher_journal = ?"; args.append(source_filter)
             
     sql += " ORDER BY publish_date DESC LIMIT 500"
-    res = db.execute(sql, args)
-    if not res.rows: return pd.DataFrame()
-    return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows])
-
-def toggle_bookmark_db(link, current_state):
-    try: db.execute("UPDATE articles SET is_bookmarked = ? WHERE Link = ?", [0 if current_state else 1, link]); st.cache_data.clear(); st.toast("書籤更新！")
-    except Exception as e: st.error(f"操作失敗: {e}")
-
-def delete_article_db(link):
-    try: db.execute("DELETE FROM articles WHERE Link = ?", [link]); st.cache_data.clear(); st.toast("🗑️ 文章已抹除！")
-    except Exception as e: st.error(f"刪除失敗: {e}")
-
-def toggle_biblio_bookmark_db(pub_id, current_state):
-    try: db.execute("UPDATE academic_pubs SET is_bookmarked = ? WHERE id = ?", [0 if current_state else 1, pub_id]); st.cache_data.clear(); st.toast("書架狀態更新！")
-    except Exception as e: st.error(f"操作失敗: {e}")
-
-def delete_biblio_db(pub_id):
-    try: db.execute("DELETE FROM academic_pubs WHERE id = ?", [pub_id]); st.cache_data.clear(); st.toast("🗑️ 紀錄已徹底刪除！")
-    except Exception as e: st.error(f"刪除失敗: {e}")
+    return query_to_df(sql, args)
 
 def fetch_custom_resources(module_name):
-    res = db.execute("SELECT * FROM custom_resources WHERE module = ? ORDER BY added_date DESC", [module_name])
-    return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows]) if res.rows else pd.DataFrame()
+    return query_to_df("SELECT * FROM custom_resources WHERE module = ? ORDER BY added_date DESC", [module_name])
 
-def add_custom_resource(module_name, url):
-    if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
-    title = "未命名網站"
-    try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        res = scraper.get(url, timeout=15)
-        res.encoding = res.apparent_encoding
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            if soup.find('meta', property='og:title'): 
-                title = soup.find('meta', property='og:title').get('content')
-            elif soup.find('meta', attrs={'name': 'twitter:title'}): 
-                title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
-            elif soup.find('title'): 
-                title = soup.find('title').get_text()
-            if title and title != "未命名網站":
-                title = title.split('|')[0].split(' - ')[0].strip()
-            else:
-                title = "未命名網站"
-    except Exception as e:
-        print(f"⚠️ 標題擷取失敗 ({e})，轉為手動命名模式。")
-    try:
-        db.execute("INSERT INTO custom_resources (module, title, url, added_date) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title=excluded.title", 
-                   [module_name, title, url, datetime.utcnow().isoformat()])
-        st.cache_data.clear()
-        return True, f"✅ 已成功加入清單！(若名稱不如預期，請點擊右側管理修改)"
-    except Exception as e:
-        return False, f"❌ 資料庫寫入錯誤: {e}"
+def fetch_bibliography_references():
+    return query_to_df("SELECT * FROM bibliography_notes ORDER BY added_date DESC")
 
-def update_custom_resource(res_id, new_title, new_comment=""):
-    try:
-        db.execute("UPDATE custom_resources SET title = ?, comment = ? WHERE id = ?", [new_title, new_comment, res_id])
-        st.cache_data.clear(); st.toast("✏️ 網站資訊與備註已更新！")
-    except Exception as e: st.error(f"更新失敗: {e}")
+def fetch_media_by_broad_type(broad_type, is_bookmarked=1):
+    if broad_type == "Movie":
+        sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%電影%' OR media_type LIKE '%影集%') AND is_bookmarked = ? ORDER BY sort_date DESC"
+    else:
+        sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%') AND is_bookmarked = ? ORDER BY sort_date DESC"
+    df = query_to_df(sql, [is_bookmarked], lower_cols=True)
+    return df.to_dict('records') if not df.empty else []
 
-def delete_custom_resource(res_id):
-    try:
-        db.execute("DELETE FROM custom_resources WHERE id = ?", [res_id])
-        st.cache_data.clear(); st.toast("🗑️ 網站已從清單中移除！")
-    except Exception as e: st.error(f"刪除失敗: {e}")
+def fetch_crawler_health():
+    df = query_to_df("SELECT * FROM crawler_health ORDER BY source_name ASC", lower_cols=True)
+    return df.to_dict('records') if not df.empty else []
 
+def fetch_omni_categories():
+    res = db.execute("SELECT DISTINCT category FROM omni_vault ORDER BY category")
+    return [row[0] for row in res.rows] if res.rows else []
+
+def fetch_omni_items(category=None, search_query=""):
+    sql, args = "SELECT * FROM omni_vault WHERE 1=1", []
+    if category and category != "全部":
+        sql += " AND category = ?"; args.append(category)
+    if search_query:
+        sql += " AND (title LIKE ? OR comment LIKE ?)"; args.extend([f"%{search_query}%", f"%{search_query}%"])
+    sql += " ORDER BY added_date DESC"
+    return query_to_df(sql, args)
+
+
+# ==========================================
+# 🌐 網路請求與爬蟲模組 (全面採用 get_scraper)
+# ==========================================
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
     try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
         headers = {"User-Agent": "Mozilla/5.0"}
         if source == "douban": headers["Referer"] = "https://book.douban.com/"
-        res = scraper.get(img_url, headers=headers, timeout=10)
+        res = get_scraper().get(img_url, headers=headers, timeout=10)
         if res.status_code == 200 and len(res.content) > 500:
             return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
     except: pass
     return img_url
+
+def fetch_external_article(url):
+    try:
+        res = get_scraper().get(url, timeout=15)
+        res.encoding = res.apparent_encoding
+        soup = BeautifulSoup(res.text, 'html.parser')
+        og_title = soup.find('meta', property='og:title')
+        title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未知標題')
+        og_img = soup.find('meta', property='og:image')
+        img_url = og_img['content'] if og_img and og_img.get('content') else None
+        author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
+        author = author_meta['content'] if author_meta and author_meta.get('content') else ""
+        og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
+        summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
+        if not summary or len(summary) < 20:
+            paragraphs = [p.get_text(strip=True) for p in soup.find_all('p') if len(p.get_text(strip=True)) > 30]
+            summary = " ".join(paragraphs[:3]) if paragraphs else "（無法自動擷取摘要文字）"
+        final_summary = f"**👤 著者：** {author}\n\n{summary}" if author else summary
+        if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
+        return {"Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, "Published": "手動收藏", "Summary": final_summary, "Image": img_url, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1}
+    except: return None
+
+def fetch_book_by_url(url):
+    if not url.startswith("http"): return None
+    try:
+        res = get_scraper().get(url, timeout=15)
+        res.encoding = res.apparent_encoding
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            og_title = soup.find('meta', property='og:title')
+            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
+            title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').replace('Amazon.com:', '').strip()
+            
+            og_img = soup.find('meta', property='og:image')
+            img_url = og_img['content'] if og_img and og_img.get('content') else ""
+            if img_url: img_url = get_secure_image_base64(img_url, "url_backup")
+            
+            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
+            author = author_meta['content'] if author_meta and author_meta.get('content') else ""
+            if not author:
+                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
+                    p_text = p.get_text(strip=True)
+                    if p_text and len(p_text) < 50:
+                        author = p_text
+                        break
+            if not author: author = "未知作者"
+            
+            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
+            abstract = og_desc['content'] if og_desc and og_desc.get('content') else ""
+            
+            url_hash = f"url_{id(url)}"
+            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
+            if match: url_hash = f"amazon_{match.group(1) or match.group(2) or match.group(3)}"
+
+            return {
+                "type": "Web Link", "title": title, "author": author, "publisher_journal": "網頁備存", 
+                "issue_volume": "", "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "abstract": abstract[:600] if abstract else "（透過外部網址備存導入）", "link": url, 
+                "image": img_url, "is_bookmarked": 0
+            }
+    except Exception as e: print(f"網址備存解析失敗: {e}")
+    return None
 
 def fetch_google_fallback(isbn):
     try:
@@ -175,22 +262,16 @@ def fetch_google_fallback(isbn):
     return None
 
 def fetch_crossref_isbn(isbn):
-    """專門針對被消費級資料庫忽略的學術出版品與電子書"""
     try:
-        url = f"https://api.crossref.org/works?filter=isbn:{isbn}"
-        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
+        res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
         items = res.get("message", {}).get("items", [])
         if items:
             item = items[0]
-            title = item.get("title", ["未命名書籍"])[0]
-            authors_list = item.get("author", [])
-            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list])
-            
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
             date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
             pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
-            
             return {
-                "type": "Book", "title": title, "author": author or "未知",
+                "type": "Book", "title": item.get("title", ["未命名書籍"])[0], "author": author or "未知",
                 "publisher_journal": item.get("publisher", "手動加入"), "issue_volume": "",
                 "identifier": isbn, "publish_date": pub_date,
                 "abstract": "（由 Crossref 學術庫匯入）", "link": item.get("URL", ""), 
@@ -217,8 +298,7 @@ def fetch_openbd(isbn):
 def fetch_douban(isbn):
     url = f"https://book.douban.com/isbn/{isbn}/"
     try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        res = scraper.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        res = get_scraper().get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
             title = soup.find("span", property="v:itemreviewed").text.strip() if soup.find("span", property="v:itemreviewed") else "未知"
@@ -255,7 +335,6 @@ def fetch_book_by_isbn(isbn):
         if best_cover: res["image"] = best_cover
         return res
         
-    # 🌟 插入學術資料庫備援 (補足 Google Books 找不到的老學術書或電子版)
     res_crossref = fetch_crossref_isbn(clean_isbn)
     if res_crossref:
         if best_cover: res_crossref["image"] = best_cover
@@ -275,403 +354,65 @@ def fetch_book_by_isbn(isbn):
             }
     except: pass
     return None
-    
-def fetch_book_by_url(url):
-    if not url.startswith("http"): return None
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-    try:
-        res = scraper.get(url, timeout=15)
-        res.encoding = res.apparent_encoding
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            og_title = soup.find('meta', property='og:title')
-            title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未命名書籍')
-            title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').replace('Amazon.com:', '').strip()
-            
-            og_img = soup.find('meta', property='og:image')
-            img_url = og_img['content'] if og_img and og_img.get('content') else ""
-            if img_url: img_url = get_secure_image_base64(img_url, "url_backup")
-            
-            author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
-            author = author_meta['content'] if author_meta and author_meta.get('content') else ""
-            if not author:
-                for p in soup.find_all(['p', 'span', 'a'], class_=re.compile(r'author|byline', re.I)):
-                    p_text = p.get_text(strip=True)
-                    if p_text and len(p_text) < 50:
-                        author = p_text
-                        break
-            if not author: author = "未知作者"
-            
-            og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
-            abstract = og_desc['content'] if og_desc and og_desc.get('content') else ""
-            
-            url_hash = f"url_{id(url)}"
-            match = re.search(r'dp/([A-Z0-9]{10})|product/([A-Z0-9]{10})|asin/([A-Z0-9]{10})', url, re.I)
-            if match: url_hash = f"amazon_{match.group(1) or match.group(2) or match.group(3)}"
-
-            return {
-                "type": "Web Link", "title": title, "author": author, "publisher_journal": "網頁備存", 
-                "issue_volume": "", "identifier": url_hash, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "abstract": abstract[:600] if abstract else "（透過外部網址備存導入）", "link": url, 
-                "image": img_url, "is_bookmarked": 0
-            }
-    except Exception as e:
-        print(f"網址備存解析失敗: {e}")
-    return None
-    
-def fetch_external_article(url):
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-    try:
-        res = scraper.get(url, timeout=15)
-        res.encoding = res.apparent_encoding
-        soup = BeautifulSoup(res.text, 'html.parser')
-        og_title = soup.find('meta', property='og:title')
-        title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未知標題')
-        og_img = soup.find('meta', property='og:image')
-        img_url = og_img['content'] if og_img and og_img.get('content') else None
-        author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
-        author = author_meta['content'] if author_meta and author_meta.get('content') else ""
-        og_desc = soup.find('meta', property='og:description') or soup.find('meta', attrs={'name': 'description'})
-        summary = og_desc['content'] if og_desc and og_desc.get('content') else ""
-        if not summary or len(summary) < 20:
-            paragraphs = [p.get_text(strip=True) for p in soup.find_all('p') if len(p.get_text(strip=True)) > 30]
-            summary = " ".join(paragraphs[:3]) if paragraphs else "（無法自動擷取摘要文字）"
-        final_summary = f"**👤 著者：** {author}\n\n{summary}" if author else summary
-        if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
-        return {"Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, "Published": "手動收藏", "Summary": final_summary, "Image": img_url, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1}
-    except: return None
-
-# ==========================================
-# 參考書目與註釋管理模組 (Bibliography)
-# ==========================================
-def init_bibliography_table():
-    """初始化參考書目專用資料表"""
-    try:
-        db.execute("""
-        CREATE TABLE IF NOT EXISTS bibliography_notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            identifier TEXT UNIQUE,
-            type TEXT,
-            title TEXT,
-            author TEXT,
-            publisher_journal TEXT,
-            issue_volume TEXT,
-            publish_date TEXT,
-            importance TEXT,
-            notes TEXT,
-            link TEXT,
-            added_date TEXT
-        )
-        """)
-    except Exception as e:
-        print(f"初始化參考書目表失敗: {e}")
-
-# 啟動時自動檢查建表
-init_bibliography_table()
-
-def fetch_doi_metadata(doi):
-    clean_doi = doi.replace("https://doi.org/", "").strip()
-    url = f"https://doi.org/{clean_doi}"
-    
-    # 🌟 使用官方內容協商機制，自動路由所有 DOI 註冊機構
-    headers = {
-        "Accept": "application/vnd.citationstyles.csl+json", 
-        "User-Agent": "BiblioappCloud/1.0"
-    }
-    try:
-        # allow_redirects=True 確保 doi.org 能正確重導向到對應機構的 metadata API
-        res = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
-        if res.status_code == 200:
-            item = res.json()
-            # CSL-JSON 格式的 title 通常是字串
-            title = item.get("title", "未命名文獻")
-            
-            authors_list = item.get("author", [])
-            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list])
-            
-            container = item.get("container-title", "")
-            publisher = item.get("publisher", "")
-            pub_journal = container if container else publisher
-            
-            vol = item.get("volume", "")
-            iss = item.get("issue", "")
-            issue_vol = f"Vol. {vol}, Issue {iss}" if vol and iss else (f"Issue {iss}" if iss else "")
-            
-            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
-            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
-            
-            link = item.get("URL", f"https://doi.org/{clean_doi}")
-            
-            return {
-                "type": "Journal" if container else "Book",
-                "title": title, "author": author, "publisher_journal": pub_journal,
-                "issue_volume": issue_vol, "identifier": clean_doi, "publish_date": pub_date,
-                "link": link
-            }
-    except Exception as e:
-        print(f"DOI 解析失敗: {e}")
-    return None
-    
-def add_bibliography_reference(input_val, importance, notes):
-    input_val = input_val.strip()
-    data = None
-    
-    # 判別輸入為 DOI 還是 ISBN
-    if input_val.startswith("10.") or "doi.org" in input_val:
-        data = fetch_doi_metadata(input_val)
-    else:
-        import re
-        clean_isbn = re.sub(r'[^0-9X]', '', input_val.upper())
-        if clean_isbn:
-            data = fetch_book_by_isbn(clean_isbn)
-            
-    if not data:
-        return False, "❌ 無法解析該 DOI 或 ISBN，請檢查格式或網路連線。"
-        
-    try:
-        sql = """
-        INSERT INTO bibliography_notes 
-        (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(identifier) DO UPDATE SET 
-        importance=excluded.importance, notes=excluded.notes;
-        """
-        db.execute(sql, [
-            data['identifier'], data['type'], data['title'], data['author'], 
-            data.get('publisher_journal', ''), data.get('issue_volume', ''), 
-            data.get('publish_date', ''), importance, notes, data.get('link', ''), 
-            datetime.utcnow().isoformat()
-        ])
-        return True, f"✅ 已成功將《{data['title']}》加入參考書目庫！"
-    except Exception as e:
-        return False, f"寫入資料庫失敗: {e}"
-
-def fetch_bibliography_references():
-    try:
-        res = db.execute("SELECT * FROM bibliography_notes ORDER BY added_date DESC")
-        return pd.DataFrame([dict(zip(res.columns, row)) for row in res.rows]) if res.rows else pd.DataFrame()
-    except:
-        return pd.DataFrame()
-
-def update_bibliography_reference(ref_id, importance, notes):
-    try:
-        db.execute("UPDATE bibliography_notes SET importance = ?, notes = ? WHERE id = ?", [importance, notes, ref_id])
-        st.cache_data.clear()
-        st.toast("✏️ 參考書目與備註已更新！")
-    except Exception as e: st.error(f"更新失敗: {e}")
-
-def delete_bibliography_reference(ref_id):
-    try:
-        db.execute("DELETE FROM bibliography_notes WHERE id = ?", [ref_id])
-        st.cache_data.clear()
-        st.toast("🗑️ 參考書目已移除！")
-    except Exception as e: st.error(f"刪除失敗: {e}")
-
-# ==========================================
-# 書架分類管理模組
-# ==========================================
-def update_biblio_category(pub_id, new_category):
-    try:
-        # SQLite 若欄位不存在不會報錯，但我們在爬蟲端其實有預留過 category 欄位
-        db.execute("UPDATE academic_pubs SET category = ? WHERE id = ?", [new_category, pub_id])
-        st.cache_data.clear()
-        st.toast(f"🏷️ 分類已更新為：{new_category}")
-    except Exception as e:
-        st.error(f"分類更新失敗: {e}")
-
-# ==========================================
-# 手動新增與備存寫入防護模組 (MVC 隔離實作)
-# ==========================================
-def add_manual_book(book_data):
-    try:
-        sql = """
-        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
-        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;
-        """
-        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
-        st.cache_data.clear()
-        return True, f"✅ 已將《{book_data['title']}》加入清單！"
-    except Exception as e: 
-        return False, f"寫入失敗: {e}"
-
-def add_url_backup(url_book_data):
-    try:
-        sql = """
-        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
-        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
-        """
-        db.execute(sql, [
-            url_book_data['type'], url_book_data['title'], url_book_data['author'], 
-            url_book_data['publisher_journal'], url_book_data['issue_volume'], 
-            url_book_data['identifier'], url_book_data['publish_date'], 
-            url_book_data['abstract'], url_book_data['link'], url_book_data['image']
-        ])
-        st.cache_data.clear()
-        return True, f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至「網址備存」清單！"
-    except Exception as e: 
-        return False, f"寫入資料庫失敗: {e}"
-
-# ==========================================
-# 🎬 影音館 (Media Vault) 雙 API 引擎 (修正版)
-# ==========================================
-
-def insert_media_db(data):
-    """將影音資料寫入 Turso 資料庫 (防崩潰 Upsert 版，支援動態書籤狀態)"""
-    try:
-        sql = """
-        INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(source_url) DO UPDATE SET 
-            title=excluded.title, 
-            creator=excluded.creator, 
-            cover_image=excluded.cover_image, 
-            summary=excluded.summary,
-            is_bookmarked=excluded.is_bookmarked;
-        """
-        # 🌟 讀取傳入的 is_bookmarked 狀態，若無則預設為 1 (待播)
-        args = [
-            data.get('media_type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''),
-            data.get('cover_image', ''), '未知時間', data.get('source_url', ''),
-            data.get('summary', ''), datetime.utcnow().isoformat(),
-            data.get('is_bookmarked', 1) 
-        ]
-        db.execute(sql, args)
-    except Exception as e:
-        print(f"寫入 Media 資料庫失敗: {e}")
-
-def fetch_media_by_broad_type(broad_type, is_bookmarked=1):
-    """讀取資料庫數據，支援待播清單(1)與典藏庫(0)雙軌切換"""
-    try:
-        if broad_type == "Movie":
-            # 加入 is_bookmarked 過濾
-            sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%電影%' OR media_type LIKE '%影集%') AND is_bookmarked = ? ORDER BY sort_date DESC"
-        else:
-            sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%') AND is_bookmarked = ? ORDER BY sort_date DESC"
-        
-        res = db.execute(sql, [is_bookmarked])
-        if not res.rows: return []
-        lowercase_columns = [c.lower() for c in res.columns]
-        return [dict(zip(lowercase_columns, row)) for row in res.rows]
-    except Exception as e:
-        print(f"讀取 Media 資料庫失敗: {e}")
-        return []
-
-def delete_media_db(media_id):
-    try:
-        db.execute("DELETE FROM media_vault WHERE id = ?", [media_id])
-    except Exception as e:
-        pass
 
 def fetch_apple_music_data(url_or_id):
-    """擷取 Apple Music，使用多國區域輪詢"""
     apple_id = url_or_id.strip()
     if not apple_id.isdigit():
-        # 從網址中萃取數字 ID
         match = re.search(r'/id(\d+)', url_or_id) or re.search(r'/(\d+)(?:\?|$)', url_or_id)
         apple_id = match.group(1) if match else None
-        
-    if not apple_id:
-        return None
+    if not apple_id: return None
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        'Accept': 'application/json'
-    }
-    
-    # 多區輪詢 (解決跨區無法抓取的問題)
+    headers = {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}
     for country in ['tw', 'jp', 'us', 'hk']:
-        api_url = f"https://itunes.apple.com/lookup?id={apple_id}&country={country}"
         try:
-            res = requests.get(api_url, headers=headers, timeout=10)
-            data = res.json()
-            
-            if data.get('resultCount', 0) > 0:
-                item = data['results'][0]
-                # 取得高畫質封面
+            res = requests.get(f"https://itunes.apple.com/lookup?id={apple_id}&country={country}", headers=headers, timeout=10).json()
+            if res.get('resultCount', 0) > 0:
+                item = res['results'][0]
                 img_url = item.get('artworkUrl100', '').replace('100x100bb', '600x600bb')
-                img_b64 = get_secure_image_base64(img_url) if img_url else None
-                
-                # 嚴格匹配資料庫的 6 個欄位，杜絕 KeyError
                 return {
-                    "media_type": "🎵 音樂",
-                    "title": item.get('collectionName') or item.get('trackName', '未知專輯'),
-                    "creator": item.get('artistName', '未知音樂家'),
-                    "cover_image": img_b64,
-                    "source_url": item.get('collectionViewUrl', url_or_id),
-                    "summary": f"Apple Music ({country.upper()}區) 典藏"
+                    "media_type": "🎵 音樂", "title": item.get('collectionName') or item.get('trackName', '未知專輯'),
+                    "creator": item.get('artistName', '未知音樂家'), "cover_image": get_secure_image_base64(img_url) if img_url else None,
+                    "source_url": item.get('collectionViewUrl', url_or_id), "summary": f"Apple Music ({country.upper()}區) 典藏"
                 }
-        except Exception as e:
-            print(f"Apple Music {country}區 查詢失敗: {e}")
-            continue
-            
+        except: continue
     return None
 
-# 請將這個更新後的函數覆蓋原有的 fetch_movie_data
 def fetch_movie_data(url):
-    """擷取電影資料 (TMDB API 優先 -> IMDb 備援)，支援抓取導演"""
-    import streamlit as st
-    import requests
-    from bs4 import BeautifulSoup
-    import json
-    import re
-    
     match = re.search(r'(tt\d+)', url)
-    if not match:
-        return None
+    if not match: return None
     imdb_id = match.group(1)
     target_url = f"https://www.imdb.com/title/{imdb_id}/"
 
     tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
     if tmdb_key:
         try:
-            # 呼叫 1：透過 IMDb ID 尋找 TMDB 電影
             tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
             res = requests.get(tmdb_url, timeout=10).json()
-            
             if res.get('movie_results'):
                 data = res['movie_results'][0]
                 tmdb_id = data.get('id')
-                
-                # 呼叫 2：透過 TMDB ID 取得演職員表 (Credits) 尋找導演
                 creator_name = "TMDB"
                 if tmdb_id:
-                    credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW"
                     try:
-                        credits_res = requests.get(credits_url, timeout=5).json()
+                        credits_res = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
                         directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
-                        if directors:
-                            creator_name = ", ".join(directors)
-                    except Exception as cred_e:
-                        print(f"取得導演資料失敗: {cred_e}")
-                        
+                        if directors: creator_name = ", ".join(directors)
+                    except: pass
                 img_url = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get('poster_path') else None
                 return {
-                    "media_type": "🎬 電影", 
-                    "title": data.get('title') or data.get('original_title', '未知電影'),
-                    "creator": creator_name,  # 🏆 成功填入真實導演
-                    "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
-                    "source_url": target_url, 
-                    "summary": data.get('overview', '無簡介')
+                    "media_type": "🎬 電影", "title": data.get('title') or data.get('original_title', '未知電影'),
+                    "creator": creator_name, "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
+                    "source_url": target_url, "summary": data.get('overview', '無簡介')
                 }
-        except Exception as e:
-            print(f"TMDB 解析失敗: {e}")
+        except: pass
 
-    # 策略 B：捨棄 Cloudscraper，改用 requests 強偽裝抓取 OG 標籤 (保持不變)
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9'
-        }
-        res = requests.get(target_url, headers=headers, timeout=15)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        soup = BeautifulSoup(requests.get(target_url, headers=headers, timeout=15).text, 'html.parser')
         ld_json = soup.find('script', type='application/ld+json')
-        title = f"IMDb ({imdb_id})"
-        img_url = None
-        summary = "IMDb 備存"
+        title, img_url, summary = f"IMDb ({imdb_id})", None, "IMDb 備存"
         if ld_json:
+            import json
             try:
                 data = json.loads(ld_json.string)
                 if isinstance(data, list): data = data[0]
@@ -679,280 +420,159 @@ def fetch_movie_data(url):
                 img_url = data.get('image')
                 summary = data.get('description', summary)
             except: pass
-        if not img_url:
-            og_img = soup.find('meta', property='og:image')
-            if og_img: img_url = og_img['content']
-        if title == f"IMDb ({imdb_id})":
-            og_title = soup.find('meta', property='og:title')
-            if og_title: title = og_title['content'].replace(" - IMDb", "")
-
+        if not img_url and soup.find('meta', property='og:image'): img_url = soup.find('meta', property='og:image')['content']
         return {
             "media_type": "🎬 電影", "title": title, "creator": "IMDb",
             "cover_image": get_secure_image_base64(img_url, "imdb") if img_url else None,
             "source_url": target_url, "summary": summary
         }
-    except Exception as e:
-        print(f"IMDb 爬蟲失敗: {e}")
-        return None
-
-# ==========================================
-# 請將以下兩個新函數加到 core_utils.py 的最底端
-# 負責批量管理功能的 SQLite 執行
-# ==========================================
-def batch_delete_media(media_ids):
-    """批量徹底刪除資源"""
-    if not media_ids: return
-    try:
-        placeholders = ','.join(['?'] * len(media_ids))
-        db.execute(f"DELETE FROM media_vault WHERE id IN ({placeholders})", media_ids)
-        st.toast("🗑️ 批量刪除成功！")
-    except Exception as e:
-        st.error(f"批量刪除失敗: {e}")
-
-def batch_toggle_media_bookmark(media_ids, to_state):
-    """批量修改書籤最愛狀態 (to_state: 1 為最愛，0 為移除)"""
-    if not media_ids: return
-    try:
-        placeholders = ','.join(['?'] * len(media_ids))
-        db.execute(f"UPDATE media_vault SET is_bookmarked = ? WHERE id IN ({placeholders})", [to_state] + media_ids)
-        st.toast("⭐ 批量書籤狀態已更新！")
-    except Exception as e:
-        st.error(f"批量更新書籤失敗: {e}")
-# ==========================================
-# 🩺 系統健康度監控模組 (Crawler Health)
-# ==========================================
-def init_health_table():
-    """初始化爬蟲健康度監控表"""
-    try:
-        db.execute("""
-        CREATE TABLE IF NOT EXISTS crawler_health (
-            source_name TEXT PRIMARY KEY,
-            status TEXT,
-            last_check TEXT,
-            error_msg TEXT
-        )
-        """)
-    except Exception as e:
-        print(f"初始化 crawler_health 表失敗: {e}")
-
-# 啟動時自動檢查建表
-init_health_table()
-
-def fetch_crawler_health():
-    """獲取所有爬蟲的最新健康狀態"""
-    try:
-        res = db.execute("SELECT * FROM crawler_health ORDER BY source_name ASC")
-        if not res.rows: return []
-        lowercase_columns = [c.lower() for c in res.columns]
-        return [dict(zip(lowercase_columns, row)) for row in res.rows]
-    except Exception as e:
-        print(f"讀取爬蟲健康狀態失敗: {e}")
-        return []
-
-def fetch_from_openalex_by_title(title):
-    """當 DOI 或 ISBN 皆失效時的最終備援：利用 OpenAlex 進行標題盲搜"""
-    clean_title = urllib.parse.quote(title.strip())
-    url = f"https://api.openalex.org/works?search={clean_title}&per-page=1"
-    
-    try:
-        res = requests.get(url, headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            if data.get("meta", {}).get("count", 0) > 0:
-                item = data["results"][0]
-                
-                fetched_title = item.get("title", "未命名")
-                authors_list = item.get("authorships", [])
-                author = ", ".join([a.get("author", {}).get("display_name", "") for a in authors_list])
-                
-                work_type = item.get("type", "")
-                is_journal = "article" in work_type
-                
-                primary_location = item.get("primary_location", {}) or {}
-                source = primary_location.get("source", {}) or {}
-                publisher_journal = source.get("display_name") or primary_location.get("publisher", "未知出版方")
-                
-                pub_date = item.get("publication_date", "未知日期")
-                doi_link = item.get("doi", "")
-                clean_id = doi_link.replace("https://doi.org/", "") if doi_link else item.get("id", "")
-                
-                return {
-                    "type": "Journal" if is_journal else "Book",
-                    "title": fetched_title, 
-                    "author": author or "未知",
-                    "publisher_journal": publisher_journal, 
-                    "issue_volume": "",
-                    "identifier": clean_id, 
-                    "publish_date": pub_date,
-                    "abstract": "（由 OpenAlex 標題盲搜匯入）", 
-                    "link": doi_link or item.get("id", ""), 
-                    "image": "", 
-                    "is_bookmarked": 0
-                }
-    except Exception as e:
-        print(f"OpenAlex 標題搜尋失敗: {e}")
+    except Exception as e: print(f"IMDb 爬蟲失敗: {e}")
     return None
 
+def fetch_doi_metadata(doi):
+    clean_doi = doi.replace("https://doi.org/", "").strip()
+    try:
+        res = requests.get(f"https://doi.org/{clean_doi}", headers={"Accept": "application/vnd.citationstyles.csl+json", "User-Agent": "BiblioappCloud/1.0"}, timeout=10, allow_redirects=True)
+        if res.status_code == 200:
+            item = res.json()
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
+            container = item.get("container-title", "")
+            vol, iss = item.get("volume", ""), item.get("issue", "")
+            issue_vol = f"Vol. {vol}, Issue {iss}" if vol and iss else (f"Issue {iss}" if iss else "")
+            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            return {
+                "type": "Journal" if container else "Book", "title": item.get("title", "未命名文獻"), 
+                "author": author, "publisher_journal": container if container else item.get("publisher", ""),
+                "issue_volume": issue_vol, "identifier": clean_doi, "publish_date": pub_date,
+                "link": item.get("URL", f"https://doi.org/{clean_doi}")
+            }
+    except Exception as e: print(f"DOI 解析失敗: {e}")
+    return None
+
+def fetch_from_openalex_by_title(title):
+    clean_title = urllib.parse.quote(title.strip())
+    try:
+        res = requests.get(f"https://api.openalex.org/works?search={clean_title}&per-page=1", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=10).json()
+        if res.get("meta", {}).get("count", 0) > 0:
+            item = res["results"][0]
+            author = ", ".join([a.get("author", {}).get("display_name", "") for a in item.get("authorships", [])])
+            source = item.get("primary_location", {}) or {}
+            doi_link = item.get("doi", "")
+            return {
+                "type": "Journal" if "article" in item.get("type", "") else "Book",
+                "title": item.get("title", "未命名"), "author": author or "未知",
+                "publisher_journal": (source.get("source", {}) or {}).get("display_name") or source.get("publisher", "未知出版方"), 
+                "issue_volume": "", "identifier": doi_link.replace("https://doi.org/", "") if doi_link else item.get("id", ""), 
+                "publish_date": item.get("publication_date", "未知日期"),
+                "abstract": "（由 OpenAlex 標題盲搜匯入）", "link": doi_link or item.get("id", ""), "image": "", "is_bookmarked": 0
+            }
+    except Exception as e: print(f"OpenAlex 標題搜尋失敗: {e}")
+    return None
+
+# ==========================================
+# 📥 寫入與新增模組區 (保持原樣，直接對接 DB)
+# ==========================================
+def init_bibliography_table():
+    try:
+        db.execute("CREATE TABLE IF NOT EXISTS bibliography_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, identifier TEXT UNIQUE, type TEXT, title TEXT, author TEXT, publisher_journal TEXT, issue_volume TEXT, publish_date TEXT, importance TEXT, notes TEXT, link TEXT, added_date TEXT)")
+    except Exception: pass
+init_bibliography_table()
+
+def init_health_table():
+    try:
+        db.execute("CREATE TABLE IF NOT EXISTS crawler_health (source_name TEXT PRIMARY KEY, status TEXT, last_check TEXT, error_msg TEXT)")
+    except Exception: pass
+init_health_table()
+
+def add_custom_resource(module_name, url):
+    if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
+    title = "未命名網站"
+    try:
+        res = get_scraper().get(url, timeout=15)
+        res.encoding = res.apparent_encoding
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            if soup.find('meta', property='og:title'): title = soup.find('meta', property='og:title').get('content')
+            elif soup.find('meta', attrs={'name': 'twitter:title'}): title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
+            elif soup.find('title'): title = soup.find('title').get_text()
+            if title and title != "未命名網站": title = title.split('|')[0].split(' - ')[0].strip()
+            else: title = "未命名網站"
+    except Exception: pass
+    try:
+        db.execute("INSERT INTO custom_resources (module, title, url, added_date) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title=excluded.title", [module_name, title, url, datetime.utcnow().isoformat()])
+        st.cache_data.clear()
+        return True, f"✅ 已成功加入清單！"
+    except Exception as e: return False, f"❌ 資料庫寫入錯誤: {e}"
+
+def add_bibliography_reference(input_val, importance, notes):
+    input_val = input_val.strip()
+    data = fetch_doi_metadata(input_val) if input_val.startswith("10.") or "doi.org" in input_val else fetch_book_by_isbn(re.sub(r'[^0-9X]', '', input_val.upper()))
+    if not data: return False, "❌ 無法解析該 DOI 或 ISBN"
+    try:
+        sql = "INSERT INTO bibliography_notes (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(identifier) DO UPDATE SET importance=excluded.importance, notes=excluded.notes;"
+        db.execute(sql, [data['identifier'], data['type'], data['title'], data['author'], data.get('publisher_journal', ''), data.get('issue_volume', ''), data.get('publish_date', ''), importance, notes, data.get('link', ''), datetime.utcnow().isoformat()])
+        st.cache_data.clear()
+        return True, f"✅ 已成功將《{data['title']}》加入參考書目庫！"
+    except Exception as e: return False, f"寫入失敗: {e}"
+
+def add_manual_book(book_data):
+    try:
+        sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
+        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
+        st.cache_data.clear()
+        return True, f"✅ 已將《{book_data['title']}》加入清單！"
+    except Exception as e: return False, f"寫入失敗: {e}"
+
+def add_url_backup(url_book_data):
+    try:
+        sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;"
+        db.execute(sql, [url_book_data['type'], url_book_data['title'], url_book_data['author'], url_book_data['publisher_journal'], url_book_data['issue_volume'], url_book_data['identifier'], url_book_data['publish_date'], url_book_data['abstract'], url_book_data['link'], url_book_data['image']])
+        st.cache_data.clear()
+        return True, f"📋 備存成功！已將《{url_book_data['title']}》強行歸檔至「網址備存」清單！"
+    except Exception as e: return False, f"寫入失敗: {e}"
+
+def insert_media_db(data):
+    try:
+        sql = "INSERT INTO media_vault (media_type, title, creator, cover_image, release_date, source_url, summary, sort_date, is_bookmarked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_url) DO UPDATE SET title=excluded.title, creator=excluded.creator, cover_image=excluded.cover_image, summary=excluded.summary, is_bookmarked=excluded.is_bookmarked;"
+        args = [data.get('media_type', 'Unknown'), data.get('title', '未知標題'), data.get('creator', ''), data.get('cover_image', ''), '未知時間', data.get('source_url', ''), data.get('summary', ''), datetime.utcnow().isoformat(), data.get('is_bookmarked', 1)]
+        db.execute(sql, args)
+    except Exception as e: print(f"寫入 Media 失敗: {e}")
+
 def add_book_by_title_blind_search(title):
-    """封裝盲搜並寫入資料庫的邏輯"""
     try:
         book_data = fetch_from_openalex_by_title(title)
-        if not book_data:
-            return False, "❌ 無法在 OpenAlex 找到相符的文獻，請檢查標題拼字。"
-            
-        sql = """
-        INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') 
-        ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;
-        """
-        db.execute(sql, [
-            book_data['type'], book_data['title'], book_data['author'], 
-            book_data['publisher_journal'], book_data['issue_volume'], 
-            book_data['identifier'], book_data['publish_date'], 
-            book_data['abstract'], book_data['link'], book_data['image']
-        ])
+        if not book_data: return False, "❌ 無法在 OpenAlex 找到相符文獻。"
+        sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, is_bookmarked, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title;"
+        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
         st.cache_data.clear()
         return True, f"✅ 盲搜成功！已將《{book_data['title']}》加入清單！"
-    except Exception as e: 
-        return False, f"寫入資料庫失敗: {e}"
+    except Exception as e: return False, f"寫入失敗: {e}"
 
 def add_manual_bibliography_reference(identifier, title, author, importance, notes, pub_year, pub_type):
-    """手動新增參考書目至資料庫 (嚴格要求 DOI/ISBN 版)"""
     identifier = str(identifier).strip()
-    title_clean = title.strip()
-    
-    # 🌟 嚴格防護：若沒有提供 DOI/ISBN，直接退回，不產生幽靈代碼
-    if not identifier:
-        return False, "❌ 必須提供真實的 DOI 或 ISBN 作為唯一識別碼。"
-
-    # 處理出版年份
+    if not identifier: return False, "❌ 必須提供真實的 DOI 或 ISBN 作為唯一識別碼。"
     safe_date = f"{pub_year}-01-01" if pub_year and str(pub_year).isdigit() else "未知年份"
-    
-    # 將使用者選擇的類型映射為標準結構
     db_type = "Book" if pub_type == "專書 (Book)" else "Journal"
-
     try:
-        sql = """
-        INSERT INTO bibliography_notes 
-        (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(identifier) DO UPDATE SET 
-        title=excluded.title, author=excluded.author, importance=excluded.importance, notes=excluded.notes, type=excluded.type, publish_date=excluded.publish_date;
-        """
-        db.execute(sql, [
-            identifier, db_type, title_clean, author.strip(), 
-            "手動加入", "", safe_date, 
-            importance, notes, "", datetime.utcnow().isoformat()
-        ])
-        return True, f"✅ 已成功將《{title_clean}》手動加入參考庫！"
-    except Exception as e:
-        return False, f"寫入資料庫失敗: {e}"
+        sql = "INSERT INTO bibliography_notes (identifier, type, title, author, publisher_journal, issue_volume, publish_date, importance, notes, link, added_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, author=excluded.author, importance=excluded.importance, notes=excluded.notes, type=excluded.type, publish_date=excluded.publish_date;"
+        db.execute(sql, [identifier, db_type, title.strip(), author.strip(), "手動加入", "", safe_date, importance, notes, "", datetime.utcnow().isoformat()])
+        return True, f"✅ 已成功手動加入參考庫！"
+    except Exception as e: return False, f"寫入失敗: {e}"
 
 def add_manual_custom_resource(module, title, url, comment):
-    """純手動寫入自定義資源表 (修正 module 欄位與 URL 唯一性防護)"""
-    if not title:
-        return False, "❌ 名稱/主題為必填欄位。"
-        
-    # 🌟 防護機制：如果沒有填寫網址，自動生成一組虛擬的唯一網址，避免觸發 UNIQUE 錯誤
+    if not title: return False, "❌ 名稱/主題為必填欄位。"
     safe_url = url.strip() if url and url.strip() != "" else f"local_record_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
-    
     try:
-        # 🌟 修正欄位名稱：module_name -> module
-        db.execute("""
-            INSERT INTO custom_resources (module, title, url, comment, added_date) 
-            VALUES (?, ?, ?, ?, ?)
-        """, [module, title, safe_url, comment, datetime.utcnow().isoformat()])
+        db.execute("INSERT INTO custom_resources (module, title, url, comment, added_date) VALUES (?, ?, ?, ?, ?)", [module, title, safe_url, comment, datetime.utcnow().isoformat()])
         st.cache_data.clear()
         return True, f"✅ 已成功記錄：《{title}》"
-    except Exception as e:
-        return False, f"寫入失敗: {e}"
-
-def update_article_meta(link, new_title):
-    """更新 articles 表的標題 (Monoreader 手動改名)"""
-    try:
-        db.execute("UPDATE articles SET Title = ? WHERE Link = ?", [new_title, link])
-        return True, "✅ 文章標題已更新"
-    except Exception as e:
-        return False, f"更新失敗: {e}"
-
-def update_academic_pub_meta(item_id, new_title, new_abstract):
-    """更新 academic_pubs 表的標題與摘要 (Biblioapp 手動改名與摘要)"""
-    try:
-        db.execute("UPDATE academic_pubs SET title = ?, abstract = ? WHERE id = ?", [new_title, new_abstract, item_id])
-        return True, "✅ 文獻元資料已儲存"
-    except Exception as e:
-        return False, f"更新失敗: {e}"
-
-def update_media_vault_meta(item_id, new_title, new_summary):
-    """更新 media_vault 表的標題與簡介 (Media Vault 手動改名)"""
-    try:
-        db.execute("UPDATE media_vault SET title = ?, summary = ? WHERE id = ?", [new_title, new_summary, item_id])
-        return True, "✅ 影音資料已儲存"
-    except Exception as e:
-        return False, f"更新失敗: {e}"
-
-# ==========================================
-# 🗃️ 萬物收藏匣 (Omni-Vault) 專用 API
-# ==========================================
-def fetch_omni_categories():
-    """獲取目前所有的分類清單"""
-    try:
-        res = db.execute("SELECT DISTINCT category FROM omni_vault ORDER BY category")
-        return [row[0] for row in res.rows] if res.rows else []
-    except Exception as e:
-        return []
-
-def fetch_omni_items(category=None, search_query=""):
-    """獲取收藏匣項目，支援分類與關鍵字過濾"""
-    query = "SELECT * FROM omni_vault WHERE 1=1"
-    params = []
-    
-    if category and category != "全部":
-        query += " AND category = ?"
-        params.append(category)
-        
-    if search_query:
-        query += " AND (title LIKE ? OR comment LIKE ?)"
-        params.extend([f"%{search_query}%", f"%{search_query}%"])
-        
-    query += " ORDER BY added_date DESC"
-    
-    try:
-        res = db.execute(query, params)
-        if not res.rows: return pd.DataFrame()
-        # 🌟 加入了 image_url
-        cols = ["id", "category", "title", "url", "comment", "added_date", "image_url"]
-        return pd.DataFrame(res.rows, columns=cols)
-    except Exception as e:
-        return pd.DataFrame()
+    except Exception as e: return False, f"寫入失敗: {e}"
 
 def add_omni_item(category, title, url, comment, image_url=""):
-    """新增項目 (支援圖片)"""
-    if not title or not category:
-        return False, "分類與名稱為必填欄位。"
+    if not title or not category: return False, "分類與名稱為必填欄位。"
     try:
-        db.execute(
-            "INSERT INTO omni_vault (category, title, url, comment, image_url) VALUES (?, ?, ?, ?, ?)",
-            [category, title, url, comment, image_url]
-        )
+        db.execute("INSERT INTO omni_vault (category, title, url, comment, image_url) VALUES (?, ?, ?, ?, ?)", [category, title, url, comment, image_url])
         return True, "✅ 收藏成功！"
-    except Exception as e:
-        return False, f"寫入失敗: {e}"
-
-def update_omni_item(item_id, category, title, comment, image_url=""):
-    """更新項目 (支援圖片)"""
-    try:
-        db.execute(
-            "UPDATE omni_vault SET category = ?, title = ?, comment = ?, image_url = ? WHERE id = ?",
-            [category, title, comment, image_url, item_id]
-        )
-        return True, "✅ 更新成功！"
-    except Exception as e:
-        return False, f"更新失敗: {e}"
-
-def delete_omni_item(item_id):
-    """刪除項目"""
-    try:
-        db.execute("DELETE FROM omni_vault WHERE id = ?", [item_id])
-    except Exception:
-        pass
+    except Exception as e: return False, f"寫入失敗: {e}"
