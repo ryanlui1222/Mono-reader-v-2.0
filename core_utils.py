@@ -121,17 +121,24 @@ def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
 @st.cache_data(ttl=600)
 def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總覽", search_query=""):
     sql, args = "SELECT * FROM academic_pubs WHERE 1=1", []
+    
+    # 🌟 核心修復：如果是在「全域搜尋中心」呼叫 (search_query 不為空且 view_mode 為空字串或特定值)
+    # 我們就強制略過所有的分類過濾，直接全表搜尋！
+    is_global_search = bool(search_query) and view_mode == "🔍 搜尋中心"
+
     if search_query:
         sql += " AND (title LIKE ? OR author LIKE ? OR abstract LIKE ? OR publisher_journal LIKE ?)"
         like_term = f"%{search_query}%"
         args.extend([like_term, like_term, like_term, like_term])
         
-    if view_mode == "🔖 待讀書架": sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
-    elif view_mode == "🔗 網址備存": sql += " AND type = 'Web Link'"
-    else:
-        sql += " AND type = ?"; args.append(pub_type)
-        if source_filter == "手動加入": sql += " AND is_manual = 1"
-        elif source_filter != "總覽 (依日期遞減)": sql += " AND publisher_journal = ?"; args.append(source_filter)
+    # 如果是全域搜尋，跳過以下所有的 AND 條件限制
+    if not is_global_search:
+        if view_mode == "🔖 待讀書架": sql += " AND is_bookmarked = 1 AND type != 'Web Link'"
+        elif view_mode == "🔗 網址備存": sql += " AND type = 'Web Link'"
+        else:
+            sql += " AND type = ?"; args.append(pub_type)
+            if source_filter == "手動加入": sql += " AND is_manual = 1"
+            elif source_filter != "總覽 (依日期遞減)": sql += " AND publisher_journal = ?"; args.append(source_filter)
             
     sql += " ORDER BY publish_date DESC LIMIT 500"
     return query_to_df(sql, args)
