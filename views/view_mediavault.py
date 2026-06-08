@@ -11,11 +11,16 @@ def render_media_gallery(media_list, tab_name, style_type="movie", current_view_
         
     page_key = f"{tab_name}_{current_view_state}_page"
     
+    # 🌟 將資料轉為 DataFrame 並掛載全域排序引擎
+    df_media = pd.DataFrame(media_list)
+    df_media = ui_components.apply_smart_sort(df_media, table_name="media_vault", context_key=tab_name)
+    
     # 套用全域分頁引擎
-    page_items, total_pages, current_page = ui_components.paginate_data(media_list, per_page=20, session_key=page_key)
+    page_items, total_pages, current_page = ui_components.paginate_data(df_media, per_page=20, session_key=page_key)
     
     cols = st.columns(5)
-    for i, row in enumerate(page_items):
+    # 🌟 使用 iterrows 遍歷排序與分頁後的 DataFrame
+    for i, row in page_items.reset_index(drop=True).iterrows():
         col_idx = i % 5
         with cols[col_idx]:
             with st.container(border=True):
@@ -90,10 +95,11 @@ def render_page():
         st.markdown(f"### 🍿 {'我的待播電影' if current_view_state == 1 else '電影典藏庫'}")
         movies = core_utils.fetch_media_by_broad_type("Movie", is_bookmarked=current_view_state)
         
-        # 🌟 【植入點 2】視圖分流：卡片 vs 試算表
+        # 🌟 視圖分流：卡片 vs 試算表
         if is_edit_mode:
             if movies:
-                df_movies = pd.DataFrame(movies) # 轉成 DataFrame 給編輯器吃
+                df_movies = pd.DataFrame(movies)
+                df_movies = ui_components.apply_smart_sort(df_movies, table_name="media_vault", context_key="edit_movie")
                 ui_components.render_batch_editor(df_movies, table_name="media_vault", key_prefix="movie")
             else:
                 st.info("目前無資料可供編輯。")
@@ -127,10 +133,11 @@ def render_page():
         st.markdown(f"### 🎧 {'我的待聽專輯' if current_view_state == 1 else '音樂典藏庫'}")
         music_list = core_utils.fetch_media_by_broad_type("Music", is_bookmarked=current_view_state)
         
-        # 🌟 【植入點 3】視圖分流：卡片 vs 試算表
+        # 🌟 視圖分流：卡片 vs 試算表
         if is_edit_mode:
             if music_list:
                 df_music = pd.DataFrame(music_list)
+                df_music = ui_components.apply_smart_sort(df_music, table_name="media_vault", context_key="edit_music")
                 ui_components.render_batch_editor(df_music, table_name="media_vault", key_prefix="music")
             else:
                 st.info("目前無資料可供編輯。")
@@ -159,7 +166,10 @@ def render_page():
         st.markdown("---")
         df_res = core_utils.fetch_custom_resources("media_vault")
         
-        # 🌟 【植入點 4】視圖分流：資源卡列表 vs 試算表
+        # 🌟 植入排序引擎
+        df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="media_res")
+        
+        # 🌟 視圖分流：資源卡列表 vs 試算表
         if is_edit_mode:
             if df_res is not None and not df_res.empty:
                 ui_components.render_batch_editor(df_res, table_name="custom_resources", key_prefix="resource")
@@ -180,7 +190,6 @@ def render_page():
                                 st.info(row['comment'])
                                 
                         with col_card_opt:
-                            # 🌟 【植入點 5】取代原本落落長的修改按鈕，一行呼叫完成！
                             ui_components.render_smart_popover(row, table_name="custom_resources")
                             
                     st.markdown("<br>", unsafe_allow_html=True)
