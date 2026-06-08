@@ -84,6 +84,9 @@ def render_page():
 
         df_res = core_utils.fetch_custom_resources("monoreader")
         
+        # 🌟 植入全域排序引擎
+        df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="future")
+        
         # 🌟 視圖分流：卡片 vs 試算表
         if is_edit_mode:
             if df_res.empty: st.info("目前無資料可供編輯。")
@@ -101,13 +104,15 @@ def render_page():
                         if pd.notna(comment_text) and str(comment_text).strip() != "":
                             st.info(f"{comment_text}")
                     with col_action:
-                        # 🌟 單張卡片管理按鈕
                         ui_components.render_smart_popover(row, table_name="custom_resources")
                     st.divider()
                 ui_components.render_pagination_ui(total_pages, current_page, "mono_res_page")
 
     else:
         df = core_utils.fetch_data(view_mode, selected_source, search_input)
+        
+        # 🌟 植入全域排序引擎
+        df = ui_components.apply_smart_sort(df, table_name="articles", context_key=view_mode)
 
         if view_mode == "✨ 全部來源總覽":
             st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
@@ -151,7 +156,6 @@ def render_page():
                             st.caption(f"🏷️ {row['Source']} | 🕒 {display_date}")
                         
                         with col_btn:
-                            # 🌟 單張卡片管理按鈕
                             ui_components.render_smart_popover(row, table_name="articles")
                     
                     if row['Image'] and str(row['Image']).startswith('http'):
