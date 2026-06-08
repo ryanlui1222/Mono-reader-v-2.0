@@ -101,7 +101,9 @@ def render_page():
             if is_edit_mode:
                 st.markdown("---")
                 st.subheader("📝 全域資料庫管理")
-                ui_components.render_batch_editor(df_all_raw, table_name="omni_vault", key_prefix="omni_all")
+                # 🌟 植入全域排序
+                df_all_sorted = ui_components.apply_smart_sort(df_all_raw, table_name="omni_vault", context_key="all")
+                ui_components.render_batch_editor(df_all_sorted, table_name="omni_vault", key_prefix="omni_all")
 
     # ==========================================
     # 視圖 B：單一分類陳列室 (完美 1:1 正方形卡片牆)
@@ -131,6 +133,9 @@ def render_page():
 
         # 撈取分類過濾後的資料
         df_omni = core_utils.fetch_omni_items(category=active_cat, search_query=search_q)
+        
+        # 🌟 植入全域排序
+        df_omni = ui_components.apply_smart_sort(df_omni, table_name="omni_vault", context_key=active_cat)
 
         if is_edit_mode:
             if df_omni.empty: st.info("目前無資料可供管理。")
@@ -144,12 +149,10 @@ def render_page():
                 for idx, row in page_data.reset_index(drop=True).iterrows():
                     with cols[idx % 3]:
                         with st.container(border=True):
-                            # 🌟 核心修復：強制將外殼拉高成完美的 1 / 1 正方形比例
                             img_url = row.get('image_url')
                             if pd.notna(img_url) and str(img_url).strip().startswith("http"):
                                 st.markdown(f'<img src="{img_url}" style="width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">', unsafe_allow_html=True)
                             else:
-                                # 沒有上傳圖片時，留一個雅緻的幾何幾何佔位符區塊，保持正方形結構不變形
                                 st.markdown(f'<div style="width: 100%; aspect-ratio: 1 / 1; background-color: #262730; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: #737373; font-size: 0.9rem;">無項目預覽圖</div>', unsafe_allow_html=True)
                             
                             # 標題鏈接
