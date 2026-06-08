@@ -10,8 +10,9 @@ def reset_mono_res_page(): st.session_state.mono_res_page = 1
 def render_page():
     if 'mono_page' not in st.session_state: st.session_state.mono_page = 1
     
-    st.sidebar.subheader("文章篩選")
-    search_input = st.sidebar.text_input("🔍 全文搜尋", placeholder="文章、作者或關鍵字...", on_change=reset_mono_page)
+    # 🌟 重新命名側邊欄全域搜尋
+    st.sidebar.subheader("🔍 模組全域搜尋")
+    search_input = st.sidebar.text_input("輸入關鍵字", placeholder="全視圖文章與典藏庫...", label_visibility="collapsed", on_change=reset_mono_page)
     st.sidebar.markdown("---")
     view_mode = st.sidebar.radio("瀏覽模式", ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], on_change=reset_mono_page)
     st.sidebar.markdown("---")
@@ -61,16 +62,15 @@ def render_page():
                 selected_source = st.sidebar.radio(f"{base_name} 期號/版本：", all_sub_sources, on_change=reset_mono_page)
         else: selected_source = selected_main
 
-    # 🌟 頁面頂部的全域編輯開關
     col_t1, col_t2 = st.columns([7, 3])
     with col_t2:
         is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="mono_edit_mode")
 
+    # ==========================================
+    # 視圖 A：未來典藏
+    # ==========================================
     if view_mode == "⏳ 未來典藏":
-        st.subheader("⏳ 未來典藏 (Future Archive)")
-        st.markdown("這裡記錄了已停止更新，但極具歷史考據與思想回溯價值的邊緣文化與次文化資料庫。")
-        
-        with st.container():
+        with st.expander("📥 新增未來典藏網址", expanded=False):
             col1, col2 = st.columns([5, 1])
             with col1: new_res_url = st.text_input("新增網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="mono_res_input")
             with col2:
@@ -80,19 +80,26 @@ def render_page():
                             success, msg = core_utils.add_custom_resource("monoreader", new_res_url)
                             if success: st.success(msg)
                             else: st.error(msg)
+                            
+        # 🌟 UI 佈局：大標題 + 右側局域搜尋
+        col_title, col_local = st.columns([6, 4])
+        with col_title:
+            st.subheader("⏳ 未來典藏 (Future Archive)")
+            st.caption("記錄已停止更新，但極具歷史考據價值的邊緣文化庫。")
+        with col_local:
+            local_q_future = st.text_input("🎯 局域搜尋：", placeholder="快篩此清單...", label_visibility="collapsed", key="l_future")
+
         st.markdown("---")
 
-        df_res = core_utils.fetch_custom_resources("monoreader")
-        
-        # 🌟 植入全域排序引擎
+        df_res = core_utils.fetch_custom_resources("monoreader", search_query=search_input)
+        df_res = ui_components.apply_local_search(df_res, local_q_future)
         df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="future")
         
-        # 🌟 視圖分流：卡片 vs 試算表
         if is_edit_mode:
             if df_res.empty: st.info("目前無資料可供編輯。")
             else: ui_components.render_batch_editor(df_res, table_name="custom_resources", key_prefix="future")
         else:
-            if df_res.empty: st.info("目前沒有任何記錄。請在上方輸入網址。")
+            if df_res.empty: st.info("目前沒有相符的記錄。")
             else:
                 page_data_res, total_pages, current_page = ui_components.paginate_data(df_res, per_page=15, session_key="mono_res_page")
                 for _, row in page_data_res.iterrows():
@@ -108,40 +115,46 @@ def render_page():
                     st.divider()
                 ui_components.render_pagination_ui(total_pages, current_page, "mono_res_page")
 
+    # ==========================================
+    # 視圖 B：文化文章主體
+    # ==========================================
     else:
-        df = core_utils.fetch_data(view_mode, selected_source, search_input)
-        
-        # 🌟 植入全域排序引擎
-        df = ui_components.apply_smart_sort(df, table_name="articles", context_key=view_mode)
-
-        if view_mode == "✨ 全部來源總覽":
-            st.subheader(f"✨ 全部來源總覽 (過去 24 小時，共 {len(df)} 篇文章)")
-            st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
-        elif view_mode == "✍️ 最新評論":
-            st.subheader(f"✍️ 最新思想與文化評論 (過去 24 小時，共 {len(df)} 篇)")
-            st.caption("已自動過濾快訊快報，專注收看國內外深度長文、文獻評論與思想探討。")
-        elif view_mode == "⚡ 文化快訊":
-            st.subheader(f"⚡ 文化與藝術快訊 (過去 24 小時，共 {len(df)} 篇)")
-            st.caption("聚合 WIRED.jp、CINRA、VERSE、界面文化、Radii 每日高頻更新的即時消息。")
-        elif view_mode == "🔖 我的收藏庫":
-            st.subheader(f"🔖 我的收藏庫 (共 {len(df)} 篇)")
-        else:
-            if selected_source != "全部來源總覽":
-                st.subheader(f"🗄️ {selected_source} 存檔 (共 {len(df)} 篇)")
-                link = core_utils.get_source_link(selected_source)
-                if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
+        col_title, col_local = st.columns([6, 4])
+        with col_title:
+            if view_mode == "✨ 全部來源總覽":
+                st.subheader("✨ 全部來源總覽")
+                st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
+            elif view_mode == "✍️ 最新評論":
+                st.subheader("✍️ 最新思想與文化評論")
+                st.caption("已自動過濾快訊，專注收看國內外深度長文與思想探討。")
+            elif view_mode == "⚡ 文化快訊":
+                st.subheader("⚡ 文化與藝術快訊")
+                st.caption("聚合每日高頻更新的即時藝文消息。")
+            elif view_mode == "🔖 我的收藏庫":
+                st.subheader("🔖 我的收藏庫")
             else:
-                st.subheader(f"🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
+                if selected_source != "全部來源總覽":
+                    st.subheader(f"🗄️ {selected_source} 存檔")
+                    link = core_utils.get_source_link(selected_source)
+                    if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
+                else:
+                    st.subheader("🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
+        
+        with col_local:
+            local_q_art = st.text_input("🎯 局域搜尋：", placeholder="快篩當前文章...", label_visibility="collapsed", key="l_art")
+
         st.markdown("---")
 
-        # 🌟 視圖分流：卡片 vs 試算表
+        df = core_utils.fetch_data(view_mode, selected_source, search_input)
+        df = ui_components.apply_local_search(df, local_q_art)
+        df = ui_components.apply_smart_sort(df, table_name="articles", context_key=view_mode)
+
         if is_edit_mode:
             if df.empty: st.info("目前無資料可供編輯。")
             else: ui_components.render_batch_editor(df, table_name="articles", key_prefix="articles")
         else:
             if df.empty:
-                if search_input: st.info("找不到符合關鍵字的文章。")
-                else: st.info("暫無符合條件的新文章。")
+                st.info("暫無符合條件的文章。")
             else:
                 page_data, total_pages, current_page = ui_components.paginate_data(df, per_page=20, session_key="mono_page")
                 for _, row in page_data.iterrows():
