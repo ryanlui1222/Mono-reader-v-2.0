@@ -10,87 +10,94 @@ def apply_smart_sort(df, table_name, context_key=""):
     """
     全域通用的排序選擇器與處理引擎。
     會根據不同的資料表 (table_name) 提供專屬的排序選項，並回傳排好序的 DataFrame。
+    支援動態反轉排序方向 (Toggle)。
     """
     if df.empty:
         return df
 
-    # 定義各資料表支援的排序邏輯 (顯示文字: 對應的欄位與排序方向)
+    # 定義各資料表支援的排序邏輯 (顯示文字: (對應的資料庫欄位, 預設是否為升冪/順序))
     sort_options = {
         "articles": {
-            "擷取時間 (新到舊)": ('SortDate', False),
-            "擷取時間 (舊到新)": ('SortDate', True),
-            "標題 (A-Z / 筆劃)": ('Title', True)
+            "擷取時間": ('SortDate', False),  # 預設 False = 新到舊
+            "標題": ('Title', True)         # 預設 True = A 到 Z
         },
         "academic_pubs": {
-            "加入日期 (新到舊)": ('added_date', False) if 'added_date' in df.columns else ('publish_date', False),
-            "出版日期 (新到舊)": ('publish_date', False),
-            "標題 (A-Z / 五十音)": ('title', True),
-            "作者 (A-Z)": ('author', True)
+            "加入日期": ('added_date', False) if 'added_date' in df.columns else ('publish_date', False),
+            "出版日期": ('publish_date', False),
+            "標題": ('title', True),
+            "作者": ('author', True)
         },
         "media_vault": {
-            "加入日期 (新到舊)": ('sort_date', False),
-            "標題 (A-Z / 五十音)": ('title', True),
-            "導演/創作者 (A-Z)": ('creator', True)
+            "加入日期": ('sort_date', False),
+            "標題": ('title', True),
+            "導演/創作者": ('creator', True)
         },
         "omni_vault": {
-            "加入日期 (新到舊)": ('added_date', False),
-            "標題 (A-Z / 五十音)": ('title', True),
-            "分類名稱 (A-Z)": ('category', True)
+            "加入日期": ('added_date', False),
+            "標題": ('title', True),
+            "分類名稱": ('category', True)
         },
         "custom_resources": {
-            "加入日期 (新到舊)": ('added_date', False),
-            "標題 (A-Z / 五十音)": ('title', True)
+            "加入日期": ('added_date', False),
+            "標題": ('title', True)
         },
         "bibliography_notes": {
-            "加入日期 (新到舊)": ('added_date', False),
-            "評級高低 (S 到 C-)": ('importance', True), # 特殊邏輯，下方會攔截處理
-            "出版日期 (新到舊)": ('publish_date', False),
-            "標題 (A-Z)": ('title', True)
+            "加入日期": ('added_date', False),
+            "評級高低": ('importance', True), # 預設 True = S 到 C-
+            "出版日期": ('publish_date', False),
+            "標題": ('title', True)
         }
     }
 
-    # 取得當前資料表支援的選項，若找不到則給一個預設的安全選項
+    # 取得當前資料表支援的選項
     current_options = sort_options.get(table_name, {"預設排序": (df.columns[0], True)})
     option_names = list(current_options.keys())
 
-    # 渲染 UI (靠右對齊的輕量下拉選單)
-    col_empty, col_sort = st.columns([7, 3])
+    # 🌟 UI 佈局：左側留白，中間放滑動按鈕，右側放下拉選單
+    col_empty, col_toggle, col_sort = st.columns([6, 1.5, 2.5])
+    
     with col_sort:
         selected_sort = st.selectbox(
-            "🔀 排序方式", 
+            "🔀 排序欄位", 
             options=option_names, 
-            key=f"sort_{table_name}_{context_key}",
-            label_visibility="collapsed" # 隱藏標籤文字，讓畫面更簡潔
+            key=f"sort_field_{table_name}_{context_key}",
+            label_visibility="collapsed"
         )
+        
+    # 抓取該欄位的原始預設方向
+    sort_col, default_asc = current_options[selected_sort]
+    
+    with col_toggle:
+        # 🌟 實作滑動開關
+        # 如果使用者打開開關，is_reverse 會變成 True
+        is_reverse = st.toggle("🔄 反轉排序", key=f"sort_rev_{table_name}_{context_key}")
+        
+    # 🌟 核心邏輯：如果反轉被開啟，就把預設方向反轉 (not default_asc)
+    final_asc = not default_asc if is_reverse else default_asc
 
     # 執行排序邏輯
-    if selected_sort == "評級高低 (S 到 C-)" and table_name == "bibliography_notes":
-        # 🌟 參考書目的特殊排序邏輯：將字串評級轉為數字以便排序
+    if selected_sort == "評級高低" and table_name == "bibliography_notes":
         imp_map = {"S": 1, "A": 2, "A-": 3, "B": 4, "B-": 5, "C": 6, "C-": 7, "待讀": 8}
         df_sorted = df.copy()
         df_sorted['sort_val'] = df_sorted['importance'].map(imp_map).fillna(9)
-        df_sorted = df_sorted.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
+        # 根據 final_asc 決定要 S->C 還是 C->S
+        df_sorted = df_sorted.sort_values(by=['sort_val', 'added_date'], ascending=[final_asc, not final_asc])
         df_sorted = df_sorted.drop(columns=['sort_val'])
     else:
-        # 通用排序邏輯
-        sort_col, sort_asc = current_options[selected_sort]
-        
-        # 防呆機制：確保要排序的欄位真的存在，避免 DataFrame 缺少欄位時報錯
-        # 處理大小寫問題 (例如 articles 的 Title 和其他表的 title)
         actual_col = sort_col
         if sort_col not in df.columns:
             if sort_col.capitalize() in df.columns: actual_col = sort_col.capitalize()
             elif sort_col.lower() in df.columns: actual_col = sort_col.lower()
-            else: return df # 如果真的找不到欄位，就不排序直接回傳
+            else: return df
 
-        # 針對字串欄位進行無分大小寫的排序
+        # 根據最終計算出的 final_asc 來進行排序
         if df[actual_col].dtype == 'object':
-            df_sorted = df.sort_values(by=actual_col, key=lambda col: col.str.lower(), ascending=sort_asc)
+            df_sorted = df.sort_values(by=actual_col, key=lambda col: col.str.lower(), ascending=final_asc)
         else:
-            df_sorted = df.sort_values(by=actual_col, ascending=sort_asc)
+            df_sorted = df.sort_values(by=actual_col, ascending=final_asc)
 
     return df_sorted
-
+    
 # ==========================================
 # 1. 全域分頁引擎 (Universal Pagination)
 # ==========================================
