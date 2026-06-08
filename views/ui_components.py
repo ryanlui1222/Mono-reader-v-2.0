@@ -97,7 +97,32 @@ def apply_smart_sort(df, table_name, context_key=""):
             df_sorted = df.sort_values(by=actual_col, ascending=final_asc)
 
     return df_sorted
+
+
+# ==========================================
+# 0.5 萬能局域文字快篩 (Universal Local Search)
+# ==========================================
+def apply_local_search(df, search_query):
+    """
+    接收一個 DataFrame 與搜尋字串。
+    利用 Pandas 進行全欄位 (包含標題、摘要、作者等) 的無大小寫差異文字快篩。
+    """
+    if df.empty or not search_query or str(search_query).strip() == "":
+        return df
+
+    search_query = str(search_query).strip()
     
+    # 建立一個全為 False 的遮罩 (Mask)
+    mask = pd.Series(False, index=df.index)
+    
+    # 遍歷 DataFrame 的所有文字欄位進行比對
+    for col in df.columns:
+        # 只針對內容可能是字串的欄位進行搜尋
+        if df[col].dtype == object or df[col].dtype == str:
+            mask |= df[col].astype(str).str.contains(search_query, case=False, na=False)
+            
+    return df[mask]
+
 # ==========================================
 # 1. 全域分頁引擎 (Universal Pagination)
 # ==========================================
