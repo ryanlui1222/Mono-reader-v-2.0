@@ -64,12 +64,9 @@ def render_page():
                     active_filter = selected_main
 
     if biblio_view_mode == "📚 參考書目":
-        col_title, col_sort = st.columns([3, 1])
-        with col_title:
-            st.subheader("📚 參考書目與註釋管理")
-            st.caption("輸入 DOI 或 ISBN 擷取文獻元資料，並標註重要等級與個人備註，作為論文寫作的專屬引註庫。")
-        with col_sort:
-            ref_sort_mode = st.selectbox("🔀 排序方式：", ["最新加入", "重要等級 (高至低)", "出版日期 (新到舊)"], key="ref_sort")
+        # 🌟 移除舊版的 col_title, col_sort 手刻選單，改用乾淨的標題
+        st.subheader("📚 參考書目與註釋管理")
+        st.caption("輸入 DOI 或 ISBN 擷取文獻元資料，並標註重要等級與個人備註，作為論文寫作的專屬引註庫。")
         st.markdown("---")
 
         with st.expander("➕ 新增參考文獻 (API 自動擷取 DOI / ISBN)", expanded=False):
@@ -113,6 +110,9 @@ def render_page():
         st.markdown("---")
         df_refs = core_utils.fetch_bibliography_references()
         
+        # 🌟 植入全域排序，並將舊代碼完全抹除
+        df_refs = ui_components.apply_smart_sort(df_refs, table_name="bibliography_notes", context_key="ref_tab")
+        
         # 🌟 視圖分流
         if is_edit_mode:
             if df_refs.empty: st.info("目前無資料可供編輯。")
@@ -120,13 +120,6 @@ def render_page():
         else:
             if df_refs.empty: st.info("目前沒有任何參考書目。請在上方輸入 DOI 或 ISBN 建立你的文獻庫。")
             else:
-                if ref_sort_mode == "最新加入": df_refs = df_refs.sort_values(by='added_date', ascending=False)
-                elif ref_sort_mode == "重要等級 (高至低)":
-                    imp_map = {"S": 1, "A": 2, "A-": 3, "B": 4, "B-": 5, "C": 6, "C-": 7, "待讀": 8}
-                    df_refs['sort_val'] = df_refs['importance'].map(imp_map).fillna(9)
-                    df_refs = df_refs.sort_values(by=['sort_val', 'added_date'], ascending=[True, False])
-                elif ref_sort_mode == "出版日期 (新到舊)": df_refs = df_refs.sort_values(by='publish_date', ascending=False)
-                
                 page_data, total_pages, current_page = ui_components.paginate_data(df_refs, per_page=15, session_key="bib_ref_page")
                 
                 for _, row in page_data.iterrows():
@@ -151,6 +144,9 @@ def render_page():
         st.subheader(f"🏛️ {active_filter} - 目錄 (共 {len(df_pubs)} 筆)")
         st.markdown("---")
         
+        # 🌟 植入全域排序
+        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="explore_tab")
+        
         # 🌟 視圖分流
         if is_edit_mode:
             if df_pubs.empty: st.info("目前無資料可供編輯。")
@@ -159,6 +155,7 @@ def render_page():
             if df_pubs.empty: st.info("目前資料庫中沒有符合條件的書目。")
             else:
                 if db_type == "Journal" and active_filter == "總覽 (依日期遞減)":
+                    # 期刊總覽模式特有邏輯：只顯示各期刊最新一期
                     df_sorted = df_pubs.sort_values(by=['publish_date', 'issue_volume'], ascending=[False, False], na_position='last')
                     latest_records = df_sorted.drop_duplicates(subset=['publisher_journal'], keep='first')
                     
@@ -193,7 +190,7 @@ def render_page():
                             st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
                         with col_btn:
                             is_bk = bool(row.get('is_bookmarked', 0))
-                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_biblio_bookmark_db, args=(row['id'], is_bk), help="加入待讀")
+                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_bookmark, args=("academic_pubs", [row['id']], 0 if is_bk else 1), help="加入待讀")
                             
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
                 
@@ -225,7 +222,7 @@ def render_page():
                                     st.write(row.get('abstract', ''))
                                 with col_btn:
                                     ui_components.render_smart_popover(row, table_name="academic_pubs")
-                            st.divider()
+                        st.divider()
                             
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
 
@@ -255,11 +252,11 @@ def render_page():
         if selected_category != "總覽":
             df_pubs = df_pubs[df_pubs['category'] == selected_category]
 
-        col_title, col_sort = st.columns([3, 1])
-        with col_title: st.subheader(f"🔖 待讀書架 ({selected_category} - 共 {len(df_pubs)} 本)")
-        with col_sort:
-            bib_sort_mode = st.selectbox("🔀 書架排序方式：", ["預設 (依加入順序)", "英文首字母 (A-Z)", "日文五十音", "漢字筆劃/部首"], key="bib_bookshelf_sort")
+        st.subheader(f"🔖 待讀書架 ({selected_category} - 共 {len(df_pubs)} 本)")
         st.markdown("---")
+
+        # 🌟 植入排序引擎 (並移除了原本手刻的 dropdown)
+        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="bookshelf_tab")
 
         # 🌟 視圖分流
         if is_edit_mode:
@@ -269,9 +266,6 @@ def render_page():
             if df_pubs.empty:
                 st.info(f"「{selected_category}」分類目前是空的。")
             else:
-                if bib_sort_mode == "英文首字母 (A-Z)": df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower())
-                elif bib_sort_mode in ["日文五十音", "漢字筆劃/部首"]: df_pubs = df_pubs.sort_values(by='title')
-
                 df_grid_page, total_grid_pages, current_grid_page = ui_components.paginate_data(df_pubs, per_page=15, session_key="bib_grid_page")
 
                 cols = st.columns(5)
@@ -299,13 +293,12 @@ def render_page():
         st.markdown("---")
         
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_search_query)
-        col_title, col_sort = st.columns([3, 1])
-        with col_title:
-            st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
-            st.caption("這裡存放了當 ISBN 掃描失敗時，透過網址強制解剖擷取的備用書籍資料。")
-        with col_sort:
-            web_sort_mode = st.selectbox("🔀 排序方式：", ["加入日期 (新到舊)", "加入日期 (舊到新)", "標題 (A-Z / 五十音)"], key="web_link_sort", on_change=reset_biblio_page)
+        st.subheader(f"🔗 網址備存清單 (共 {len(df_pubs)} 筆)")
+        st.caption("這裡存放了當 ISBN 掃描失敗時，透過網址強制解剖擷取的備用書籍資料。")
         st.markdown("---")
+        
+        # 🌟 植入排序引擎
+        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="weblink_tab")
         
         # 🌟 視圖分流
         if is_edit_mode:
@@ -314,9 +307,6 @@ def render_page():
         else:
             if df_pubs.empty: st.info("目前沒有任何網址備存資料。請在上方展開區塊貼上網址匯入。")
             else:
-                if web_sort_mode == "加入日期 (舊到新)": df_pubs = df_pubs.sort_values(by='publish_date', ascending=True)
-                elif web_sort_mode == "標題 (A-Z / 五十音)": df_pubs = df_pubs.sort_values(by='title', key=lambda col: col.str.lower(), ascending=True)
-
                 page_data, total_pages, current_page = ui_components.paginate_data(df_pubs, per_page=20, session_key="biblio_page")
                 
                 for _, row in page_data.iterrows():
@@ -354,6 +344,8 @@ def render_page():
             st.markdown("---")
 
             df_res = core_utils.fetch_custom_resources("biblioapp")
+            # 🌟 植入排序引擎
+            df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="web")
             
             # 🌟 視圖分流
             if is_edit_mode:
@@ -396,6 +388,9 @@ def render_page():
             if bib_search_query and not df_lec.empty:
                 mask = df_lec['title'].str.contains(bib_search_query, case=False, na=False) | df_lec['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_lec = df_lec[mask]
+                
+            # 🌟 植入排序引擎
+            df_lec = ui_components.apply_smart_sort(df_lec, table_name="custom_resources", context_key="lec")
                 
             # 🌟 視圖分流
             if is_edit_mode:
@@ -445,6 +440,9 @@ def render_page():
             if bib_search_query and not df_conf.empty:
                 mask = df_conf['title'].str.contains(bib_search_query, case=False, na=False) | df_conf['comment'].str.contains(bib_search_query, case=False, na=False)
                 df_conf = df_conf[mask]
+                
+            # 🌟 植入排序引擎
+            df_conf = ui_components.apply_smart_sort(df_conf, table_name="custom_resources", context_key="conf")
                 
             # 🌟 視圖分流
             if is_edit_mode:
