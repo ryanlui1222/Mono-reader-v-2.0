@@ -23,7 +23,7 @@ def render_page():
     
     with st.sidebar:
         # 🌟 1. 在選單中加入「🔍 搜尋中心」
-        biblio_view_mode = st.radio("功能模式", ["🔍 搜尋中心", "📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
+        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
         st.markdown("---")
         
         # 只有在搜尋中心才顯示這個超級搜尋框
