@@ -22,12 +22,13 @@ def render_page():
         is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="biblio_edit_mode")
     
     with st.sidebar:
-        biblio_view_mode = st.radio("功能模式", ["🔍 搜尋中心", "📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
+        # 🌟 還原左側局域搜尋
+        st.subheader("🔍 當前分頁搜尋")
+        bib_local_search = st.text_input("輸入關鍵字", placeholder="在此分頁中過濾...", label_visibility="collapsed", on_change=reset_biblio_page)
         st.markdown("---")
         
-        # 🌟 UI 修復：將搜尋框放回這裡，確保它在所有分頁都會顯示
-        st.subheader("🔍 模組全域搜尋")
-        bib_search_query = st.text_input("輸入關鍵字", placeholder="跨板塊搜尋所有資料...", label_visibility="collapsed", on_change=reset_biblio_page)
+        # 🌟 將搜尋中心置於最底
+        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
         st.markdown("---")
 
         active_filter = "總覽 (依日期遞減)"
@@ -54,8 +55,8 @@ def render_page():
                 
                 if selected_main.startswith("📁 "):
                     active_filter = selected_main.replace("📁 ", "")
-                    # 這裡不用傳 search_query，因為搜尋功能已經交給「搜尋中心」專心處理了
-                    temp_df = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter)
+                    # 局域搜尋掛載
+                    temp_df = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_local_search)
                     raw_issues = temp_df['issue_volume'].dropna().unique().tolist() if not temp_df.empty else []
                     clean_issues = [iss for iss in raw_issues if str(iss).strip()]
                     if clean_issues:
@@ -64,17 +65,19 @@ def render_page():
                 else: active_filter = selected_main
 
     # ==========================================
-    # 🌟 全新的「搜尋中心」分頁
+    # 🌟 獨立的搜尋中心分頁
     # ==========================================
     if biblio_view_mode == "🔍 搜尋中心":
-        if not bib_search_query:
-            st.info("👈 請在左側輸入關鍵字，系統將自動跨越「文獻」、「書架」、「參考書目」與「資源庫」為您尋找所有相符的資料。")
+        st.subheader("🔍 全域搜尋中心")
+        st.caption("在此輸入關鍵字，系統將自動跨越文獻、書架、參考書目與資源庫進行地毯式搜索。")
+        global_q = st.text_input("跨板塊搜尋：", placeholder="搜尋書名、作者、筆記...", key="bib_global")
+        st.markdown("---")
+
+        if not global_q:
+            st.info("👈 請在上方輸入關鍵字開始檢索。")
         else:
-            st.subheader(f"🔍 搜尋結果：包含「{bib_search_query}」")
-            st.markdown("---")
-            
-            # 1. 搜尋學術文獻 (🌟 強制傳入 view_mode="🔍 搜尋中心" 觸發解鎖邏輯)
-            df_pubs = core_utils.fetch_academic_pubs(view_mode="🔍 搜尋中心", search_query=bib_search_query)
+            # 🌟 強制傳入 view_mode="🔍 搜尋中心" 觸發後端無差別地毯搜索
+            df_pubs = core_utils.fetch_academic_pubs(view_mode="🔍 搜尋中心", search_query=global_q)
             if not df_pubs.empty:
                 st.markdown(f"#### 📖 學術文獻與書架 ({len(df_pubs)} 筆)")
                 for _, row in df_pubs.iterrows():
@@ -82,18 +85,16 @@ def render_page():
                     st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('link', '#')})** ｜ 👤 {row.get('author', '未知')} ｜ 📍 位於：`{location}`")
                 st.write("")
                 
-            # 2. 搜尋參考書目
-            df_refs = core_utils.fetch_bibliography_references(search_query=bib_search_query)
+            df_refs = core_utils.fetch_bibliography_references(search_query=global_q)
             if not df_refs.empty:
                 st.markdown(f"#### 📚 參考書目 ({len(df_refs)} 筆)")
                 for _, row in df_refs.iterrows():
                     st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('link', '#')})** ｜ 👤 {row.get('author', '未知')} ｜ 📍 位於：`參考書目`")
                 st.write("")
 
-            # 3. 搜尋自定義資源 (講座、會議、網站)
-            df_res_web = core_utils.fetch_custom_resources("biblioapp", search_query=bib_search_query)
-            df_res_lec = core_utils.fetch_custom_resources("biblioapp_lecture", search_query=bib_search_query)
-            df_res_conf = core_utils.fetch_custom_resources("biblioapp_conference", search_query=bib_search_query)
+            df_res_web = core_utils.fetch_custom_resources("biblioapp", search_query=global_q)
+            df_res_lec = core_utils.fetch_custom_resources("biblioapp_lecture", search_query=global_q)
+            df_res_conf = core_utils.fetch_custom_resources("biblioapp_conference", search_query=global_q)
             
             if not df_res_web.empty or not df_res_lec.empty or not df_res_conf.empty:
                 st.markdown("#### 🌐 講座、會議與資源")
@@ -105,7 +106,7 @@ def render_page():
                     for _, row in df_res_conf.iterrows(): st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('url', '#')})** ｜ 📍 位於：`可用資源 > 學術會議`")
             
             if df_pubs.empty and df_refs.empty and df_res_web.empty and df_res_lec.empty and df_res_conf.empty:
-                st.warning(f"在 Biblioapp 模組中，找不到包含「{bib_search_query}」的資料。")
+                st.warning(f"在 Biblioapp 模組中，找不到包含「{global_q}」的資料。")
 
     elif biblio_view_mode == "📚 參考書目":
         with st.expander("➕ 新增參考文獻 (自動與手動)", expanded=False):
@@ -143,15 +144,15 @@ def render_page():
         st.subheader("📚 參考書目與註釋管理")
         st.markdown("---")
 
-        # 這裡不接收 search_query，完全交給全域搜尋中心處理
-        df_refs = core_utils.fetch_bibliography_references()
+        # 🌟 傳入局域搜尋
+        df_refs = core_utils.fetch_bibliography_references(search_query=bib_local_search)
         df_refs = ui_components.apply_smart_sort(df_refs, table_name="bibliography_notes", context_key="ref_tab")
         
         if is_edit_mode:
             if df_refs.empty: st.info("目前無資料可供編輯。")
             else: ui_components.render_batch_editor(df_refs, table_name="bibliography_notes", key_prefix="ref")
         else:
-            if df_refs.empty: st.info("目前沒有任何參考書目。請在上方輸入 DOI 或 ISBN 建立你的文獻庫。")
+            if df_refs.empty: st.info("目前沒有符合條件的參考書目。")
             else:
                 page_data, total_pages, current_page = ui_components.paginate_data(df_refs, per_page=15, session_key="bib_ref_page")
                 for _, row in page_data.iterrows():
@@ -172,8 +173,8 @@ def render_page():
         st.subheader(f"🏛️ {active_filter} - 目錄")
         st.markdown("---")
 
-        # 這裡不接收 search_query
-        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter)
+        # 🌟 傳入局域搜尋
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_local_search)
         if db_type == "Journal" and active_filter != "總覽 (依日期遞減)" and 'selected_issue' in locals() and selected_issue:
             df_pubs = df_pubs[df_pubs['issue_volume'] == selected_issue]
 
@@ -258,7 +259,8 @@ def render_page():
                 else: st.warning("⚠️ 請輸入 ISBN。")
         st.markdown("---")
 
-        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽")
+        # 🌟 傳入局域搜尋
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_local_search)
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
         
@@ -272,7 +274,7 @@ def render_page():
         df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="bookshelf_tab")
 
         if is_edit_mode:
-            if df_pubs.empty: st.info(f"「{selected_category}」分類目前是空的。")
+            if df_pubs.empty: st.info(f"「{selected_category}」分類目前沒有符合的書籍。")
             else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="bookshelf")
         else:
             if df_pubs.empty: st.info(f"目前沒有相符書籍。")
@@ -303,7 +305,8 @@ def render_page():
         st.subheader(f"🔗 網址備存清單")
         st.markdown("---")
         
-        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽")
+        # 🌟 傳入局域搜尋
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_local_search)
         df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="weblink_tab")
         
         if is_edit_mode:
@@ -341,7 +344,8 @@ def render_page():
                             else: st.error(msg)
             st.markdown("---")
 
-            df_res = core_utils.fetch_custom_resources("biblioapp")
+            # 🌟 傳入局域搜尋
+            df_res = core_utils.fetch_custom_resources("biblioapp", search_query=bib_local_search)
             df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="web")
             
             if is_edit_mode:
@@ -375,7 +379,7 @@ def render_page():
                         else: st.error(msg)
             st.markdown("---")
 
-            df_lec = core_utils.fetch_custom_resources("biblioapp_lecture")
+            df_lec = core_utils.fetch_custom_resources("biblioapp_lecture", search_query=bib_local_search)
             df_lec = ui_components.apply_smart_sort(df_lec, table_name="custom_resources", context_key="lec")
                 
             if is_edit_mode:
@@ -415,7 +419,7 @@ def render_page():
                         else: st.error(msg)
             st.markdown("---")
 
-            df_conf = core_utils.fetch_custom_resources("biblioapp_conference")
+            df_conf = core_utils.fetch_custom_resources("biblioapp_conference", search_query=bib_local_search)
             df_conf = ui_components.apply_smart_sort(df_conf, table_name="custom_resources", context_key="conf")
                 
             if is_edit_mode:
