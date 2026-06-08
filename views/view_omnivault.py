@@ -15,6 +15,11 @@ def render_page():
     if 'omni_active_category' not in st.session_state:
         st.session_state.omni_active_category = None
 
+    # 🌟 左側邊欄：模組全域搜尋
+    with st.sidebar:
+        st.subheader("🔍 模組全域搜尋")
+        omni_global_search = st.text_input("輸入關鍵字", placeholder="搜尋所有收藏匣...", label_visibility="collapsed", key="omni_global")
+
     # ==========================================
     # 全域頂部：標題與管理開關
     # ==========================================
@@ -27,8 +32,8 @@ def render_page():
         
     st.markdown("---")
 
-    # 撈取全域資料（供首頁分析封面使用）
-    df_all_raw = core_utils.fetch_omni_items()
+    # 撈取全域資料（供首頁分析封面使用，已接入全域搜尋）
+    df_all_raw = core_utils.fetch_omni_items(search_query=omni_global_search)
     existing_cats = core_utils.fetch_omni_categories()
 
     # ==========================================
@@ -61,10 +66,9 @@ def render_page():
         if not existing_cats:
             st.info("📦 目前收藏匣空空如也，請建立您的第一個分類！")
         else:
-            cols = st.columns(4) # 4欄流暢排列
+            cols = st.columns(4)
             for idx, cat in enumerate(existing_cats):
                 with cols[idx % 4]:
-                    # 🔍 智慧封面搜尋：找出這一個分類中最新一筆帶有 http 圖片網址的資料
                     cover_img = None
                     if not df_all_raw.empty:
                         df_sub = df_all_raw[df_all_raw['category'] == cat]
@@ -74,15 +78,12 @@ def render_page():
                                 cover_img = str(img).strip()
                                 break
                     
-                    # 剖析 Emoji 與 純文字
                     parts = cat.split(" ", 1)
                     icon = parts[0] if (len(parts) > 1 and len(parts[0]) <= 3) else "📁"
                     display_name = parts[1] if (len(parts) > 1 and len(parts[0]) <= 3) else cat
 
-                    # 渲染卡片外殼
                     with st.container(border=True):
                         if cover_img:
-                            # 滿版圖片封面樣式 + 暗色磨砂遮罩
                             folder_html = f"""
                             <div style="position: relative; width: 100%; aspect-ratio: 16/10; overflow: hidden; border-radius: 6px; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
                                 <img src="{cover_img}" style="width: 100%; height: 100%; object-fit: cover;">
@@ -93,20 +94,22 @@ def render_page():
                             """
                             st.markdown(folder_html, unsafe_allow_html=True)
                         else:
-                            #  Graceful Fallback: 無圖片時退回超大無縫 Emoji 氣泡
                             st.markdown(f"<div style='text-align: center; font-size: 3rem; margin-bottom: 5px; padding-top:10px;'>{icon}</div>", unsafe_allow_html=True)
                         
                         st.button(f"{display_name}", key=f"nav_cat_{cat}", on_click=go_to_category, args=(cat,), use_container_width=True)
 
             if is_edit_mode:
                 st.markdown("---")
-                st.subheader("📝 全域資料庫管理")
-                # 🌟 植入全域排序
-                df_all_sorted = ui_components.apply_smart_sort(df_all_raw, table_name="omni_vault", context_key="all")
+                col_t, col_s = st.columns([6, 4])
+                with col_t: st.subheader("📝 全域資料庫管理")
+                with col_s: local_q_all = st.text_input("🎯 局域搜尋：", placeholder="快篩所有項目...", key="l_omni_all", label_visibility="collapsed")
+                
+                df_all_sorted = ui_components.apply_local_search(df_all_raw, local_q_all)
+                df_all_sorted = ui_components.apply_smart_sort(df_all_sorted, table_name="omni_vault", context_key="all")
                 ui_components.render_batch_editor(df_all_sorted, table_name="omni_vault", key_prefix="omni_all")
 
     # ==========================================
-    # 視圖 B：單一分類陳列室 (完美 1:1 正方形卡片牆)
+    # 視圖 B：單一分類陳列室
     # ==========================================
     else:
         active_cat = st.session_state.omni_active_category
@@ -114,7 +117,9 @@ def render_page():
         col_back, col_title, col_search, col_add = st.columns([1, 4, 3, 2])
         with col_back: st.button("🔙 返回", on_click=go_home, use_container_width=True)
         with col_title: st.subheader(f"📂 {active_cat}")
-        with col_search: search_q = st.text_input("🔍 搜尋：", placeholder="輸入關鍵字...", label_visibility="collapsed")
+        with col_search: 
+            # 🌟 改為局域搜尋
+            local_q = st.text_input("🎯 局域搜尋：", placeholder="快篩此分類...", label_visibility="collapsed", key="l_omni_cat")
         with col_add:
             with st.popover("➕ 新增至此分類", use_container_width=True):
                 new_cat = st.text_input("標籤分類:", value=active_cat)
@@ -131,17 +136,18 @@ def render_page():
 
         st.write("")
 
-        # 撈取分類過濾後的資料
-        df_omni = core_utils.fetch_omni_items(category=active_cat, search_query=search_q)
+        # 撈取過濾後的資料 (接入全域搜尋)
+        df_omni = core_utils.fetch_omni_items(category=active_cat, search_query=omni_global_search)
         
-        # 🌟 植入全域排序
+        # 🌟 植入雙層過濾引擎
+        df_omni = ui_components.apply_local_search(df_omni, local_q)
         df_omni = ui_components.apply_smart_sort(df_omni, table_name="omni_vault", context_key=active_cat)
 
         if is_edit_mode:
             if df_omni.empty: st.info("目前無資料可供管理。")
             else: ui_components.render_batch_editor(df_omni, table_name="omni_vault", key_prefix=f"omni_sub_{active_cat}")
         else:
-            if df_omni.empty: st.info(f"「{active_cat}」目前沒有項目。")
+            if df_omni.empty: st.info(f"「{active_cat}」目前沒有相符項目。")
             else:
                 page_data, total_pages, current_page = ui_components.paginate_data(df_omni, per_page=12, session_key="omni_page")
                 
@@ -155,7 +161,6 @@ def render_page():
                             else:
                                 st.markdown(f'<div style="width: 100%; aspect-ratio: 1 / 1; background-color: #262730; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: #737373; font-size: 0.9rem;">無項目預覽圖</div>', unsafe_allow_html=True)
                             
-                            # 標題鏈接
                             if pd.notna(row['url']) and str(row['url']).strip():
                                 st.markdown(f"#### [{row['title']}]({row['url']})")
                             else:
