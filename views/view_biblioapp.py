@@ -22,16 +22,13 @@ def render_page():
         is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="biblio_edit_mode")
     
     with st.sidebar:
-        # 🌟 1. 在選單中加入「🔍 搜尋中心」
-        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
+        biblio_view_mode = st.radio("功能模式", ["🔍 搜尋中心", "📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源"], on_change=reset_biblio_page)
         st.markdown("---")
         
-        # 只有在搜尋中心才顯示這個超級搜尋框
-        bib_search_query = ""
-        if biblio_view_mode == "🔍 搜尋中心":
-            st.subheader("🔍 全域搜尋")
-            bib_search_query = st.text_input("輸入關鍵字", placeholder="跨板塊搜尋所有資料...", label_visibility="collapsed", on_change=reset_biblio_page)
-            st.markdown("---")
+        # 🌟 UI 修復：將搜尋框放回這裡，確保它在所有分頁都會顯示
+        st.subheader("🔍 模組全域搜尋")
+        bib_search_query = st.text_input("輸入關鍵字", placeholder="跨板塊搜尋所有資料...", label_visibility="collapsed", on_change=reset_biblio_page)
+        st.markdown("---")
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
@@ -57,6 +54,7 @@ def render_page():
                 
                 if selected_main.startswith("📁 "):
                     active_filter = selected_main.replace("📁 ", "")
+                    # 這裡不用傳 search_query，因為搜尋功能已經交給「搜尋中心」專心處理了
                     temp_df = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter)
                     raw_issues = temp_df['issue_volume'].dropna().unique().tolist() if not temp_df.empty else []
                     clean_issues = [iss for iss in raw_issues if str(iss).strip()]
@@ -75,8 +73,8 @@ def render_page():
             st.subheader(f"🔍 搜尋結果：包含「{bib_search_query}」")
             st.markdown("---")
             
-            # 1. 搜尋學術文獻 (探索、書架、備存全包)
-            df_pubs = core_utils.fetch_academic_pubs(search_query=bib_search_query)
+            # 1. 搜尋學術文獻 (🌟 強制傳入 view_mode="🔍 搜尋中心" 觸發解鎖邏輯)
+            df_pubs = core_utils.fetch_academic_pubs(view_mode="🔍 搜尋中心", search_query=bib_search_query)
             if not df_pubs.empty:
                 st.markdown(f"#### 📖 學術文獻與書架 ({len(df_pubs)} 筆)")
                 for _, row in df_pubs.iterrows():
@@ -145,8 +143,8 @@ def render_page():
         st.subheader("📚 參考書目與註釋管理")
         st.markdown("---")
 
+        # 這裡不接收 search_query，完全交給全域搜尋中心處理
         df_refs = core_utils.fetch_bibliography_references()
-        # 🌟 移除右上局域搜尋
         df_refs = ui_components.apply_smart_sort(df_refs, table_name="bibliography_notes", context_key="ref_tab")
         
         if is_edit_mode:
@@ -174,6 +172,7 @@ def render_page():
         st.subheader(f"🏛️ {active_filter} - 目錄")
         st.markdown("---")
 
+        # 這裡不接收 search_query
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter)
         if db_type == "Journal" and active_filter != "總覽 (依日期遞減)" and 'selected_issue' in locals() and selected_issue:
             df_pubs = df_pubs[df_pubs['issue_volume'] == selected_issue]
@@ -225,7 +224,7 @@ def render_page():
                                 with col_img:
                                     img_url = row.get('image')
                                     if pd.notna(img_url) and (str(img_url).startswith("http") or str(img_url).startswith("data:")):
-                                        st.markdown(f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">''', unsafe_allow_html=True)
+                                        st.markdown(f'''<img src="{img_url}" style="width:100%; max-width:140px; aspect-ratio:2/3; object-fit:contain; background-color:#1E1E1E; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover';">''', unsafe_allow_html=True)
                                     else: st.info("無封面圖影")
                                 with col_info:
                                     st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
@@ -289,156 +288,4 @@ def render_page():
                         
     elif biblio_view_mode == "🔗 網址備存":
         with st.expander("📥 網址備存匯入 (當 ISBN 掃描失敗時強制擷取)", expanded=False):
-            backup_url_input = st.text_input("貼上出版社或 Amazon 網址：", key="backup_url_field")
-            if st.button("網頁解析並加入備存", use_container_width=True):
-                if backup_url_input:
-                    with st.spinner("正在探測網頁元資料..."):
-                        url_book_data = core_utils.fetch_book_by_url(backup_url_input)
-                        if url_book_data:
-                            success, msg = core_utils.add_url_backup(url_book_data)
-                            if success: st.success(msg)
-                            else: st.error(msg)
-                        else: st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
-                else: st.warning("⚠️ 請輸入有效的網址。")
-
-        st.subheader(f"🔗 網址備存清單")
-        st.markdown("---")
-        
-        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽")
-        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="weblink_tab")
-        
-        if is_edit_mode:
-            if df_pubs.empty: st.info("目前無資料可供編輯。")
-            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="weblink")
-        else:
-            if df_pubs.empty: st.info("目前沒有相符的備存資料。")
-            else:
-                page_data, total_pages, current_page = ui_components.paginate_data(df_pubs, per_page=20, session_key="biblio_page")
-                for _, row in page_data.iterrows():
-                    with st.container():
-                        col_info, col_btn = st.columns([8, 1])
-                        with col_info:
-                            st.markdown(f"### [{row.get('title', '未命名')}]({row.get('link', '#')})")
-                            st.caption(f"👤 **Author:** {row.get('author')} | 🌐 **Source:** 網址備存 | 📅 **Date Added:** {row.get('publish_date')}")
-                            st.write(row.get('abstract', ''))
-                        with col_btn:
-                            ui_components.render_smart_popover(row, table_name="academic_pubs")
-                    st.divider()
-                ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
-
-    elif biblio_view_mode == "🌐 可用資源":
-        tab_res, tab_lec, tab_conf = st.tabs(["🌐 網路資源", "🎙️ 講座記錄", "🏛️ 學術會議"])
-        
-        with tab_res:
-            st.subheader("🌐 網路資源")
-            with st.expander("➕ 新增資源", expanded=False):
-                col1, col2 = st.columns([5, 1])
-                with col1: new_bib_url = st.text_input("新增資料庫/網站", placeholder="請貼上連結...", label_visibility="collapsed", key="bib_res_input")
-                with col2:
-                    if st.button("➕ 擷取並加入", use_container_width=True, key="bib_res_btn"):
-                        if new_bib_url:
-                            success, msg = core_utils.add_custom_resource("biblioapp", new_bib_url)
-                            if success: st.success(msg)
-                            else: st.error(msg)
-            st.markdown("---")
-
-            df_res = core_utils.fetch_custom_resources("biblioapp")
-            df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="web")
-            
-            if is_edit_mode:
-                if df_res.empty: st.info("無資料可編輯。")
-                else: ui_components.render_batch_editor(df_res, table_name="custom_resources", key_prefix="bib_res")
-            else:
-                if df_res.empty: st.info("目前沒有相符記錄。")
-                else:
-                    page_data, total_pages, current_page = ui_components.paginate_data(df_res, per_page=15, session_key="bib_res_page")
-                    for _, row in page_data.iterrows():
-                        col_link, col_action = st.columns([7, 1])
-                        with col_link:
-                            st.markdown(f"### {row['title']}")
-                            st.markdown(f"🔗 **[前往資料庫]({row['url']})**")
-                            if pd.notna(row.get('comment')) and str(row.get('comment')).strip() != "": st.info(f"{row['comment']}")
-                        with col_action:
-                            ui_components.render_smart_popover(row, table_name="custom_resources")
-                        st.divider()
-                    ui_components.render_pagination_ui(total_pages, current_page, "bib_res_page")
-
-        with tab_lec:
-            st.subheader("🎙️ 講座記錄")
-            with st.expander("➕ 新增講座", expanded=False):
-                event_title_lec = st.text_input("講座名稱 / 主題 (必填)：", key="evt_title_biblioapp_lecture")
-                event_url_lec = st.text_input("相關連結 (報名網址/影片回放)：", key="evt_url_biblioapp_lecture")
-                event_notes_lec = st.text_area("講者 / 筆記 / 核心觀點：", height=150, key="evt_notes_biblioapp_lecture")
-                if st.button("💾 儲存講座記錄", use_container_width=True, type="primary", key="btn_save_lec"):
-                    if event_title_lec:
-                        success, msg = core_utils.add_manual_custom_resource("biblioapp_lecture", event_title_lec, event_url_lec, event_notes_lec)
-                        if success: st.success(msg); st.rerun()
-                        else: st.error(msg)
-            st.markdown("---")
-
-            df_lec = core_utils.fetch_custom_resources("biblioapp_lecture")
-            df_lec = ui_components.apply_smart_sort(df_lec, table_name="custom_resources", context_key="lec")
-                
-            if is_edit_mode:
-                if df_lec.empty: st.info("無資料可供編輯。")
-                else: ui_components.render_batch_editor(df_lec, table_name="custom_resources", key_prefix="bib_lec")
-            else:
-                if df_lec.empty: st.info("沒有相符的講座記錄。")
-                else:
-                    page_data, total_pages, current_page = ui_components.paginate_data(df_lec, per_page=15, session_key="bib_lec_page")
-                    for _, row in page_data.iterrows():
-                        with st.container():
-                            col_info, col_btn = st.columns([8, 1])
-                            with col_info:
-                                st.markdown(f"### {row['title']}")
-                                if pd.notna(row.get('url')) and str(row.get('url')).strip() != "": st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                                notes_text = str(row.get('comment', '')).strip()
-                                if pd.notna(row.get('comment')) and notes_text:
-                                    if len(notes_text) > 120:
-                                        st.info(f"{notes_text[:120]} ...") 
-                                        with st.expander("📖 展開完整大綱與詳情"): st.markdown(notes_text.replace('\n', '  \n'))
-                                    else: st.info(notes_text)
-                            with col_btn:
-                                ui_components.render_smart_popover(row, table_name="custom_resources")
-                        st.divider()
-                    ui_components.render_pagination_ui(total_pages, current_page, "bib_lec_page")
-                    
-        with tab_conf:
-            st.subheader("🏛️ 學術會議")
-            with st.expander("➕ 新增會議", expanded=False):
-                event_title_conf = st.text_input("會議名稱 / 主題 (必填)：", key="evt_title_biblioapp_conference")
-                event_url_conf = st.text_input("相關連結 (議程/官方網站)：", key="evt_url_biblioapp_conference")
-                event_notes_conf = text_area("議程筆記 / 發表心得：", height=150, key="evt_notes_biblioapp_conference")
-                if st.button("💾 儲存會議記錄", use_container_width=True, type="primary", key="btn_save_conf"):
-                    if event_title_conf:
-                        success, msg = core_utils.add_manual_custom_resource("biblioapp_conference", event_title_conf, event_url_conf, event_notes_conf)
-                        if success: st.success(msg); st.rerun()
-                        else: st.error(msg)
-            st.markdown("---")
-
-            df_conf = core_utils.fetch_custom_resources("biblioapp_conference")
-            df_conf = ui_components.apply_smart_sort(df_conf, table_name="custom_resources", context_key="conf")
-                
-            if is_edit_mode:
-                if df_conf.empty: st.info("無資料可供編輯。")
-                else: ui_components.render_batch_editor(df_conf, table_name="custom_resources", key_prefix="bib_conf")
-            else:
-                if df_conf.empty: st.info("沒有相符的會議記錄。")
-                else:
-                    page_data, total_pages, current_page = ui_components.paginate_data(df_conf, per_page=15, session_key="bib_conf_page")
-                    for _, row in page_data.iterrows():
-                        with st.container():
-                            col_info, col_btn = st.columns([8, 1])
-                            with col_info:
-                                st.markdown(f"### {row['title']}")
-                                if pd.notna(row.get('url')) and str(row.get('url')).strip() != "": st.markdown(f"🔗 **[參考連結]({row['url']})**")
-                                notes_text = str(row.get('comment', '')).strip()
-                                if pd.notna(row.get('comment')) and notes_text:
-                                    if len(notes_text) > 120:
-                                        st.info(f"{notes_text[:120]} ...") 
-                                        with st.expander("📖 展開完整日程與詳情"): st.markdown(notes_text.replace('\n', '  \n'))
-                                    else: st.info(notes_text)
-                            with col_btn:
-                                ui_components.render_smart_popover(row, table_name="custom_resources")
-                        st.divider()
-                    ui_components.render_pagination_ui(total_pages, current_page, "bib_conf_page")
+            backup_url_input = st.text_input("貼上出版社或 Amazon
