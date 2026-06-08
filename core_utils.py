@@ -97,7 +97,7 @@ def toggle_bookmark(table_name, item_ids, to_state, id_column="id"):
         st.error(f"狀態更新失敗: {e}")
 
 # ==========================================
-# 📥 資料庫讀取區 (全面採用 query_to_df 瘦身)
+# 📥 資料庫讀取區 (全面支援 SQL 全域搜尋與 query_to_df 瘦身)
 # ==========================================
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
@@ -136,18 +136,44 @@ def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總�
     sql += " ORDER BY publish_date DESC LIMIT 500"
     return query_to_df(sql, args)
 
-def fetch_custom_resources(module_name):
-    return query_to_df("SELECT * FROM custom_resources WHERE module = ? ORDER BY added_date DESC", [module_name])
+# 🌟 新增 search_query 支援
+def fetch_custom_resources(module_name, search_query=""):
+    sql = "SELECT * FROM custom_resources WHERE module = ?"
+    args = [module_name]
+    if search_query:
+        sql += " AND (title LIKE ? OR comment LIKE ?)"
+        args.extend([f"%{search_query}%", f"%{search_query}%"])
+    sql += " ORDER BY added_date DESC"
+    return query_to_df(sql, args)
 
-def fetch_bibliography_references():
-    return query_to_df("SELECT * FROM bibliography_notes ORDER BY added_date DESC")
+# 🌟 新增 search_query 支援
+def fetch_bibliography_references(search_query=""):
+    sql = "SELECT * FROM bibliography_notes WHERE 1=1"
+    args = []
+    if search_query:
+        sql += " AND (title LIKE ? OR author LIKE ? OR notes LIKE ?)"
+        like_term = f"%{search_query}%"
+        args.extend([like_term, like_term, like_term])
+    sql += " ORDER BY added_date DESC"
+    return query_to_df(sql, args)
 
-def fetch_media_by_broad_type(broad_type, is_bookmarked=1):
+# 🌟 新增 search_query 支援
+def fetch_media_by_broad_type(broad_type, is_bookmarked=1, search_query=""):
+    sql = "SELECT * FROM media_vault WHERE is_bookmarked = ?"
+    args = [is_bookmarked]
+    
     if broad_type == "Movie":
-        sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%電影%' OR media_type LIKE '%影集%') AND is_bookmarked = ? ORDER BY sort_date DESC"
+        sql += " AND (media_type LIKE '%電影%' OR media_type LIKE '%影集%')"
     else:
-        sql = "SELECT * FROM media_vault WHERE (media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%') AND is_bookmarked = ? ORDER BY sort_date DESC"
-    df = query_to_df(sql, [is_bookmarked], lower_cols=True)
+        sql += " AND (media_type LIKE '%音樂%' OR media_type LIKE '%專輯%' OR media_type LIKE '%單曲%')"
+        
+    if search_query:
+        sql += " AND (title LIKE ? OR creator LIKE ? OR summary LIKE ?)"
+        like_term = f"%{search_query}%"
+        args.extend([like_term, like_term, like_term])
+        
+    sql += " ORDER BY sort_date DESC"
+    df = query_to_df(sql, args, lower_cols=True)
     return df.to_dict('records') if not df.empty else []
 
 def fetch_crawler_health():
@@ -166,7 +192,6 @@ def fetch_omni_items(category=None, search_query=""):
         sql += " AND (title LIKE ? OR comment LIKE ?)"; args.extend([f"%{search_query}%", f"%{search_query}%"])
     sql += " ORDER BY added_date DESC"
     return query_to_df(sql, args)
-
 
 # ==========================================
 # 🌐 網路請求與爬蟲模組 (全面採用 get_scraper)
