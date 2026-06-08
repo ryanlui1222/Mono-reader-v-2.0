@@ -10,12 +10,16 @@ def reset_mono_res_page(): st.session_state.mono_res_page = 1
 def render_page():
     if 'mono_page' not in st.session_state: st.session_state.mono_page = 1
     
-    # 🌟 重新命名側邊欄全域搜尋
-    st.sidebar.subheader("🔍 模組全域搜尋")
-    search_input = st.sidebar.text_input("輸入關鍵字", placeholder="全視圖文章與典藏庫...", label_visibility="collapsed", on_change=reset_mono_page)
+    st.sidebar.subheader("文章篩選")
+    # 🌟 1. 改名為模組全域搜尋，移除局域功能
+    mono_view_mode = st.sidebar.radio("瀏覽模式", ["🔍 搜尋中心", "✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], on_change=reset_mono_page)
     st.sidebar.markdown("---")
-    view_mode = st.sidebar.radio("瀏覽模式", ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], on_change=reset_mono_page)
-    st.sidebar.markdown("---")
+    
+    mono_search_query = ""
+    if mono_view_mode == "🔍 搜尋中心":
+        st.sidebar.subheader("🔍 全域搜尋")
+        mono_search_query = st.sidebar.text_input("輸入關鍵字", placeholder="全站找尋文章與典藏...", label_visibility="collapsed", on_change=reset_mono_page)
+        st.sidebar.markdown("---")
 
     with st.sidebar.expander("📥 手動匯入外部文章", expanded=False):
         external_url = st.text_input("貼上文章網址：", placeholder="https://...")
@@ -38,7 +42,7 @@ def render_page():
     st.sidebar.markdown("---")
     
     selected_source = "全部來源總覽"
-    if view_mode == "🗄️ 分類存檔":
+    if mono_view_mode == "🗄️ 分類存檔":
         st.sidebar.subheader("選擇訂閱來源")
         FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
         main_options = []
@@ -67,9 +71,41 @@ def render_page():
         is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="mono_edit_mode")
 
     # ==========================================
+    # 🌟 全新的「搜尋中心」分頁
+    # ==========================================
+    if mono_view_mode == "🔍 搜尋中心":
+        if not mono_search_query:
+            st.info("👈 請在左側輸入關鍵字，系統將自動為您搜尋「文章與快訊」及「未來典藏」。")
+        else:
+            st.subheader(f"🔍 搜尋結果：包含「{mono_search_query}」")
+            st.markdown("---")
+            
+            # 1. 搜尋文章庫
+            df_art = core_utils.fetch_data("✨ 全部來源總覽", search_query=mono_search_query) # 改用全域總覽來搜
+            if not df_art.empty:
+                st.markdown(f"#### 📄 文章與快訊 ({len(df_art)} 筆)")
+                for _, row in df_art.iterrows():
+                    location = "我的收藏庫" if row.get('is_bookmarked') == 1 else "存檔"
+                    st.markdown(f"- **[{row.get('Title', '未命名')}]({row.get('Link', '#')})** ｜ 🏷️ {row.get('Source', '未知')} ｜ 📍 位於：`{location}`")
+                st.write("")
+                
+            # 2. 搜尋未來典藏
+            df_future = core_utils.fetch_custom_resources("monoreader", search_query=mono_search_query)
+            if not df_future.empty:
+                st.markdown(f"#### ⏳ 未來典藏庫 ({len(df_future)} 筆)")
+                for _, row in df_future.iterrows():
+                    st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('url', '#')})** ｜ 📍 位於：`未來典藏`")
+                st.write("")
+
+            if df_art.empty and df_future.empty:
+                st.warning(f"在 Monoreader 模組中，找不到包含「{mono_search_query}」的資料。")
+
+    # ==========================================
     # 視圖 A：未來典藏
     # ==========================================
-    if view_mode == "⏳ 未來典藏":
+    elif mono_view_mode == "⏳ 未來典藏":
+        st.subheader("⏳ 未來典藏 (Future Archive)")
+        st.caption("記錄已停止更新，但極具歷史考據價值的邊緣文化庫。")
         with st.expander("📥 新增未來典藏網址", expanded=False):
             col1, col2 = st.columns([5, 1])
             with col1: new_res_url = st.text_input("新增網站", placeholder="請貼上網站連結...", label_visibility="collapsed", key="mono_res_input")
@@ -80,19 +116,10 @@ def render_page():
                             success, msg = core_utils.add_custom_resource("monoreader", new_res_url)
                             if success: st.success(msg)
                             else: st.error(msg)
-                            
-        # 🌟 UI 佈局：大標題 + 右側局域搜尋
-        col_title, col_local = st.columns([6, 4])
-        with col_title:
-            st.subheader("⏳ 未來典藏 (Future Archive)")
-            st.caption("記錄已停止更新，但極具歷史考據價值的邊緣文化庫。")
-        with col_local:
-            local_q_future = st.text_input("🎯 局域搜尋：", placeholder="快篩此清單...", label_visibility="collapsed", key="l_future")
-
         st.markdown("---")
 
-        df_res = core_utils.fetch_custom_resources("monoreader", search_query=search_input)
-        df_res = ui_components.apply_local_search(df_res, local_q_future)
+        df_res = core_utils.fetch_custom_resources("monoreader")
+        # 移除右上角局域搜尋
         df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="future")
         
         if is_edit_mode:
@@ -119,35 +146,30 @@ def render_page():
     # 視圖 B：文化文章主體
     # ==========================================
     else:
-        col_title, col_local = st.columns([6, 4])
-        with col_title:
-            if view_mode == "✨ 全部來源總覽":
-                st.subheader("✨ 全部來源總覽")
-                st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
-            elif view_mode == "✍️ 最新評論":
-                st.subheader("✍️ 最新思想與文化評論")
-                st.caption("已自動過濾快訊，專注收看國內外深度長文與思想探討。")
-            elif view_mode == "⚡ 文化快訊":
-                st.subheader("⚡ 文化與藝術快訊")
-                st.caption("聚合每日高頻更新的即時藝文消息。")
-            elif view_mode == "🔖 我的收藏庫":
-                st.subheader("🔖 我的收藏庫")
+        if mono_view_mode == "✨ 全部來源總覽":
+            st.subheader("✨ 全部來源總覽")
+            st.caption("打破雜誌界限，即時串流全平台最新擷取到的文化與思想動態。")
+        elif mono_view_mode == "✍️ 最新評論":
+            st.subheader("✍️ 最新思想與文化評論")
+            st.caption("已自動過濾快訊，專注收看國內外深度長文與思想探討。")
+        elif mono_view_mode == "⚡ 文化快訊":
+            st.subheader("⚡ 文化與藝術快訊")
+            st.caption("聚合每日高頻更新的即時藝文消息。")
+        elif mono_view_mode == "🔖 我的收藏庫":
+            st.subheader("🔖 我的收藏庫")
+        else:
+            if selected_source != "全部來源總覽":
+                st.subheader(f"🗄️ {selected_source} 存檔")
+                link = core_utils.get_source_link(selected_source)
+                if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
             else:
-                if selected_source != "全部來源總覽":
-                    st.subheader(f"🗄️ {selected_source} 存檔")
-                    link = core_utils.get_source_link(selected_source)
-                    if link != "#": st.markdown(f"🔗 **[前往該雜誌官網閱讀]({link})**")
-                else:
-                    st.subheader("🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
+                st.subheader("🗄️ 全部來源完整存檔 (顯示最新 500 篇)")
         
-        with col_local:
-            local_q_art = st.text_input("🎯 局域搜尋：", placeholder="快篩當前文章...", label_visibility="collapsed", key="l_art")
-
         st.markdown("---")
 
-        df = core_utils.fetch_data(view_mode, selected_source, search_input)
-        df = ui_components.apply_local_search(df, local_q_art)
-        df = ui_components.apply_smart_sort(df, table_name="articles", context_key=view_mode)
+        # 這裡就不放搜尋了，讓 fetch_data 自行過濾
+        df = core_utils.fetch_data(mono_view_mode, selected_source)
+        df = ui_components.apply_smart_sort(df, table_name="articles", context_key=mono_view_mode)
 
         if is_edit_mode:
             if df.empty: st.info("目前無資料可供編輯。")
