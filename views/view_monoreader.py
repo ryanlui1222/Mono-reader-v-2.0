@@ -12,7 +12,7 @@ def render_page():
     
     st.sidebar.subheader("文章篩選")
     # 🌟 1. 改名為模組全域搜尋，移除局域功能
-    mono_view_mode = st.sidebar.radio("瀏覽模式", ["🔍 搜尋中心", "✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏"], on_change=reset_mono_page)
+    mono_view_mode = st.sidebar.radio("瀏覽模式", ["✨ 全部來源總覽", "✍️ 最新評論", "⚡ 文化快訊", "🗄️ 分類存檔", "🔖 我的收藏庫", "⏳ 未來典藏", "🔍 搜尋中心"], on_change=reset_mono_page)
     st.sidebar.markdown("---")
     
     mono_search_query = ""
