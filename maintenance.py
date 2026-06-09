@@ -3,7 +3,7 @@ import libsql_client
 from datetime import datetime, timedelta
 
 def clean_up_old_articles():
-    print("🧹 開始執行每週資料庫大掃除 (統一 30 日代謝版)...")
+    print("🧹 開始執行每兩週資料庫大掃除 (統一 90 日代謝版)...")
     
     url = os.environ.get("TURSO_DATABASE_URL")
     token = os.environ.get("TURSO_AUTH_TOKEN")
@@ -20,16 +20,17 @@ def clean_up_old_articles():
         # ==========================================
         PROTECTED_SOURCES = [
             "The Point", "e-flux", "The Funambulist", "TripleAmpersand", 
-            "421 News", "Verso Blog", "MIT Press Reader", "Pharmakon@Matters", "Caja Negra", "结绳志"
+            "421 News", "Verso Blog", "MIT Press Reader", "Pharmakon@Matters", "Caja Negra", "结绳志",
+            "🌐 外部手動匯入"  # 👈 新增：保護所有手動匯入的文章
         ]
         
-        # 計算 30 天前的時間門檻
-        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        # 🌟 計算 90 天前的時間門檻
+        ninety_days_ago = (datetime.utcnow() - timedelta(days=90)).isoformat()
         
-        print("🔍 正在掃描超過 30 天且未被收藏的文章...")
+        print("🔍 正在掃描超過 90 天且未被收藏的文章...")
         
-        # 抓出所有超過 30 天 且 未被手動收藏 的文章
-        res = db.execute("SELECT Link, Source FROM articles WHERE is_bookmarked = 0 AND SortDate < ?", [thirty_days_ago])
+        # 抓出所有超過 90 天 且 未被手動收藏 的文章
+        res = db.execute("SELECT Link, Source FROM articles WHERE is_bookmarked = 0 AND SortDate < ?", [ninety_days_ago])
         
         # 過濾邏輯：只要 Source 名稱「不包含」在白名單內，就列入刪除清單
         links_to_delete = [
