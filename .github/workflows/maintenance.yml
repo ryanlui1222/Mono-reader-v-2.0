@@ -2,7 +2,8 @@ name: Weekly Database Cleanup
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # 🌟 每週日凌晨 00:00 (UTC) 定時執行大掃除
+    # 這裡的設定代表：每個月的 1 號和 15 號的 UTC 00:00 (台灣/香港時間早上 8:00) 執行一次
+    - cron: '0 0 1,15 * *'
   workflow_dispatch:       # 允許在 GitHub 網頁上手動點擊按鈕測試
 
 jobs:
