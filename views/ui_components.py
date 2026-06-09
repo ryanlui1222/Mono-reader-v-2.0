@@ -254,6 +254,14 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
         edit_summary = current_summary
         if table_name in ["academic_pubs", "media_vault"]:
             edit_summary = st.text_area("修改摘要/簡介:", value=current_summary, key=f"p_c_{k_id}", height=100)
+            
+        # 🌟 植入點：專屬 articles 的閱讀心得欄位
+        edit_comment = ""
+        if table_name == "articles":
+            # 將 nan 或 None 轉為空字串，避免畫面顯示 nan
+            old_comment = str(row.get('comment', ''))
+            if old_comment.lower() == 'nan': old_comment = ""
+            edit_comment = st.text_area("💡 閱讀心得/筆記:", value=old_comment, key=f"p_cmt_{k_id}", height=120)
         
         new_cat = None
         if context == "bookshelf":
@@ -263,7 +271,9 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
 
         if st.button("💾 儲存文字變更", key=f"p_save_{k_id}", use_container_width=True, type="primary"):
             kwargs = {}
-            if table_name == "articles": kwargs['Title'] = edit_title
+            if table_name == "articles": 
+                kwargs['Title'] = edit_title
+                kwargs['comment'] = edit_comment # 🌟 將心得送入全域引擎
             elif table_name == "media_vault": kwargs.update({'title': edit_title, 'summary': edit_summary})
             elif table_name == "academic_pubs": 
                 kwargs.update({'title': edit_title, 'abstract': edit_summary})
@@ -333,6 +343,8 @@ def render_batch_editor(df, table_name, key_prefix=""):
         display_cols, disabled_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked'], ['publisher_journal', 'author']
     elif table_name == "bibliography_notes":
         display_cols, disabled_cols = ['Select', 'title', 'author', 'importance', 'notes'], ['title', 'author']
+    elif table_name == "articles": # 🌟 加入 articles 的專屬欄位設定，包含 comment
+        display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'comment', 'is_bookmarked'], ['Link', 'Source']
     else:
         display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked'], ['Link', 'Source']
 
@@ -381,7 +393,8 @@ def render_batch_editor(df, table_name, key_prefix=""):
                         kwargs = {'title': str(row_edit['title'])}
                         if 'category' in row_edit and row_edit['category'] != row_orig['category']: kwargs['category'] = str(row_edit['category'])
                     elif table_name == "articles":
-                        kwargs = {'Title': str(row_edit['Title'])}
+                        # 🌟 把 comment 一起抓下來儲存
+                        kwargs = {'Title': str(row_edit['Title']), 'comment': str(row_edit.get('comment', ''))}
                     elif table_name == "bibliography_notes":
                         kwargs = {'importance': str(row_edit.get('importance', '待讀')), 'notes': str(row_edit.get('notes', ''))}
 
