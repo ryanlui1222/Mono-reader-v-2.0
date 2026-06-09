@@ -181,14 +181,16 @@ def render_pagination_ui(total_pages, current_page, session_key):
 # 2. 全域網格卡片渲染 (Universal Grid Card)
 # ==========================================
 def render_grid_card(row):
-    img_url = row.get('Image') or row.get('image') or row.get('poster_url')
+    # 動態容錯抓取欄位（兼容各模組的資料表設計）
+    img_url = row.get('Image') or row.get('image') or row.get('poster_url') or row.get('cover_image')
     title = row.get('Title') or row.get('title') or "未命名"
-    author = row.get('Author') or row.get('author') or row.get('year') or ""
-    link = row.get('Link') or row.get('link') or "#"
+    author = row.get('Author') or row.get('author') or row.get('year') or row.get('creator') or ""
+    link = row.get('Link') or row.get('link') or row.get('source_url') or "#"
 
     if not img_url or (not str(img_url).startswith("http") and not str(img_url).startswith("data:")):
         img_url = "https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover"
 
+    # 🌟 原封不動保留您完美調校的 HTML/CSS 卡片架構
     html = f"""
     <div class="memoof-book" style="margin-bottom: 10px;">
         <a href="{link}" target="_blank" class="memoof-cover">
@@ -202,6 +204,16 @@ def render_grid_card(row):
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
+    
+    # 🌟 無縫接軌：在漂亮的 HTML 卡片正下方，加上原生的摺疊面板
+    # 動態抓取內容：學術文獻用 abstract，影音/文章用 summary 或 comment
+    desc_text = row.get('abstract') or row.get('summary') or row.get('comment')
+    desc_text = str(desc_text).strip() if pd.notna(desc_text) else ""
+    
+    # 檢查確實有內容才渲染
+    if desc_text and desc_text.lower() != 'nan' and desc_text != 'None':
+        with st.expander("📖 內容摘要"):
+            st.write(desc_text)
 
 # ==========================================
 # 3. 智慧管理按鈕 (對接終極 CRUD 引擎)
