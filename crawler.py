@@ -365,18 +365,6 @@ def fetch_funambulist():
             return [res for res in ex.map(process_link, valid_links) if res]
     except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
 
-def fetch_mit_reader():
-    try:
-        data = requests.get("https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/", timeout=TIMEOUT).json()
-        if data.get('status') != 'ok': return []
-        articles = []
-        for item in data.get('items', [])[:15]:
-            soup = BeautifulSoup(item.get('description', ''), 'html.parser')
-            img_tag = soup.find('img')
-            articles.append({"Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''), "Published": item.get('pubDate', '最新'), "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')), "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)})
-        return articles
-    except Exception as e: print(f"MIT Press 錯誤: {e}"); return []
-
 def fetch_verse():
     articles = []
     try:
@@ -729,7 +717,10 @@ def main():
         ("https://tyingknots.net/feed/", "结绳志", 15, False),
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
-        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
+        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
+
+        # 👇 🌟 新增：讓 MIT Press 透過強大的主力 fetch_rss 來抓取
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -740,7 +731,7 @@ def main():
         # 🌟 將 fetch_frieze 加入客製化爬蟲陣列
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
-            fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
+            fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
             fetch_tripleampersand, fetch_chuapp, fetch_frieze # <== 加入這裡
