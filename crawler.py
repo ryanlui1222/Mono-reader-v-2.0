@@ -55,17 +55,54 @@ def get_db_client():
 def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     articles = []
     try:
-        response = scraper.get(feed_url, timeout=TIMEOUT)
-        parsed = feedparser.parse(response.content)
+        # 🌟 核心修復：多重連線防護策略
+        content = None
         
+        # 策略 1: 原生 requests (能繞過 Substack 的攔截，並解決結繩志的 SSL 憑證問題)
+        try:
+            res = requests.get(feed_url, headers=HEADERS, timeout=TIMEOUT)
+            if res.status_code == 200 and len(res.content) > 100:
+                content = res.content
+        except: pass
+
+        # 策略 2: 若原生失敗，改用 cloudscraper (突破常規 Cloudflare)
+        if not content:
+            try:
+                res = scraper.get(feed_url, timeout=TIMEOUT)
+                if res.status_code == 200:
+                    content = res.content
+            except: pass
+
+        # 解析 XML (如果兩種請求都失敗，讓 feedparser 進行最後一次嘗試)
+        parsed = feedparser.parse(content if content else feed_url)
+
+        # 判斷是否成功解析出文章
+        if not parsed.entries:
+            print(f"⚠️ {source_name}: 無法解析 RSS 內容或無最新文章。")
+            return []
+
         def process_entry(entry):
             raw_date = entry.get('published') or entry.get('pubDate') or entry.get('updated') or "最新"
             author = entry.get('author') or entry.get('author_detail', {}).get('name') or ""
             
             raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
             soup = BeautifulSoup(raw_text, 'html.parser')
+            
+            # 🌟 增強：精準捕捉 Substack 與各類 RSS 的預覽圖
+            img_url = None
             img_tag = soup.find('img')
-            img_url = urllib.parse.urljoin(entry.link, img_tag['src']) if img_tag and 'src' in img_tag.attrs else None
+            if img_tag and 'src' in img_tag.attrs:
+                img_url = urllib.parse.urljoin(entry.link, img_tag['src'])
+            else:
+                # 嘗試從 RSS 原生的媒體標籤中提取圖片
+                if 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
+                    img_url = entry.media_thumbnail[0]['url']
+                elif 'links' in entry:
+                    for link in entry.links:
+                        if 'image' in link.get('type', '') and 'href' in link:
+                            img_url = link['href']
+                            break
+                            
             text = soup.get_text(separator=" ", strip=True)
             
             if deep_fetch:
@@ -78,7 +115,7 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     if not author:
                         author_meta = art_soup.find('meta', attrs={'name': 'author'}) or art_soup.find('meta', property='og:article:author')
                         if author_meta: author = author_meta['content']
-                        
+                    
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
                     clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
                     if clean_p: text = " ".join(clean_p[:3])
@@ -91,7 +128,10 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             articles = [res for res in ex.map(process_entry, parsed.entries[:limit]) if res]
-    except Exception as e: print(f"{source_name} 錯誤: {e}")
+            
+    except Exception as e: 
+        print(f"{source_name} 錯誤: {e}")
+        
     return articles
 
 def fetch_thepoint():
