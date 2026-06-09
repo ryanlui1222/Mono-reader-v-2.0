@@ -132,7 +132,12 @@ def paginate_data(data, per_page, session_key):
 
     total_pages = max(1, math.ceil(total_items / per_page))
     if session_key not in st.session_state: st.session_state[session_key] = 1
-    if st.session_state[session_key] > total_pages: st.session_state[session_key] = total_pages
+
+    # 🌟 防護網一：強制校正 Session State 的異常數值 (防止連點導致 < 1)
+    if st.session_state[session_key] < 1:
+        st.session_state[session_key] = 1
+    elif st.session_state[session_key] > total_pages:
+        st.session_state[session_key] = total_pages
 
     current_page = st.session_state[session_key]
     start_idx = (current_page - 1) * per_page
@@ -151,14 +156,22 @@ def render_pagination_ui(total_pages, current_page, session_key):
     
     with col_prev:
         if st.button("⬅️ 上一頁", disabled=(current_page <= 1), key=f"prev_{session_key}", use_container_width=True):
-            st.session_state[session_key] -= 1
+            # 🌟 防護網二：寫入前強制鎖定下限為 1 (max)
+            st.session_state[session_key] = max(1, st.session_state[session_key] - 1)
             st.rerun()
+            
     with col_page:
         def update_page(): st.session_state[session_key] = st.session_state[f"{session_key}_selector"]
-        st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=current_page - 1, key=f"{session_key}_selector", on_change=update_page, label_visibility="collapsed")
+        
+        # 🌟 防護網三：嚴格約束 selectbox 的 index 絕對在 0 到 total_pages-1 之間
+        safe_index = max(0, min(current_page - 1, total_pages - 1))
+        
+        st.selectbox("📄 選擇頁數：", range(1, total_pages + 1), index=safe_index, key=f"{session_key}_selector", on_change=update_page, label_visibility="collapsed")
+        
     with col_next:
         if st.button("下一頁 ➡️", disabled=(current_page >= total_pages), key=f"next_{session_key}", use_container_width=True):
-            st.session_state[session_key] += 1
+            # 🌟 防護網四：寫入前強制鎖定上限為 total_pages (min)
+            st.session_state[session_key] = min(total_pages, st.session_state[session_key] + 1)
             st.rerun()
 
 # ==========================================
