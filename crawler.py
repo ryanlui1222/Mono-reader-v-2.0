@@ -21,13 +21,31 @@ TIMEOUT = 15
 # ==========================================
 # 🛠️ 輔助函數 (Helpers)
 # ==========================================
-def get_soup(url, custom_headers=HEADERS):
-    """通用的 HTML 獲取與解析器"""
+def get_soup(url, custom_headers=None):
+    """通用的 HTML 獲取與解析器 (雙引擎切換備援)"""
+    headers = custom_headers or HEADERS
+    html_content = None
+    
     try:
-        res = scraper.get(url, headers=custom_headers, timeout=TIMEOUT)
-        return BeautifulSoup(res.text, 'html.parser') if res.status_code == 200 else None
-    except:
-        return None
+        # 引擎 1：Cloudscraper 突破常規防護 (將超時縮短為 10 秒)
+        res = scraper.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            html_content = res.text
+    except: pass
+    
+    if not html_content:
+        try:
+            # 引擎 2：原生 requests 偽裝
+            fallback_headers = custom_headers or {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+            }
+            res2 = requests.get(url, headers=fallback_headers, timeout=10)
+            if res2.status_code == 200:
+                html_content = res2.text
+        except: pass
+        
+    return BeautifulSoup(html_content, 'html.parser') if html_content else None
 
 def format_summary(text, author="", max_len=None):
     """通用的摘要清洗器"""
@@ -178,14 +196,18 @@ def fetch_bijutsutecho():
     except Exception as e: print(f"美術手帖 錯誤: {e}"); return []
 
 def fetch_thepaper():
+    articles = []
     try:
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
-        res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
+        # 🌟 修復：改用 requests 原生引擎 (因為澎湃要的不是 html 解析，而是字串萃取，但一樣需要套用 iphone 偽裝)
+        res = requests.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=10)
         match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
         if not match: return []
         items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
         return [{"Source": "澎湃思想市場", "Title": item.get('name', ''), "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}", "Published": item.get('pubTimeNew', '最新'), "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）", "Image": item.get('pic', '')} for item in items[:15] if item.get('name') and item.get('contId')]
-    except Exception as e: print(f"澎湃 錯誤: {e}"); return []
+    except Exception as e: 
+        print(f"澎湃 錯誤: {e}")
+        return []
 
 def fetch_webgenron():
     try:
@@ -235,18 +257,6 @@ def fetch_funambulist():
             return [res for res in ex.map(process_link, valid_links) if res]
     except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
 
-def fetch_mit_reader():
-    try:
-        data = requests.get("https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/", timeout=TIMEOUT).json()
-        if data.get('status') != 'ok': return []
-        articles = []
-        for item in data.get('items', [])[:15]:
-            soup = BeautifulSoup(item.get('description', ''), 'html.parser')
-            img_tag = soup.find('img')
-            articles.append({"Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''), "Published": item.get('pubDate', '最新'), "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')), "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)})
-        return articles
-    except Exception as e: print(f"MIT Press 錯誤: {e}"); return []
-
 def fetch_verse():
     articles = []
     try:
@@ -292,6 +302,7 @@ def fetch_jiemian():
     articles = []
     try:
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        # 🌟 修復：改用我們寫好的 get_soup 雙引擎
         soup = get_soup("https://m.jiemian.com/lists/130_1.html", custom_headers=iphone_headers)
         if not soup: return articles
         items = soup.find_all('div', class_='news-view')
@@ -505,11 +516,10 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
-    # 🌟 新增的監控變數
-    health_records = {} # 記錄每個來源的健康狀態
-    futures_map = {}    # 用來對應 Future 與來源名稱，方便捕捉是誰失敗
+    health_records = {} 
+    futures_map = {}    
     
-# 🌟 完全保留您的 RSS 清單，並在最下方加入新來源
+    # 🌟 1. 將 MIT Press Reader 加入正規 RSS 清單中！
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -522,31 +532,31 @@ def main():
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
         ("https://radii.co/feed", "Radii", 15, True),
         ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), 
-        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),                
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
         ("https://tyingknots.net/feed/", "结绳志", 15, False),
-        
-        # 👇 新增的三個 RSS 來源 (參數為: 網址, 顯示名稱, 抓取篇數, 是否啟動深度爬取尋找圖片)
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
-        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
+        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
+        
+        # 👇 移籍過來的 MIT Press Reader (不需要 deep_fetch)
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        # 1. 提交 RSS 任務並記錄名稱
         for url, name, limit, deep in rss_sources:
             future = executor.submit(fetch_rss, url, name, limit, deep)
             futures_map[future] = name
         
-        # 🌟 完全保留您的客製化爬蟲清單
+        # 🌟 2. 將 fetch_mit_reader 從這裡移除
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
-            fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
+            fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp
+            fetch_tripleampersand, fetch_chuapp, fetch_frieze
         ]
         
         # 2. 提交客製化爬蟲任務並記錄名稱
