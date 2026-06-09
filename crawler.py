@@ -21,13 +21,34 @@ TIMEOUT = 15
 # ==========================================
 # 🛠️ 輔助函數 (Helpers)
 # ==========================================
-def get_soup(url, custom_headers=HEADERS):
-    """通用的 HTML 獲取與解析器"""
+# ==========================================
+# 🛠️ 輔助函數 (Helpers)
+# ==========================================
+def get_soup(url, custom_headers=None):
+    """通用的 HTML 獲取與解析器 (雙引擎切換備援)"""
+    headers = custom_headers or HEADERS
+    html_content = None
+    
     try:
-        res = scraper.get(url, headers=custom_headers, timeout=TIMEOUT)
-        return BeautifulSoup(res.text, 'html.parser') if res.status_code == 200 else None
-    except:
-        return None
+        # 引擎 1：Cloudscraper 突破常規防護
+        res = scraper.get(url, headers=headers, timeout=TIMEOUT)
+        if res.status_code == 200:
+            html_content = res.text
+    except: pass
+    
+    if not html_content:
+        try:
+            # 引擎 2：如果被 Cloudscraper 特徵識別擋下，改用最乾淨的原生 requests 偽裝
+            fallback_headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+            }
+            res2 = requests.get(url, headers=fallback_headers, timeout=TIMEOUT)
+            if res2.status_code == 200:
+                html_content = res2.text
+        except: pass
+        
+    return BeautifulSoup(html_content, 'html.parser') if html_content else None
 
 def format_summary(text, author="", max_len=None):
     """通用的摘要清洗器"""
@@ -57,14 +78,18 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     try:
         content = None
         
-        # 策略 1: 原生 requests (將超時縮短為 10 秒，快速試探)
+        # 策略 1: 帶有完整 Browser Headers 的原生 requests (繞過結繩志 SSL 報錯)
+        custom_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        }
         try:
-            res = requests.get(feed_url, headers=HEADERS, timeout=10)
+            res = requests.get(feed_url, headers=custom_headers, timeout=10)
             if res.status_code == 200 and len(res.content) > 100:
                 content = res.content
         except: pass
 
-        # 策略 2: 若原生失敗，改用 cloudscraper (突破常規 Cloudflare)
+        # 策略 2: Cloudscraper (常規突破)
         if not content:
             try:
                 res = scraper.get(feed_url, timeout=10)
@@ -72,18 +97,59 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     content = res.content
             except: pass
 
-        # 🌟 致命錯誤修復：如果前兩名精銳士兵都死在外面，直接放棄！
-        # 絕對不讓沒有防護的 feedparser 去送死卡住執行緒。
+        # 🌟 策略 3: rss2json API (終極代理備援，專治 Substack 的焦油坑防護)
         if not content:
-            print(f"⚠️ {source_name}: 雙重連線皆被伺服器拒絕或超時，跳過此來源。")
+            try:
+                proxy_url = f"https://api.rss2json.com/v1/api.json?rss_url={urllib.parse.quote(feed_url)}"
+                res_proxy = requests.get(proxy_url, timeout=15).json()
+                if res_proxy.get('status') == 'ok':
+                    print(f"🔄 {source_name}: 啟動 API 代理備援連線成功！")
+                    for item in res_proxy.get('items', [])[:limit]:
+                        title = item.get('title', '')
+                        link = item.get('link', '')
+                        pub_date = item.get('pubDate', '最新')
+                        author = item.get('author', '')
+                        
+                        raw_html = item.get('content') or item.get('description') or ""
+                        soup = BeautifulSoup(raw_html, 'html.parser')
+                        
+                        img_url = item.get('thumbnail')
+                        if not img_url:
+                            img_tag = soup.find('img')
+                            if img_tag and 'src' in img_tag.attrs:
+                                img_url = urllib.parse.urljoin(link, img_tag['src'])
+                        
+                        text = soup.get_text(separator=" ", strip=True)
+                        
+                        if deep_fetch:
+                            art_soup = get_soup(link)
+                            if art_soup:
+                                if not img_url:
+                                    og_img = art_soup.find('meta', property='og:image')
+                                    img_url = og_img['content'] if og_img else None
+                                if not author:
+                                    author_meta = art_soup.find('meta', attrs={'name': 'author'}) or art_soup.find('meta', property='og:article:author')
+                                    if author_meta: author = author_meta['content']
+                                paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
+                                clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
+                                if clean_p: text = " ".join(clean_p[:3])
+                                
+                        articles.append({
+                            "Source": source_name, "Title": title, "Link": link,
+                            "Published": pub_date, 
+                            "Summary": format_summary(text, author), "Image": img_url
+                        })
+                    return articles
+            except Exception as e: 
+                print(f"⚠️ {source_name} 代理連線也失敗: {e}")
+
+        if not content:
+            print(f"⚠️ {source_name}: 三重連線皆被伺服器拒絕或超時，跳過此來源。")
             return []
 
-        # 解析 XML (只解析我們記憶體中已下載好的 content 字串，耗時不到 0.1 秒)
+        # 正常解析 XML (從 strategy 1 或 2 取得的 content)
         parsed = feedparser.parse(content)
-
-        # 判斷是否成功解析出文章
         if not parsed.entries:
-            print(f"⚠️ {source_name}: 成功連線，但無法解析 RSS 內容或無最新文章。")
             return []
 
         def process_entry(entry):
@@ -93,7 +159,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
             raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
             soup = BeautifulSoup(raw_text, 'html.parser')
             
-            # 增強：精準捕捉 Substack 與各類 RSS 的預覽圖
             img_url = None
             img_tag = soup.find('img')
             if img_tag and 'src' in img_tag.attrs:
@@ -102,9 +167,9 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                 if 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
                     img_url = entry.media_thumbnail[0]['url']
                 elif 'links' in entry:
-                    for link in entry.links:
-                        if 'image' in link.get('type', '') and 'href' in link:
-                            img_url = link['href']
+                    for link_obj in entry.links:
+                        if 'image' in link_obj.get('type', '') and 'href' in link_obj:
+                            img_url = link_obj['href']
                             break
                             
             text = soup.get_text(separator=" ", strip=True)
