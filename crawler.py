@@ -509,7 +509,7 @@ def main():
     health_records = {} # 記錄每個來源的健康狀態
     futures_map = {}    # 用來對應 Future 與來源名稱，方便捕捉是誰失敗
     
-    # 🌟 完全保留您的 RSS 清單
+# 🌟 完全保留您的 RSS 清單，並在最下方加入新來源
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -521,12 +521,17 @@ def main():
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
         ("https://radii.co/feed", "Radii", 15, True),
-        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
-        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
+        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), 
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
-        ("https://tyingknots.net/feed/", "结绳志", 15, False)
+        ("https://tyingknots.net/feed/", "结绳志", 15, False),
+        
+        # 👇 新增的三個 RSS 來源 (參數為: 網址, 顯示名稱, 抓取篇數, 是否啟動深度爬取尋找圖片)
+        ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
+        ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
+        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
