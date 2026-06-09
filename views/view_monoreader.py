@@ -43,7 +43,7 @@ def render_page():
         selected_source = "全部來源總覽"
         if view_mode == "🗄️ 分類存檔":
             st.subheader("選擇訂閱來源")
-            FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
+            FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand", "FRIEZE"]
             main_options = []
             for src_key in sorted(core_utils.SOURCE_URLS.keys()):
                 if any(k in src_key for k in FOLDER_KEYWORDS):
@@ -197,6 +197,12 @@ def render_page():
                         img_html = f'<img src="{row["Image"]}" style="width:100%; max-width:800px; border-radius:8px; display:block; margin-bottom:15px; object-fit: cover;" loading="lazy">'
                         st.markdown(img_html, unsafe_allow_html=True)
                     st.write(row['Summary'])
+                    
+                    # 🌟 植入點：在此顯示個人心得筆記
+                    comment_text = str(row.get('comment', '')).strip()
+                    if comment_text and comment_text.lower() != 'nan':
+                        st.info(f"💡 **筆記：** {comment_text}")
+                        
                     st.markdown("---")
 
                 ui_components.render_pagination_ui(total_pages, current_page, "mono_page")
