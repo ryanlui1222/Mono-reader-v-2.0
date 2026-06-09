@@ -126,6 +126,9 @@ def apply_local_search(df, search_query):
 # ==========================================
 # 1. 全域分頁引擎 (Universal Pagination)
 # ==========================================
+# ==========================================
+# 1. 全域分頁引擎 (Universal Pagination)
+# ==========================================
 def paginate_data(data, per_page, session_key):
     total_items = len(data)
     if total_items == 0: return data, 0, 1
@@ -178,14 +181,16 @@ def render_pagination_ui(total_pages, current_page, session_key):
 # 2. 全域網格卡片渲染 (Universal Grid Card)
 # ==========================================
 def render_grid_card(row):
-    img_url = row.get('Image') or row.get('image') or row.get('poster_url')
+    # 動態容錯抓取欄位（兼容各模組的資料表設計）
+    img_url = row.get('Image') or row.get('image') or row.get('poster_url') or row.get('cover_image')
     title = row.get('Title') or row.get('title') or "未命名"
-    author = row.get('Author') or row.get('author') or row.get('year') or ""
-    link = row.get('Link') or row.get('link') or "#"
+    author = row.get('Author') or row.get('author') or row.get('year') or row.get('creator') or ""
+    link = row.get('Link') or row.get('link') or row.get('source_url') or "#"
 
     if not img_url or (not str(img_url).startswith("http") and not str(img_url).startswith("data:")):
         img_url = "https://via.placeholder.com/150x225/2b2b2b/FFFFFF?text=No+Cover"
 
+    # 🌟 原封不動保留您完美調校的 HTML/CSS 卡片架構
     html = f"""
     <div class="memoof-book" style="margin-bottom: 10px;">
         <a href="{link}" target="_blank" class="memoof-cover">
@@ -199,6 +204,16 @@ def render_grid_card(row):
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
+    
+    # 🌟 無縫接軌：在漂亮的 HTML 卡片正下方，加上原生的摺疊面板
+    # 動態抓取內容：學術文獻用 abstract，影音/文章用 summary 或 comment
+    desc_text = row.get('abstract') or row.get('summary') or row.get('comment')
+    desc_text = str(desc_text).strip() if pd.notna(desc_text) else ""
+    
+    # 檢查確實有內容才渲染
+    if desc_text and desc_text.lower() != 'nan' and desc_text != 'None':
+        with st.expander("📖 內容摘要"):
+            st.write(desc_text)
 
 # ==========================================
 # 3. 智慧管理按鈕 (對接終極 CRUD 引擎)
@@ -251,6 +266,14 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
         edit_summary = current_summary
         if table_name in ["academic_pubs", "media_vault"]:
             edit_summary = st.text_area("修改摘要/簡介:", value=current_summary, key=f"p_c_{k_id}", height=100)
+            
+        # 🌟 植入點：專屬 articles 的閱讀心得欄位
+        edit_comment = ""
+        if table_name == "articles":
+            # 將 nan 或 None 轉為空字串，避免畫面顯示 nan
+            old_comment = str(row.get('comment', ''))
+            if old_comment.lower() == 'nan': old_comment = ""
+            edit_comment = st.text_area("💡 閱讀心得/筆記:", value=old_comment, key=f"p_cmt_{k_id}", height=120)
         
         new_cat = None
         if context == "bookshelf":
@@ -260,7 +283,9 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
 
         if st.button("💾 儲存文字變更", key=f"p_save_{k_id}", use_container_width=True, type="primary"):
             kwargs = {}
-            if table_name == "articles": kwargs['Title'] = edit_title
+            if table_name == "articles": 
+                kwargs['Title'] = edit_title
+                kwargs['comment'] = edit_comment # 🌟 將心得送入全域引擎
             elif table_name == "media_vault": kwargs.update({'title': edit_title, 'summary': edit_summary})
             elif table_name == "academic_pubs": 
                 kwargs.update({'title': edit_title, 'abstract': edit_summary})
@@ -330,6 +355,8 @@ def render_batch_editor(df, table_name, key_prefix=""):
         display_cols, disabled_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked'], ['publisher_journal', 'author']
     elif table_name == "bibliography_notes":
         display_cols, disabled_cols = ['Select', 'title', 'author', 'importance', 'notes'], ['title', 'author']
+    elif table_name == "articles": # 🌟 加入 articles 的專屬欄位設定，包含 comment
+        display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'comment', 'is_bookmarked'], ['Link', 'Source']
     else:
         display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked'], ['Link', 'Source']
 
@@ -378,7 +405,8 @@ def render_batch_editor(df, table_name, key_prefix=""):
                         kwargs = {'title': str(row_edit['title'])}
                         if 'category' in row_edit and row_edit['category'] != row_orig['category']: kwargs['category'] = str(row_edit['category'])
                     elif table_name == "articles":
-                        kwargs = {'Title': str(row_edit['Title'])}
+                        # 🌟 把 comment 一起抓下來儲存
+                        kwargs = {'Title': str(row_edit['Title']), 'comment': str(row_edit.get('comment', ''))}
                     elif table_name == "bibliography_notes":
                         kwargs = {'importance': str(row_edit.get('importance', '待讀')), 'notes': str(row_edit.get('notes', ''))}
 
