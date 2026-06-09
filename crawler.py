@@ -156,9 +156,23 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
             raw_date = entry.get('published') or entry.get('pubDate') or entry.get('updated') or "最新"
             author = entry.get('author') or entry.get('author_detail', {}).get('name') or ""
             
-            raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
+            # 🌟 終極修復：無死角 RSS 內文萃取邏輯
+            raw_text = ""
+            # 優先級 1: 標準 content 陣列
+            if 'content' in entry and len(entry.content) > 0:
+                raw_text = entry.content[0].value
+            # 優先級 2: 特殊的 content_encoded 屬性 (MIT Press 專用)
+            elif 'content_encoded' in entry:
+                raw_text = entry.content_encoded
+            # 優先級 3: 摘要或描述標籤
+            elif 'summary' in entry:
+                raw_text = entry.summary
+            elif 'description' in entry:
+                raw_text = entry.description
+
             soup = BeautifulSoup(raw_text, 'html.parser')
             
+            # 增強：精準捕捉 Substack 與各類 RSS 的預覽圖
             img_url = None
             img_tag = soup.find('img')
             if img_tag and 'src' in img_tag.attrs:
@@ -172,9 +186,13 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                             img_url = link_obj['href']
                             break
                             
+            # 從 soup 中萃取純文字
             text = soup.get_text(separator=" ", strip=True)
             
-            if deep_fetch:
+            # 🌟 修復二：如果 RSS 給的摘要太短 (例如有些只給一句話)，我們就強制執行 deep_fetch 去抓原文！
+            needs_deep_fetch = deep_fetch or len(text) < 100
+            
+            if needs_deep_fetch:
                 art_soup = get_soup(entry.link)
                 if art_soup:
                     if not img_url:
@@ -188,6 +206,9 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
                     clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
                     if clean_p: text = " ".join(clean_p[:3])
+            
+            # 防呆：如果文字真的極短，仍保留一個基本說明
+            if len(text) < 20: text = "（請點擊標題閱讀原文）"
             
             return {
                 "Source": source_name, "Title": entry.title, "Link": entry.link,
