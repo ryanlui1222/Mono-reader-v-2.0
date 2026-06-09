@@ -28,7 +28,12 @@ SOURCE_URLS = {
     "The Comics Journal": "https://www.tcj.com/", "FNMNL": "https://fnmnl.tv/",
     "触乐": "https://www.chuapp.com/tag/index/id/20369.html",
     "MCLC Resource Center": "https://u.osu.edu/mclc/list/blog/",
-    "结绳志": "https://tyingknots.net/", "Pharmakon@Matters": "https://matters.town/@Pharmakon"
+    "结绳志": "https://tyingknots.net/", "Pharmakon@Matters": "https://matters.town/@Pharmakon",
+    
+    # 👇 新增的三個網站官方首頁
+    "波士頓書評": "https://bostonreviewofbooks.substack.com/",
+    "Caja Negra": "https://cajanegraeditora.com.ar/",
+    "Split Infinities": "https://splitinfinities.substack.com/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
