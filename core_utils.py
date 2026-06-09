@@ -29,11 +29,10 @@ SOURCE_URLS = {
     "触乐": "https://www.chuapp.com/tag/index/id/20369.html",
     "MCLC Resource Center": "https://u.osu.edu/mclc/list/blog/",
     "结绳志": "https://tyingknots.net/", "Pharmakon@Matters": "https://matters.town/@Pharmakon",
-    
-    # 👇 新增的三個網站官方首頁
     "波士頓書評": "https://bostonreviewofbooks.substack.com/",
     "Caja Negra": "https://cajanegraeditora.com.ar/",
-    "Split Infinities": "https://splitinfinities.substack.com/"
+    "Split Infinities": "https://splitinfinities.substack.com/",
+    "FRIEZE": "https://www.frieze.com/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
@@ -102,13 +101,16 @@ def toggle_bookmark(table_name, item_ids, to_state, id_column="id"):
         st.error(f"狀態更新失敗: {e}")
 
 # ==========================================
-# 📥 資料庫讀取區 (全面支援 SQL 全域搜尋與 query_to_df 瘦身)
+# 📥 資料庫讀取區 
 # ==========================================
 @st.cache_data(ttl=600)
 def fetch_data(view_mode, source_filter="全部來源總覽", search_query=""):
     sql, args = "SELECT * FROM articles WHERE 1=1", []
     if search_query:
-        sql += " AND (Title LIKE ? OR Summary LIKE ?)"; args.extend([f"%{search_query}%", f"%{search_query}%"])
+        # 🌟 微調點：加入 OR comment LIKE ?，讓全域搜尋也能搜到您寫的筆記！
+        sql += " AND (Title LIKE ? OR Summary LIKE ? OR comment LIKE ?)"
+        args.extend([f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"])
+        
         if view_mode == "🗄️ 分類存檔" and source_filter != "全部來源總覽": sql += " AND Source = ?"; args.append(source_filter)
         elif view_mode == "🔖 我的收藏庫": sql += " AND is_bookmarked = 1"
     else:
