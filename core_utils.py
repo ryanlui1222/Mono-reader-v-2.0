@@ -224,45 +224,61 @@ def get_secure_image_base64(img_url, source=""):
 
 def fetch_external_article(url):
     try:
-        # 🛡️ 策略 1: 偽裝成原生 Mac Safari (部分高等級防火牆對乾淨的 requests 較寬容)
+        # 🛡️ 第一層: 偽裝成原生 Mac Safari
         safari_headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.google.com/'
+            'Accept-Language': 'en-US,en;q=0.9'
         }
         res = requests.get(url, headers=safari_headers, timeout=15)
-        
-        # 🛡️ 檢查是否被 WAF 攔截 (403/503 或內文包含防護字眼)
         is_blocked = res.status_code in [403, 429, 503] or "Cloudflare" in res.text or "Vercel Security Checkpoint" in res.text
         
-        # 🛡️ 策略 2: 如果原生請求被擋，啟用 Cloudscraper 進行突破
+        # 🛡️ 第二層: 如果原生請求被擋，啟用 Cloudscraper 進行突破
         if is_blocked:
             res = get_scraper().get(url, timeout=15)
-            
+            is_blocked = res.status_code in [403, 429, 503] or "Cloudflare" in res.text or "Vercel Security Checkpoint" in res.text
+
+        # 🚀 第三層: 終極取巧備援 (Microlink API) - 專治 Aeon, Frieze 等極端防火牆
+        if is_blocked:
+            try:
+                api_url = f"https://api.microlink.io?url={urllib.parse.quote(url)}"
+                api_res = requests.get(api_url, timeout=15).json()
+                if api_res.get("status") == "success":
+                    data = api_res["data"]
+                    title = data.get("title") or "未知標題"
+                    summary = data.get("description") or "（無摘要）"
+                    # Microlink 的 image 欄位可能是一個字典
+                    img_url = data.get("image", {}).get("url") if isinstance(data.get("image"), dict) else None
+                    author = data.get("author") or ""
+                    
+                    final_summary = f"**👤 著者：** {author}\n\n{summary}" if author else summary
+                    if len(final_summary) > 400: final_summary = final_summary[:400] + "..."
+                    
+                    return {
+                        "Source": "🌐 外部手動匯入", "Title": title.strip(), "Link": url, 
+                        "Published": "手動收藏", "Summary": final_summary, "Image": img_url, 
+                        "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1
+                    }
+            except Exception as e:
+                print(f"Microlink 備援失敗: {e}")
+
+        # --- 如果第一或第二層成功，進行正常的 BeautifulSoup 解析 ---
         res.encoding = res.apparent_encoding
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # --- 擷取標題 ---
         og_title = soup.find('meta', property='og:title')
         title = og_title['content'] if og_title and og_title.get('content') else (soup.find('title').get_text() if soup.find('title') else '未知標題')
         
-        # 🚨 WAF 防呆機制：如果最終還是被擋，不要寫入垃圾資訊，改用友善備用格式
+        # 🚨 第四層防呆: 萬一還是抓到了防火牆的警告標題
         waf_keywords = ["Attention Required", "Security Checkpoint", "Cloudflare", "Just a moment"]
         if any(keyword in title for keyword in waf_keywords):
             domain = urllib.parse.urlparse(url).netloc
             return {
-                "Source": "🌐 外部手動匯入", 
-                "Title": f"🔒 受保護文章 ({domain})", 
-                "Link": url, 
-                "Published": "手動收藏", 
-                "Summary": "（⚠️ 目標網站啟動了極高等級的反爬蟲防火牆，無法自動擷取內文。請直接點擊資源卡片前往閱讀。）", 
-                "Image": None, 
-                "SortDate": datetime.utcnow().isoformat(), 
-                "is_bookmarked": 1
+                "Source": "🌐 外部手動匯入", "Title": f"🔒 受保護文章 ({domain})", "Link": url, 
+                "Published": "手動收藏", "Summary": "（⚠️ 網站防護極強，無法自動擷取內文。請點擊卡片直接前往閱讀。）", 
+                "Image": None, "SortDate": datetime.utcnow().isoformat(), "is_bookmarked": 1
             }
 
-        # --- 繼續原本正常的解析邏輯 ---
         og_img = soup.find('meta', property='og:image')
         img_url = og_img['content'] if og_img and og_img.get('content') else None
         
@@ -287,7 +303,7 @@ def fetch_external_article(url):
     except Exception as e:
         print(f"手動匯入外部文章失敗: {e}")
         return None
-
+        
 def fetch_book_by_url(url):
     if not url.startswith("http"): return None
     try:
@@ -574,35 +590,48 @@ def add_custom_resource(module_name, url):
     if not url.startswith("http"): return False, "⚠️ 請輸入完整的網址 (包含 http)"
     title = "未命名網站"
     try:
-        # 同步加上雙引擎防護
         safari_headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15'}
         res = requests.get(url, headers=safari_headers, timeout=15)
-        if res.status_code in [403, 429, 503] or "Cloudflare" in res.text or "Vercel" in res.text:
-            res = get_scraper().get(url, timeout=15)
-            
-        res.encoding = res.apparent_encoding
-        soup = BeautifulSoup(res.text, 'html.parser')
+        is_blocked = res.status_code in [403, 429, 503] or "Cloudflare" in res.text or "Vercel" in res.text
         
-        if soup.find('meta', property='og:title'): title = soup.find('meta', property='og:title').get('content')
-        elif soup.find('meta', attrs={'name': 'twitter:title'}): title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
-        elif soup.find('title'): title = soup.find('title').get_text()
+        if is_blocked:
+            res = get_scraper().get(url, timeout=15)
+            is_blocked = res.status_code in [403, 429, 503] or "Cloudflare" in res.text or "Vercel" in res.text
+            
+        # 🚀 第三層: 終極取巧備援 (Microlink API)
+        if is_blocked:
+            try:
+                api_url = f"https://api.microlink.io?url={urllib.parse.quote(url)}"
+                api_res = requests.get(api_url, timeout=15).json()
+                if api_res.get("status") == "success":
+                    title = api_res["data"].get("title") or "未命名網站"
+            except: pass
+        else:
+            # 正常解析
+            res.encoding = res.apparent_encoding
+            soup = BeautifulSoup(res.text, 'html.parser')
+            
+            if soup.find('meta', property='og:title'): title = soup.find('meta', property='og:title').get('content')
+            elif soup.find('meta', attrs={'name': 'twitter:title'}): title = soup.find('meta', attrs={'name': 'twitter:title'}).get('content')
+            elif soup.find('title'): title = soup.find('title').get_text()
         
         if title and title != "未命名網站": title = title.split('|')[0].split(' - ')[0].strip()
         else: title = "未命名網站"
         
-        # 🚨 WAF 防呆機制
+        # 🚨 最終防呆
         waf_keywords = ["Attention Required", "Security Checkpoint", "Cloudflare", "Just a moment"]
         if any(keyword in title for keyword in waf_keywords):
             domain = urllib.parse.urlparse(url).netloc
             title = f"🔒 受保護網站 ({domain})"
             
     except Exception: pass
+    
     try:
         db.execute("INSERT INTO custom_resources (module, title, url, added_date) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title=excluded.title", [module_name, title, url, datetime.utcnow().isoformat()])
         st.cache_data.clear()
         return True, f"✅ 已成功加入清單！"
     except Exception as e: return False, f"❌ 資料庫寫入錯誤: {e}"
-
+        
 def add_bibliography_reference(input_val, importance, notes):
     input_val = input_val.strip()
     data = fetch_doi_metadata(input_val) if input_val.startswith("10.") or "doi.org" in input_val else fetch_book_by_isbn(re.sub(r'[^0-9X]', '', input_val.upper()))
