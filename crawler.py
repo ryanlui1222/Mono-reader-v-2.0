@@ -596,7 +596,7 @@ def main():
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
-        ("https://tyingknots.net/feed/", "结绳志", 15, False)
+        ("https://tyingknots.net/feed/", "结绳志", 15, False),
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
