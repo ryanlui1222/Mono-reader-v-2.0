@@ -21,29 +21,26 @@ TIMEOUT = 15
 # ==========================================
 # 🛠️ 輔助函數 (Helpers)
 # ==========================================
-# ==========================================
-# 🛠️ 輔助函數 (Helpers)
-# ==========================================
 def get_soup(url, custom_headers=None):
     """通用的 HTML 獲取與解析器 (雙引擎切換備援)"""
     headers = custom_headers or HEADERS
     html_content = None
     
     try:
-        # 引擎 1：Cloudscraper 突破常規防護
-        res = scraper.get(url, headers=headers, timeout=TIMEOUT)
+        # 引擎 1：Cloudscraper 突破常規防護 (將超時縮短為 10 秒)
+        res = scraper.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
             html_content = res.text
     except: pass
     
     if not html_content:
         try:
-            # 引擎 2：如果被 Cloudscraper 特徵識別擋下，改用最乾淨的原生 requests 偽裝
-            fallback_headers = {
+            # 引擎 2：原生 requests 偽裝
+            fallback_headers = custom_headers or {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
             }
-            res2 = requests.get(url, headers=fallback_headers, timeout=TIMEOUT)
+            res2 = requests.get(url, headers=fallback_headers, timeout=10)
             if res2.status_code == 200:
                 html_content = res2.text
         except: pass
@@ -76,102 +73,17 @@ def get_db_client():
 def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     articles = []
     try:
-        content = None
+        response = scraper.get(feed_url, timeout=TIMEOUT)
+        parsed = feedparser.parse(response.content)
         
-        # 策略 1: 帶有完整 Browser Headers 的原生 requests (繞過結繩志 SSL 報錯)
-        custom_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-        }
-        try:
-            res = requests.get(feed_url, headers=custom_headers, timeout=10)
-            if res.status_code == 200 and len(res.content) > 100:
-                content = res.content
-        except: pass
-
-        # 策略 2: Cloudscraper (常規突破)
-        if not content:
-            try:
-                res = scraper.get(feed_url, timeout=10)
-                if res.status_code == 200 and len(res.content) > 100:
-                    content = res.content
-            except: pass
-
-        # 🌟 策略 3: rss2json API (終極代理備援，專治 Substack 的焦油坑防護)
-        if not content:
-            try:
-                proxy_url = f"https://api.rss2json.com/v1/api.json?rss_url={urllib.parse.quote(feed_url)}"
-                res_proxy = requests.get(proxy_url, timeout=15).json()
-                if res_proxy.get('status') == 'ok':
-                    print(f"🔄 {source_name}: 啟動 API 代理備援連線成功！")
-                    for item in res_proxy.get('items', [])[:limit]:
-                        title = item.get('title', '')
-                        link = item.get('link', '')
-                        pub_date = item.get('pubDate', '最新')
-                        author = item.get('author', '')
-                        
-                        raw_html = item.get('content') or item.get('description') or ""
-                        soup = BeautifulSoup(raw_html, 'html.parser')
-                        
-                        img_url = item.get('thumbnail')
-                        if not img_url:
-                            img_tag = soup.find('img')
-                            if img_tag and 'src' in img_tag.attrs:
-                                img_url = urllib.parse.urljoin(link, img_tag['src'])
-                        
-                        text = soup.get_text(separator=" ", strip=True)
-                        
-                        if deep_fetch:
-                            art_soup = get_soup(link)
-                            if art_soup:
-                                if not img_url:
-                                    og_img = art_soup.find('meta', property='og:image')
-                                    img_url = og_img['content'] if og_img else None
-                                if not author:
-                                    author_meta = art_soup.find('meta', attrs={'name': 'author'}) or art_soup.find('meta', property='og:article:author')
-                                    if author_meta: author = author_meta['content']
-                                paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
-                                clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
-                                if clean_p: text = " ".join(clean_p[:3])
-                                
-                        articles.append({
-                            "Source": source_name, "Title": title, "Link": link,
-                            "Published": pub_date, 
-                            "Summary": format_summary(text, author), "Image": img_url
-                        })
-                    return articles
-            except Exception as e: 
-                print(f"⚠️ {source_name} 代理連線也失敗: {e}")
-
-        if not content:
-            print(f"⚠️ {source_name}: 三重連線皆被伺服器拒絕或超時，跳過此來源。")
-            return []
-
-        # 正常解析 XML (從 strategy 1 或 2 取得的 content)
-        parsed = feedparser.parse(content)
-        if not parsed.entries:
-            return []
-
         def process_entry(entry):
             raw_date = entry.get('published') or entry.get('pubDate') or entry.get('updated') or "最新"
             author = entry.get('author') or entry.get('author_detail', {}).get('name') or ""
             
             raw_text = entry.content[0].value if 'content' in entry else entry.get('summary', '')
             soup = BeautifulSoup(raw_text, 'html.parser')
-            
-            img_url = None
             img_tag = soup.find('img')
-            if img_tag and 'src' in img_tag.attrs:
-                img_url = urllib.parse.urljoin(entry.link, img_tag['src'])
-            else:
-                if 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
-                    img_url = entry.media_thumbnail[0]['url']
-                elif 'links' in entry:
-                    for link_obj in entry.links:
-                        if 'image' in link_obj.get('type', '') and 'href' in link_obj:
-                            img_url = link_obj['href']
-                            break
-                            
+            img_url = urllib.parse.urljoin(entry.link, img_tag['src']) if img_tag and 'src' in img_tag.attrs else None
             text = soup.get_text(separator=" ", strip=True)
             
             if deep_fetch:
@@ -184,7 +96,7 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     if not author:
                         author_meta = art_soup.find('meta', attrs={'name': 'author'}) or art_soup.find('meta', property='og:article:author')
                         if author_meta: author = author_meta['content']
-                    
+                        
                     paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 60]
                     clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
                     if clean_p: text = " ".join(clean_p[:3])
@@ -197,12 +109,9 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             articles = [res for res in ex.map(process_entry, parsed.entries[:limit]) if res]
-            
-    except Exception as e: 
-        print(f"❌ {source_name} 錯誤: {e}")
-        
+    except Exception as e: print(f"{source_name} 錯誤: {e}")
     return articles
-    
+
 def fetch_thepoint():
     articles = []
     try:
@@ -287,14 +196,18 @@ def fetch_bijutsutecho():
     except Exception as e: print(f"美術手帖 錯誤: {e}"); return []
 
 def fetch_thepaper():
+    articles = []
     try:
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
-        res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
+        # 🌟 修復：改用 requests 原生引擎 (因為澎湃要的不是 html 解析，而是字串萃取，但一樣需要套用 iphone 偽裝)
+        res = requests.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=10)
         match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
         if not match: return []
         items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
         return [{"Source": "澎湃思想市場", "Title": item.get('name', ''), "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}", "Published": item.get('pubTimeNew', '最新'), "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）", "Image": item.get('pic', '')} for item in items[:15] if item.get('name') and item.get('contId')]
-    except Exception as e: print(f"澎湃 錯誤: {e}"); return []
+    except Exception as e: 
+        print(f"澎湃 錯誤: {e}")
+        return []
 
 def fetch_webgenron():
     try:
@@ -344,18 +257,6 @@ def fetch_funambulist():
             return [res for res in ex.map(process_link, valid_links) if res]
     except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
 
-def fetch_mit_reader():
-    try:
-        data = requests.get("https://api.rss2json.com/v1/api.json?rss_url=https://thereader.mitpress.mit.edu/feed/", timeout=TIMEOUT).json()
-        if data.get('status') != 'ok': return []
-        articles = []
-        for item in data.get('items', [])[:15]:
-            soup = BeautifulSoup(item.get('description', ''), 'html.parser')
-            img_tag = soup.find('img')
-            articles.append({"Source": "MIT Press Reader", "Title": item.get('title', ''), "Link": item.get('link', ''), "Published": item.get('pubDate', '最新'), "Summary": format_summary(soup.get_text(" ", strip=True), item.get('author', '')), "Image": item.get('thumbnail') or (img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)})
-        return articles
-    except Exception as e: print(f"MIT Press 錯誤: {e}"); return []
-
 def fetch_verse():
     articles = []
     try:
@@ -401,6 +302,7 @@ def fetch_jiemian():
     articles = []
     try:
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        # 🌟 修復：改用我們寫好的 get_soup 雙引擎
         soup = get_soup("https://m.jiemian.com/lists/130_1.html", custom_headers=iphone_headers)
         if not soup: return articles
         items = soup.find_all('div', class_='news-view')
@@ -607,76 +509,6 @@ def fetch_chuapp():
         
     return articles
 
-# 🌟 新增：FRIEZE 雜誌期號動態探測爬蟲
-def fetch_frieze():
-    articles = []
-    try:
-        # 第一階段：造訪首頁，探知最新期號
-        home_soup = get_soup("https://www.frieze.com/")
-        if not home_soup: return articles
-        
-        # 尋找包含 'issue-數字' 的連結
-        issue_link_tag = home_soup.find('a', href=re.compile(r'issue-\d+'))
-        if not issue_link_tag: return articles
-        
-        issue_path = issue_link_tag['href']
-        issue_url = urllib.parse.urljoin("https://www.frieze.com", issue_path)
-        
-        # 提取期號數字
-        match = re.search(r'issue-(\d+)', issue_path)
-        issue_num = match.group(1) if match else "最新"
-        source_name = f"FRIEZE (Issue {issue_num})"
-        
-        # 第二階段：造訪最新期號專頁，爬取文章
-        issue_soup = get_soup(issue_url)
-        if not issue_soup: return articles
-        
-        seen = set()
-        # 根據原始碼，文章卡片在 teaser-content 類別中
-        cards = issue_soup.find_all('div', class_=re.compile(r'teaser-content'))
-        for card in cards:
-            title_tag = card.find('div', class_='teaser-title')
-            if not title_tag or not title_tag.find('a'): continue
-            
-            a_tag = title_tag.find('a')
-            title = a_tag.get_text(strip=True)
-            link = urllib.parse.urljoin("https://www.frieze.com", a_tag['href'])
-            
-            if link in seen: continue
-            seen.add(link)
-            
-            deck_tag = card.find('div', class_='teaser-deck')
-            summary = deck_tag.get_text(" ", strip=True) if deck_tag else "（請點擊標題閱讀原文）"
-            
-            author_tag = card.find('div', class_='teaser-author')
-            author = ""
-            published = "最新"
-            if author_tag:
-                author_links = author_tag.find_all('a')
-                author = "、".join([a.get_text(strip=True) for a in author_links if "frieze" not in a.get_text(strip=True).lower()])
-                if not author: author = "Frieze"
-                
-                time_tag = author_tag.find('time')
-                if time_tag and time_tag.has_attr('datetime'):
-                    published = time_tag['datetime']
-            
-            img_tag = card.find('img')
-            img_url = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
-            
-            articles.append({
-                "Source": source_name,
-                "Title": title,
-                "Link": link,
-                "Published": published,
-                "Summary": format_summary(summary, author),
-                "Image": img_url
-            })
-            if len(articles) >= 15: break
-            
-    except Exception as e:
-        print(f"FRIEZE 錯誤: {e}")
-    return articles
-
 # ==========================================
 # 主程式排程
 # ==========================================
@@ -684,11 +516,10 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
-    # 🌟 新增的監控變數
-    health_records = {} # 記錄每個來源的健康狀態
-    futures_map = {}    # 用來對應 Future 與來源名稱，方便捕捉是誰失敗
+    health_records = {} 
+    futures_map = {}    
     
-    # 🌟 完全保留您的 RSS 清單
+    # 🌟 1. 將 MIT Press Reader 加入正規 RSS 清單中！
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -700,15 +531,18 @@ def main():
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
         ("https://radii.co/feed", "Radii", 15, True),
-        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
-        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
+        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), 
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),                
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
         ("https://tyingknots.net/feed/", "结绳志", 15, False),
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
-        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
+        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
+        
+        # 👇 移籍過來的 MIT Press Reader (不需要 deep_fetch)
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -716,14 +550,14 @@ def main():
             future = executor.submit(fetch_rss, url, name, limit, deep)
             futures_map[future] = name
         
-        # 🌟 將 fetch_frieze 加入客製化爬蟲陣列
+        # 🌟 2. 將 fetch_mit_reader 從這裡移除
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
-            fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
+            fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp, fetch_frieze # <== 加入這裡
-        ]        
+            fetch_tripleampersand, fetch_chuapp, fetch_frieze
+        ]
         
         # 2. 提交客製化爬蟲任務並記錄名稱
         for func in custom_scrapers:
