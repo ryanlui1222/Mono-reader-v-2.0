@@ -43,7 +43,7 @@ def render_page():
         selected_source = "全部來源總覽"
         if view_mode == "🗄️ 分類存檔":
             st.subheader("選擇訂閱來源")
-            FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand"]
+            FOLDER_KEYWORDS = ["The Point", "e-flux", "The Funambulist", "421 News", "TripleAmpersand", "FRIEZE"]
             main_options = []
             for src_key in sorted(core_utils.SOURCE_URLS.keys()):
                 if any(k in src_key for k in FOLDER_KEYWORDS):
