@@ -498,6 +498,76 @@ def fetch_chuapp():
         
     return articles
 
+# 🌟 新增：FRIEZE 雜誌期號動態探測爬蟲
+def fetch_frieze():
+    articles = []
+    try:
+        # 第一階段：造訪首頁，探知最新期號
+        home_soup = get_soup("https://www.frieze.com/")
+        if not home_soup: return articles
+        
+        # 尋找包含 'issue-數字' 的連結
+        issue_link_tag = home_soup.find('a', href=re.compile(r'issue-\d+'))
+        if not issue_link_tag: return articles
+        
+        issue_path = issue_link_tag['href']
+        issue_url = urllib.parse.urljoin("https://www.frieze.com", issue_path)
+        
+        # 提取期號數字
+        match = re.search(r'issue-(\d+)', issue_path)
+        issue_num = match.group(1) if match else "最新"
+        source_name = f"FRIEZE (Issue {issue_num})"
+        
+        # 第二階段：造訪最新期號專頁，爬取文章
+        issue_soup = get_soup(issue_url)
+        if not issue_soup: return articles
+        
+        seen = set()
+        # 根據原始碼，文章卡片在 teaser-content 類別中
+        cards = issue_soup.find_all('div', class_=re.compile(r'teaser-content'))
+        for card in cards:
+            title_tag = card.find('div', class_='teaser-title')
+            if not title_tag or not title_tag.find('a'): continue
+            
+            a_tag = title_tag.find('a')
+            title = a_tag.get_text(strip=True)
+            link = urllib.parse.urljoin("https://www.frieze.com", a_tag['href'])
+            
+            if link in seen: continue
+            seen.add(link)
+            
+            deck_tag = card.find('div', class_='teaser-deck')
+            summary = deck_tag.get_text(" ", strip=True) if deck_tag else "（請點擊標題閱讀原文）"
+            
+            author_tag = card.find('div', class_='teaser-author')
+            author = ""
+            published = "最新"
+            if author_tag:
+                author_links = author_tag.find_all('a')
+                author = "、".join([a.get_text(strip=True) for a in author_links if "frieze" not in a.get_text(strip=True).lower()])
+                if not author: author = "Frieze"
+                
+                time_tag = author_tag.find('time')
+                if time_tag and time_tag.has_attr('datetime'):
+                    published = time_tag['datetime']
+            
+            img_tag = card.find('img')
+            img_url = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
+            
+            articles.append({
+                "Source": source_name,
+                "Title": title,
+                "Link": link,
+                "Published": published,
+                "Summary": format_summary(summary, author),
+                "Image": img_url
+            })
+            if len(articles) >= 15: break
+            
+    except Exception as e:
+        print(f"FRIEZE 錯誤: {e}")
+    return articles
+
 # ==========================================
 # 主程式排程
 # ==========================================
@@ -527,22 +597,24 @@ def main():
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
         ("https://tyingknots.net/feed/", "结绳志", 15, False)
+        ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
+        ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
+        ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        # 1. 提交 RSS 任務並記錄名稱
         for url, name, limit, deep in rss_sources:
             future = executor.submit(fetch_rss, url, name, limit, deep)
             futures_map[future] = name
         
-        # 🌟 完全保留您的客製化爬蟲清單
+        # 🌟 將 fetch_frieze 加入客製化爬蟲陣列
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_mit_reader, fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp
-        ]
+            fetch_tripleampersand, fetch_chuapp, fetch_frieze # <== 加入這裡
+        ]        
         
         # 2. 提交客製化爬蟲任務並記錄名稱
         for func in custom_scrapers:
