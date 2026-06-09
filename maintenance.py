@@ -20,7 +20,7 @@ def clean_up_old_articles():
         # ==========================================
         PROTECTED_SOURCES = [
             "The Point", "e-flux", "The Funambulist", "TripleAmpersand", 
-            "421 News", "Verso Blog", "MIT Press Reader", "Pharmakon@Matters"
+            "421 News", "Verso Blog", "MIT Press Reader", "Pharmakon@Matters", "Caja Negra", "结绳志"
         ]
         
         # 計算 30 天前的時間門檻
