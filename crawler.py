@@ -620,29 +620,35 @@ def fetch_chuapp():
 def fetch_frieze():
     articles = []
     try:
-        # 第一階段：造訪首頁，探知最新期號
-        home_soup = get_soup("https://www.frieze.com/")
-        if not home_soup: return articles
+        # 🌟 第一階段：造訪目錄，精準探知最新期號
+        magazine_index_url = "https://www.frieze.com/magazines/frieze-magazine"
+        index_soup = get_soup(magazine_index_url)
+        if not index_soup: return articles
         
-        # 尋找包含 'issue-數字' 的連結
-        issue_link_tag = home_soup.find('a', href=re.compile(r'issue-\d+'))
-        if not issue_link_tag: return articles
+        issue_link_tag = index_soup.find('a', href=re.compile(r'/magazines/frieze-magazine/issue-\d+'))
+        
+        # 🚨 防呆：明確報告是否被 Cloudflare 擋下
+        if not issue_link_tag:
+            if "Cloudflare" in index_soup.text or "Just a moment" in index_soup.text or "Attention Required" in index_soup.text:
+                print("⚠️ FRIEZE: 遭受 Cloudflare 防火牆攔截，無法取得最新期號。")
+            else:
+                print("⚠️ FRIEZE: 頁面結構可能已改變，找不到最新期號連結。")
+            return articles
         
         issue_path = issue_link_tag['href']
         issue_url = urllib.parse.urljoin("https://www.frieze.com", issue_path)
         
-        # 提取期號數字
         match = re.search(r'issue-(\d+)', issue_path)
         issue_num = match.group(1) if match else "最新"
         source_name = f"FRIEZE (Issue {issue_num})"
         
-        # 第二階段：造訪最新期號專頁，爬取文章
+        # 🌟 第二階段：造訪該期專頁，抓取「所有」文章
         issue_soup = get_soup(issue_url)
         if not issue_soup: return articles
         
         seen = set()
-        # 根據原始碼，文章卡片在 teaser-content 類別中
         cards = issue_soup.find_all('div', class_=re.compile(r'teaser-content'))
+        
         for card in cards:
             title_tag = card.find('div', class_='teaser-title')
             if not title_tag or not title_tag.find('a'): continue
@@ -660,6 +666,7 @@ def fetch_frieze():
             author_tag = card.find('div', class_='teaser-author')
             author = ""
             published = "最新"
+            
             if author_tag:
                 author_links = author_tag.find_all('a')
                 author = "、".join([a.get_text(strip=True) for a in author_links if "frieze" not in a.get_text(strip=True).lower()])
@@ -680,12 +687,14 @@ def fetch_frieze():
                 "Summary": format_summary(summary, author),
                 "Image": img_url
             })
-            if len(articles) >= 15: break
+            
+            # 💡 已經徹底移除了 if len(articles) >= 15: break 的限制
+            # 爬蟲會自動處理完 BeautifulSoup 找到的所有卡片才結束迴圈
             
     except Exception as e:
         print(f"FRIEZE 錯誤: {e}")
+        
     return articles
-
 # ==========================================
 # 主程式排程
 # ==========================================
