@@ -313,20 +313,67 @@ def fetch_book_by_url(url):
     return None
 
 def fetch_google_fallback(isbn):
+    """Google Books API 終極兜底引擎"""
     try:
-        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}", timeout=5).json()
-        if "items" in res and len(res["items"]) > 0:
-            info = res["items"][0].get("volumeInfo", {})
-            img = info.get("imageLinks", {}).get("thumbnail", "").replace("http://", "https://")
+        # 🛡️ 安全讀取 API Key。請確保您已在 Streamlit Secrets 中設定了 GOOGLE_BOOKS_API_KEY
+        api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
+        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+        if api_key:
+            url += f"&key={api_key}"
+            
+        res = requests.get(url, timeout=10)
+        
+        if res.status_code == 429:
+            print("❌ Google Books API 請求過於頻繁 (429)。")
+            return None
+        elif res.status_code != 200:
+            print(f"❌ Google Books API 伺服器錯誤: {res.status_code}")
+            return None
+            
+        data = res.json()
+        if "items" in data and len(data["items"]) > 0:
+            info = data["items"][0].get("volumeInfo", {})
+            
+            # 獲取最高解析度的圖片
+            img_links = info.get("imageLinks", {})
+            img_url = img_links.get("thumbnail", "") or img_links.get("smallThumbnail", "")
+            img_url = img_url.replace("http://", "https://")
+            
+            # 必須使用我們新版的圖片壓縮函數
+            final_image = get_secure_image_base64(img_url, "google") if img_url else ""
+            
             return {
-                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", [])),
-                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "type": "Book", 
+                "title": info.get("title", "未命名書籍"), 
+                "author": ", ".join(info.get("authors", [])),
+                "publisher_journal": info.get("publisher", "手動加入"), 
+                "issue_volume": "", 
+                "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
-                "image": get_secure_image_base64(img, "google"), "is_bookmarked": 0
+                "abstract": info.get("description", "（無摘要）")[:600], 
+                "link": info.get("infoLink", ""),
+                "image": final_image, 
+                "is_bookmarked": 0
+            }
+    except Exception as e:
+        print(f"Google Books API 解析失敗: {e}")
+    return None
+
+def fetch_openbd(isbn):
+    try:
+        res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10).json()
+        if res and res[0]:
+            info = res[0].get("summary", {})
+            img_url = get_secure_image_base64(info.get("cover", ""), "openbd") if info.get("cover") else get_secure_image_base64(f"https://www.hanmoto.com/bd/img/{isbn}.jpg", "hanmoto")
+            return {
+                "type": "Book", "title": info.get("title", "未命名"), "author": info.get("author", "未知"),
+                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")), "abstract": "（日文出版品）",
+                "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "is_bookmarked": 0
             }
     except: pass
-    return None
+    # 🌟 如果 OpenBD 失敗，交由 Google 兜底
+    return fetch_google_fallback(isbn)
 
 def fetch_crossref_isbn(isbn):
     try:
@@ -383,30 +430,37 @@ def fetch_douban(isbn):
                 "abstract": abstract[:600], "link": url, "image": img_url, "is_bookmarked": 0
             }
     except: pass
+    # 🌟 如果 Douban 失敗 (例如被擋)，交由 Google 兜底
     return fetch_google_fallback(isbn)
 
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: return None
+    
+    # 1. 根據開頭智能分流 (日文/中文優先)
     if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): return fetch_openbd(clean_isbn)
     elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): return fetch_douban(clean_isbn)
     
+    # 2. 獲取 Syndetics 高清書影備用
     best_cover = ""
     try:
         syn_res = requests.get(f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test", timeout=5)
         if syn_res.status_code == 200 and len(syn_res.content) > 100: best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
     except: pass
 
+    # 3. 🌟 主力英文兜底：直接呼叫 Google Books
     res = fetch_google_fallback(clean_isbn)
     if res:
-        if best_cover: res["image"] = best_cover
+        if best_cover and not res.get("image"): res["image"] = best_cover
         return res
         
+    # 4. 如果連 Google 都沒有，才退到 Crossref (通常只有標題沒有封面)
     res_crossref = fetch_crossref_isbn(clean_isbn)
     if res_crossref:
         if best_cover: res_crossref["image"] = best_cover
         return res_crossref
         
+    # 5. 最後的最後：Open Library
     try:
         ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
