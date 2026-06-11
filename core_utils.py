@@ -32,7 +32,7 @@ SOURCE_URLS = {
     "波士頓書評": "https://bostonreviewofbooks.substack.com/",
     "Caja Negra": "https://cajanegraeditora.com.ar/",
     "Split Infinities": "https://splitinfinities.substack.com/",
-    "FRIEZE": "https://www.frieze.com/"
+    "LARB": "https://lareviewofbooks.org/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
 
