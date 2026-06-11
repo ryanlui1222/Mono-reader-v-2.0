@@ -336,34 +336,80 @@ def fetch_webgenron():
     except Exception as e: print(f"webゲンロン 錯誤: {e}"); return []
 
 def fetch_funambulist():
+    articles = []
     try:
-        soup = get_soup("https://thefunambulist.net/magazine/issues")
-        invalid = ['geo-index', 'stockists', 'subscribe', 'shop', 'podcast', 'editorials', 'network']
-        latest_url = next((href if href.startswith('http') else f"https://thefunambulist.net{href}" for a in soup.find_all('a', href=True) if '/magazine/' in (href := a['href']) and not any(b in href for b in invalid) and not href.rstrip('/').endswith(('magazine', 'issues'))), None) if soup else None
-        if not latest_url: return []
-        issue_soup = get_soup(latest_url)
-        issue_title = issue_soup.find('h1').get_text(strip=True) if issue_soup and issue_soup.find('h1') else "最新刊"
+        # 1. 進入目錄總覽頁，直接鎖定「最新一期」的第一張卡片
+        index_url = "https://thefunambulist.net/magazine/issues"
+        index_soup = get_soup(index_url)
+        if not index_soup: return articles
+        
+        latest_card = index_soup.find('article', class_='item issue')
+        if not latest_card: return articles
+        
+        a_tag = latest_card.find('a')
+        if not a_tag: return articles
+        
+        issue_href = a_tag.get('href', '')
+        latest_issue_url = issue_href if issue_href.startswith('http') else urllib.parse.urljoin("https://thefunambulist.net", issue_href)
+        
+        # 2. 從卡片右上角精準擷取最新一期的期號數字 (例如: 65)
+        num_div = latest_card.find('div', class_=re.compile(r'absolute top-0 right-0'))
+        issue_num = num_div.get_text(strip=True) if num_div else ""
+        
+        # 3. 從卡片下方擷取最新一期的專題名稱 (例如: Fifty Years After Soweto)
+        title_tag = latest_card.find('h2', class_='entry-title')
+        issue_title = title_tag.get_text(strip=True) if title_tag else "最新刊"
+        
+        # 4. 🌟 精準拼接成與歷史回溯腳本完全一致的 UI 子資料夾歸檔目錄格式
+        if issue_num:
+            source_name = f"The Funambulist (Issue {issue_num}) ({issue_title})"
+        else:
+            source_name = f"The Funambulist ({issue_title})"
+            
+        print(f"📖 The Funambulist 發現最新一期: {source_name}")
+        
+        # 5. 造訪最新一期專頁，爬取當期所有文章
+        issue_soup = get_soup(latest_issue_url)
+        if not issue_soup: return articles
+        
         valid_links, seen = [], set()
         is_in_target_section = False 
+        
         for element in issue_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'a']):
             if element.name.startswith('h'):
                 header_text = element.get_text(strip=True).upper()
-                if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text: is_in_target_section = True
-                elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]): is_in_target_section = False
+                if "FEATURED IN THIS ISSUE" in header_text or "NEWS FROM THE FRONT" in header_text: 
+                    is_in_target_section = True
+                elif any(stop_word in header_text for stop_word in ["CONTRIBUTORS", "ISSUE PREVIEW", "SHARE THIS", "PODCAST"]): 
+                    is_in_target_section = False
             elif element.name == 'a' and is_in_target_section:
                 href = element.get('href', '')
                 title = element.get_text(strip=True)
                 if href.startswith('https://thefunambulist.net/') and len(title) > 8:
                     if title.lower() != "the funambulist" and title not in seen:
-                        valid_links.append((title, href)); seen.add(title)
+                        valid_links.append((title, href))
+                        seen.add(title)
+                        
         def process_link(data):
             title, href = data
             art_soup = get_soup(href)
             paragraphs = [p.get_text(strip=True) for p in art_soup.find_all('p') if len(p.get_text(strip=True)) > 80] if art_soup else []
-            return {"Source": f"The Funambulist ({issue_title})", "Title": title, "Link": href, "Published": issue_title, "Summary": format_summary(" ".join(paragraphs)), "Image": None}
+            return {
+                "Source": source_name, 
+                "Title": title, 
+                "Link": href, 
+                "Published": issue_title, 
+                "Summary": format_summary(" ".join(paragraphs)), 
+                "Image": None
+            }
+            
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            return [res for res in ex.map(process_link, valid_links) if res]
-    except Exception as e: print(f"Funambulist 錯誤: {e}"); return []
+            articles = [res for res in ex.map(process_link, valid_links) if res]
+            
+    except Exception as e: 
+        print(f"❌ The Funambulist 每日爬取錯誤: {e}")
+        
+    return articles
 
 def fetch_verse():
     articles = []
