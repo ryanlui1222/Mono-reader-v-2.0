@@ -9,6 +9,8 @@ import base64
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import urllib.parse
+from PIL import Image
+import io
 
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/", "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -212,14 +214,39 @@ def fetch_omni_items(category=None, search_query=""):
 # 🌐 網路請求與爬蟲模組 (全面採用 get_scraper)
 # ==========================================
 def get_secure_image_base64(img_url, source=""):
+    """獲取圖片並進行智慧壓縮與降級，大幅減少 Turso 資料庫容量消耗"""
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         if source == "douban": headers["Referer"] = "https://book.douban.com/"
         res = get_scraper().get(img_url, headers=headers, timeout=10)
+        
         if res.status_code == 200 and len(res.content) > 500:
-            return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
+            # 🌟 圖片瘦身手術 (Pillow 壓縮機制)
+            try:
+                # 讀取下載好的二進位圖片
+                img = Image.open(io.BytesIO(res.content))
+                
+                # 轉換為 RGB 模式 (避免 PNG 透明背景轉 JPEG 時變黑或報錯)
+                if img.mode in ("RGBA", "P"): 
+                    img = img.convert("RGB")
+                
+                # 強制等比例縮小：最大寬度/高度 300px (對於書籤與卡片來說非常足夠且不影響觀感)
+                img.thumbnail((300, 450))
+                
+                # 將壓縮後的圖片存入記憶體緩衝區 (格式為 JPEG，畫質 75，啟用優化)
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=75, optimize=True)
+                compressed_content = buffer.getvalue()
+                
+                return f"data:image/jpeg;base64,{base64.b64encode(compressed_content).decode('utf-8')}"
+                
+            except Exception as e:
+                # 如果 Pillow 壓縮失敗 (可能不是圖片格式)，退回原始轉換機制
+                print(f"圖片壓縮失敗，退回原圖轉碼: {e}")
+                return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
+                
     except: pass
     return img_url
 
@@ -286,20 +313,67 @@ def fetch_book_by_url(url):
     return None
 
 def fetch_google_fallback(isbn):
+    """Google Books API 終極兜底引擎"""
     try:
-        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}", timeout=5).json()
-        if "items" in res and len(res["items"]) > 0:
-            info = res["items"][0].get("volumeInfo", {})
-            img = info.get("imageLinks", {}).get("thumbnail", "").replace("http://", "https://")
+        # 🛡️ 安全讀取 API Key。請確保您已在 Streamlit Secrets 中設定了 GOOGLE_BOOKS_API_KEY
+        api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
+        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+        if api_key:
+            url += f"&key={api_key}"
+            
+        res = requests.get(url, timeout=10)
+        
+        if res.status_code == 429:
+            print("❌ Google Books API 請求過於頻繁 (429)。")
+            return None
+        elif res.status_code != 200:
+            print(f"❌ Google Books API 伺服器錯誤: {res.status_code}")
+            return None
+            
+        data = res.json()
+        if "items" in data and len(data["items"]) > 0:
+            info = data["items"][0].get("volumeInfo", {})
+            
+            # 獲取最高解析度的圖片
+            img_links = info.get("imageLinks", {})
+            img_url = img_links.get("thumbnail", "") or img_links.get("smallThumbnail", "")
+            img_url = img_url.replace("http://", "https://")
+            
+            # 必須使用我們新版的圖片壓縮函數
+            final_image = get_secure_image_base64(img_url, "google") if img_url else ""
+            
             return {
-                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", [])),
-                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "type": "Book", 
+                "title": info.get("title", "未命名書籍"), 
+                "author": ", ".join(info.get("authors", [])),
+                "publisher_journal": info.get("publisher", "手動加入"), 
+                "issue_volume": "", 
+                "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
-                "image": get_secure_image_base64(img, "google"), "is_bookmarked": 0
+                "abstract": info.get("description", "（無摘要）")[:600], 
+                "link": info.get("infoLink", ""),
+                "image": final_image, 
+                "is_bookmarked": 0
+            }
+    except Exception as e:
+        print(f"Google Books API 解析失敗: {e}")
+    return None
+
+def fetch_openbd(isbn):
+    try:
+        res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10).json()
+        if res and res[0]:
+            info = res[0].get("summary", {})
+            img_url = get_secure_image_base64(info.get("cover", ""), "openbd") if info.get("cover") else get_secure_image_base64(f"https://www.hanmoto.com/bd/img/{isbn}.jpg", "hanmoto")
+            return {
+                "type": "Book", "title": info.get("title", "未命名"), "author": info.get("author", "未知"),
+                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")), "abstract": "（日文出版品）",
+                "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "is_bookmarked": 0
             }
     except: pass
-    return None
+    # 🌟 如果 OpenBD 失敗，交由 Google 兜底
+    return fetch_google_fallback(isbn)
 
 def fetch_crossref_isbn(isbn):
     try:
@@ -356,30 +430,37 @@ def fetch_douban(isbn):
                 "abstract": abstract[:600], "link": url, "image": img_url, "is_bookmarked": 0
             }
     except: pass
+    # 🌟 如果 Douban 失敗 (例如被擋)，交由 Google 兜底
     return fetch_google_fallback(isbn)
 
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: return None
+    
+    # 1. 根據開頭智能分流 (日文/中文優先)
     if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): return fetch_openbd(clean_isbn)
     elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): return fetch_douban(clean_isbn)
     
+    # 2. 獲取 Syndetics 高清書影備用
     best_cover = ""
     try:
         syn_res = requests.get(f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test", timeout=5)
         if syn_res.status_code == 200 and len(syn_res.content) > 100: best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
     except: pass
 
+    # 3. 🌟 主力英文兜底：直接呼叫 Google Books
     res = fetch_google_fallback(clean_isbn)
     if res:
-        if best_cover: res["image"] = best_cover
+        if best_cover and not res.get("image"): res["image"] = best_cover
         return res
         
+    # 4. 如果連 Google 都沒有，才退到 Crossref (通常只有標題沒有封面)
     res_crossref = fetch_crossref_isbn(clean_isbn)
     if res_crossref:
         if best_cover: res_crossref["image"] = best_cover
         return res_crossref
         
+    # 5. 最後的最後：Open Library
     try:
         ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
@@ -426,31 +507,78 @@ def fetch_movie_data(url):
     tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
     if tmdb_key:
         try:
+            # 🌟 第一次請求：優先索取繁體中文資料
             tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
             res = requests.get(tmdb_url, timeout=10).json()
+
+            data = None
+            media_type_label = "🎬 電影"
+            is_tv = False
+
+            # 🌟 雙軌偵測：支援日本動畫與歐美影集
             if res.get('movie_results'):
                 data = res['movie_results'][0]
+            elif res.get('tv_results'):
+                data = res['tv_results'][0]
+                media_type_label = "📺 影集/動畫"
+                is_tv = True
+
+            if data:
                 tmdb_id = data.get('id')
+                # 影集的標題鍵值叫做 name，電影叫做 title
+                title = data.get('title') or data.get('name') or data.get('original_name', '未知影音')
+                summary = data.get('overview', '')
+                img_path = data.get('poster_path')
+
+                # 🌟 智慧語系兜底機制：如果中文版缺海報或缺簡介，啟動無語系請求補洞！
+                if not summary or not img_path:
+                    fallback_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id"
+                    fallback_res = requests.get(fallback_url, timeout=10).json()
+                    fb_data = fallback_res.get('movie_results', [{}])[0] if not is_tv else fallback_res.get('tv_results', [{}])[0]
+                    
+                    if fb_data:
+                        if not summary: summary = fb_data.get('overview', '無簡介')
+                        if not img_path: img_path = fb_data.get('poster_path')
+
+                img_url = f"https://image.tmdb.org/t/p/w500{img_path}" if img_path else None
+
+                # 抓取導演/創作者 (針對電影與影集做不同處理)
                 creator_name = "TMDB"
                 if tmdb_id:
                     try:
-                        credits_res = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
-                        directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
-                        if directors: creator_name = ", ".join(directors)
+                        if is_tv:
+                            # 影集通常找 created_by
+                            details_res = requests.get(f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
+                            creators = [c['name'] for c in details_res.get('created_by', [])]
+                            if creators: creator_name = ", ".join(creators)
+                        else:
+                            # 電影找導演
+                            credits_res = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
+                            directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
+                            if directors: creator_name = ", ".join(directors)
                     except: pass
-                img_url = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get('poster_path') else None
-                return {
-                    "media_type": "🎬 電影", "title": data.get('title') or data.get('original_title', '未知電影'),
-                    "creator": creator_name, "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
-                    "source_url": target_url, "summary": data.get('overview', '無簡介')
-                }
-        except: pass
 
+                # 已經套用我們之前的 Base64 壓縮防護！
+                return {
+                    "media_type": media_type_label,
+                    "title": title,
+                    "creator": creator_name,
+                    "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
+                    "source_url": target_url,
+                    "summary": summary if summary else '無簡介'
+                }
+        except Exception as e:
+            print(f"TMDB 查詢失敗: {e}")
+
+    # ==================================
+    # 終極兜底：IMDb 網頁備存 (如果 TMDB 真的找不到)
+    # ==================================
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         soup = BeautifulSoup(requests.get(target_url, headers=headers, timeout=15).text, 'html.parser')
         ld_json = soup.find('script', type='application/ld+json')
         title, img_url, summary = f"IMDb ({imdb_id})", None, "IMDb 備存"
+        
         if ld_json:
             import json
             try:
@@ -460,13 +588,17 @@ def fetch_movie_data(url):
                 img_url = data.get('image')
                 summary = data.get('description', summary)
             except: pass
+            
         if not img_url and soup.find('meta', property='og:image'): img_url = soup.find('meta', property='og:image')['content']
+        
         return {
-            "media_type": "🎬 電影", "title": title, "creator": "IMDb",
+            "media_type": "🎬 電影/影集", "title": title, "creator": "IMDb",
             "cover_image": get_secure_image_base64(img_url, "imdb") if img_url else None,
             "source_url": target_url, "summary": summary
         }
-    except Exception as e: print(f"IMDb 爬蟲失敗: {e}")
+    except Exception as e: 
+        print(f"IMDb 爬蟲失敗: {e}")
+        
     return None
 
 def fetch_doi_metadata(doi):
