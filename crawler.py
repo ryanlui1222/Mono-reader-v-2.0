@@ -616,71 +616,59 @@ def fetch_chuapp():
         
     return articles
 
-# 🌟 新增：FRIEZE 雜誌期號動態探測爬蟲
-def fetch_frieze():
+def fetch_larb():
+    """Los Angeles Review of Books 客製化爬蟲 (對抗 Next.js 隨機 Class 綴碼)"""
     articles = []
     try:
-        # 🌟 第一階段：造訪目錄，精準探知最新期號
-        magazine_index_url = "https://www.frieze.com/magazines/frieze-magazine"
-        index_soup = get_soup(magazine_index_url)
-        if not index_soup: return articles
-        
-        issue_link_tag = index_soup.find('a', href=re.compile(r'/magazines/frieze-magazine/issue-\d+'))
-        
-        # 🚨 防呆：明確報告是否被 Cloudflare 擋下
-        if not issue_link_tag:
-            if "Cloudflare" in index_soup.text or "Just a moment" in index_soup.text or "Attention Required" in index_soup.text:
-                print("⚠️ FRIEZE: 遭受 Cloudflare 防火牆攔截，無法取得最新期號。")
-            else:
-                print("⚠️ FRIEZE: 頁面結構可能已改變，找不到最新期號連結。")
-            return articles
-        
-        issue_path = issue_link_tag['href']
-        issue_url = urllib.parse.urljoin("https://www.frieze.com", issue_path)
-        
-        match = re.search(r'issue-(\d+)', issue_path)
-        issue_num = match.group(1) if match else "最新"
-        source_name = f"FRIEZE (Issue {issue_num})"
-        
-        # 🌟 第二階段：造訪該期專頁，抓取「所有」文章
-        issue_soup = get_soup(issue_url)
-        if not issue_soup: return articles
+        url = "https://lareviewofbooks.org/"
+        # 利用現有的雙引擎 helper 獲取網頁
+        soup = get_soup(url)
+        if not soup: return articles
         
         seen = set()
-        cards = issue_soup.find_all('div', class_=re.compile(r'teaser-content'))
-        
-        for card in cards:
-            title_tag = card.find('div', class_='teaser-title')
-            if not title_tag or not title_tag.find('a'): continue
+        # LARB 的每篇文章都被整齊地包裝在 <article> 標籤中
+        for article in soup.find_all('article'):
+            # 1. 萃取標題與連結
+            h2_tag = article.find('h2')
+            if not h2_tag or not h2_tag.find('a'): continue
             
-            a_tag = title_tag.find('a')
+            a_tag = h2_tag.find('a')
             title = a_tag.get_text(strip=True)
-            link = urllib.parse.urljoin("https://www.frieze.com", a_tag['href'])
+            link = urllib.parse.urljoin(url, a_tag['href'])
             
+            # 避免抓到重複的文章版位
             if link in seen: continue
             seen.add(link)
             
-            deck_tag = card.find('div', class_='teaser-deck')
-            summary = deck_tag.get_text(" ", strip=True) if deck_tag else "（請點擊標題閱讀原文）"
+            # 2. 萃取摘要 (Dek) - 模糊匹配 styles_dek
+            dek_tag = article.find(class_=re.compile(r'styles_dek'))
+            summary = dek_tag.get_text(" ", strip=True) if dek_tag else "（請點擊標題閱讀原文）"
             
-            author_tag = card.find('div', class_='teaser-author')
+            # 3. 萃取作者與日期 - 兩者都在帶有 styles_author 的 span 中
             author = ""
             published = "最新"
+            author_tags = article.find_all('span', class_=re.compile(r'styles_author'))
             
-            if author_tag:
-                author_links = author_tag.find_all('a')
-                author = "、".join([a.get_text(strip=True) for a in author_links if "frieze" not in a.get_text(strip=True).lower()])
-                if not author: author = "Frieze"
+            if author_tags:
+                author_names = []
+                for tag in author_tags:
+                    # 如果 class 包含 styles_date，則是日期；否則視為作者
+                    classes = tag.get('class', [])
+                    if any('styles_date' in c for c in classes):
+                        published = tag.get_text(strip=True)
+                    else:
+                        author_names.append(tag.get_text(strip=True))
                 
-                time_tag = author_tag.find('time')
-                if time_tag and time_tag.has_attr('datetime'):
-                    published = time_tag['datetime']
+                if author_names:
+                    author = "、".join(author_names)
             
-            img_tag = card.find('img')
+            # 4. 萃取圖片
+            img_tag = article.find('img')
             img_url = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
             
+            # 5. 組合並寫入陣列
             articles.append({
-                "Source": source_name,
+                "Source": "Los Angeles Review of Books",
                 "Title": title,
                 "Link": link,
                 "Published": published,
@@ -688,11 +676,11 @@ def fetch_frieze():
                 "Image": img_url
             })
             
-            # 💡 已經徹底移除了 if len(articles) >= 15: break 的限制
-            # 爬蟲會自動處理完 BeautifulSoup 找到的所有卡片才結束迴圈
+            # 限制抓取數量，保持系統輕量 (首頁通常有最新十幾篇)
+            if len(articles) >= 15: break
             
-    except Exception as e:
-        print(f"FRIEZE 錯誤: {e}")
+    except Exception as e: 
+        print(f"LARB 錯誤: {e}")
         
     return articles
 # ==========================================
@@ -729,7 +717,8 @@ def main():
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
 
         # 👇 🌟 新增：讓 MIT Press 透過強大的主力 fetch_rss 來抓取
-        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False),
+        ("https://outputs.lighthouseapp.io/rss-feeds/ab81C4IONT.xml", "FRIEZE", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -743,7 +732,7 @@ def main():
             fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp, fetch_frieze # <== 加入這裡
+            fetch_tripleampersand, fetch_chuapp, fetch_larb
         ]        
         
         # 2. 提交客製化爬蟲任務並記錄名稱
