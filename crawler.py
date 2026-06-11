@@ -717,7 +717,8 @@ def main():
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
 
         # 👇 🌟 新增：讓 MIT Press 透過強大的主力 fetch_rss 來抓取
-        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False)
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False),
+        ("https://outputs.lighthouseapp.io/rss-feeds/ab81C4IONT.xml", "FRIEZE", 15, False)
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
