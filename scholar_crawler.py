@@ -8,15 +8,18 @@ import urllib.parse
 import feedparser
 from datetime import datetime
 from bs4 import BeautifulSoup
+from PIL import Image  # 🌟 新增：用於圖片壓縮
+import io              # 🌟 新增：用於記憶體緩衝區
 
 # ==========================================
 # 1. 取得環境變數
 # ==========================================
 TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("TURSO_TOKEN")
+GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")  # 🌟 新增：讀取 Google API 金鑰
 
 # ==========================================
-# 🛡️ 安全圖片下載器 (支援 Base64 轉換)
+# 🛡️ 安全圖片下載器 (支援 Pillow 智慧壓縮與 Base64)
 # ==========================================
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
@@ -28,9 +31,20 @@ def get_secure_image_base64(img_url, source=""):
             
         res = scraper.get(img_url, headers=headers, timeout=10)
         if res.status_code == 200 and len(res.content) > 500:
-            encoded_str = base64.b64encode(res.content).decode('utf-8')
-            content_type = res.headers.get('Content-Type', 'image/jpeg')
-            return f"data:{content_type};base64,{encoded_str}"
+            # 🌟 圖片瘦身手術同步實裝
+            try:
+                img = Image.open(io.BytesIO(res.content))
+                if img.mode in ("RGBA", "P"): 
+                    img = img.convert("RGB")
+                img.thumbnail((300, 450)) # 限制最大長寬
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=75, optimize=True)
+                compressed_content = buffer.getvalue()
+                return f"data:image/jpeg;base64,{base64.b64encode(compressed_content).decode('utf-8')}"
+            except Exception as e:
+                print(f"圖片壓縮失敗，退回原圖: {e}")
+                content_type = res.headers.get('Content-Type', 'image/jpeg')
+                return f"data:{content_type};base64,{base64.b64encode(res.content).decode('utf-8')}"
     except: pass
     return img_url
 
@@ -82,7 +96,9 @@ def get_best_cover(isbn, title, author, publisher):
     # --- 4. Google Books (精準搜尋與降噪盲搜) ---
     if clean_isbn:
         try:
-            res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}", timeout=5).json()
+            url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{clean_isbn}"
+            if GOOGLE_BOOKS_API_KEY: url += f"&key={GOOGLE_BOOKS_API_KEY}"
+            res = requests.get(url, timeout=5).json()
             if "items" in res:
                 img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
                 if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
@@ -91,7 +107,9 @@ def get_best_cover(isbn, title, author, publisher):
     try:
         short_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
         query = urllib.parse.quote(f"{short_title} {author.split(',')[0]}")
-        res = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5).json()
+        url = f"https://www.googleapis.com/books/v1/volumes?q={query}"
+        if GOOGLE_BOOKS_API_KEY: url += f"&key={GOOGLE_BOOKS_API_KEY}"
+        res = requests.get(url, timeout=5).json()
         if "items" in res:
             img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
             if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
@@ -177,7 +195,6 @@ def crawl_urbanomic_forthcoming():
                 date_match = re.search(r'FORTHCOMING\s+([A-Z]{3}\s+\d{4})', text_content)
                 pub_date = date_match.group(1) if date_match else "即將出版"
                 
-                # 擷取封面圖片 (若無則留空)
                 img_tag = card.find('img')
                 image_url = img_tag.get('src', '') if img_tag else ""
                 
@@ -186,11 +203,11 @@ def crawl_urbanomic_forthcoming():
                     "title": title,
                     "author": "Urbanomic", 
                     "publisher_journal": "Urbanomic",
-                    "identifier": link, # 🌟 補上 identifier，以網址作為唯一識別碼
+                    "identifier": link, 
                     "link": link,
                     "publish_date": pub_date,
                     "abstract": "（即將出版之前瞻書目）",
-                    "image": image_url, # 🌟 補上 image 鍵值
+                    "image": image_url, 
                     "is_manual": 0,
                     "category": "學術專著"
                 })
@@ -211,7 +228,6 @@ def crawl_utp():
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 定位到書籍清單區塊
         book_list = soup.find('div', class_='booklist')
         if not book_list:
             return books
@@ -219,21 +235,17 @@ def crawl_utp():
         items = book_list.find_all('div', class_='item')
         
         for item in items:
-            # 1. 擷取標題與連結
             ttl_tag = item.find('div', class_='ttl').find('a')
             title = ttl_tag.get_text(strip=True) if ttl_tag else "未命名書籍"
             raw_link = ttl_tag['href'] if ttl_tag else ""
             link = f"https://www.utp.or.jp{raw_link}" if raw_link else url
             
-            # 2. 擷取作者 (將多個作者/譯者透過空白組合，例如「塩野谷 祐一 著」)
             author_tag = item.find('div', class_='author')
             author = author_tag.get_text(separator=' ', strip=True) if author_tag else "東京大学出版会"
             
-            # 3. 擷取封面圖片 (直接抓取 Amazon S3 上的圖檔網址)
             img_tag = item.find('div', class_='image').find('img')
             image_url = img_tag['src'] if img_tag else ""
             
-            # 4. 自動判定文獻類型 (如果標題包含 "UP "，判定為雜誌/期刊)
             pub_type = "Journal" if "UP " in title else "Book"
             
             books.append({
@@ -241,9 +253,9 @@ def crawl_utp():
                 "title": title,
                 "author": author,
                 "publisher_journal": "東京大学出版会",
-                "identifier": link, # 使用網址作為唯一識別碼
+                "identifier": link, 
                 "link": link,
-                "publish_date": datetime.utcnow().strftime("%Y-%m"), # 列表頁無具體日期，預設寫入爬取當月
+                "publish_date": datetime.utcnow().strftime("%Y-%m"), 
                 "abstract": "（東京大学出版会新刊）",
                 "image": image_url,
                 "is_manual": 0,
@@ -270,19 +282,16 @@ def crawl_verso():
             "title": entry.title,
             "author": author,
             "publisher_journal": "Verso Books",
-            "identifier": entry.link, # 🌟 補上 identifier
+            "identifier": entry.link, 
             "link": entry.link,
             "publish_date": entry.get("published", datetime.utcnow().strftime("%Y-%m-%d")),
             "abstract": abstract_text,
-            "image": "", # 🌟 補上 image
+            "image": "", 
             "is_manual": 0,
             "category": "學術專著"
         })
     return books
     
-# ==========================================
-# 重構：青土社精細化目錄爬蟲 (支援《現代思想》與《ユリイカ》單篇萃取與分家)
-# ==========================================
 def crawl_seidosha():
     print("🔍 [青土社] 準備擷取單期目錄...")
     try:
@@ -301,7 +310,6 @@ def crawl_seidosha():
             img_src = item.find("img").get("src", "")
             image_url = f"https://www.seidosha.co.jp{img_src}"
             
-            # 🌟 精準分離期刊名稱
             journal_name = ""
             if "ユリイカ" in issue_title: journal_name = "ユリイカ"
             elif "現代思想" in issue_title: journal_name = "現代思想"
@@ -314,7 +322,6 @@ def crawl_seidosha():
                     inner_res.encoding = 'utf-8'
                     inner_soup = BeautifulSoup(inner_res.text, "html.parser")
                     
-                    # 🌟 鎖定內文區塊，排除上方定價與 ISBN 的 div
                     info_area = inner_soup.find("div", class_="book-info-text")
                     if info_area:
                         lines = info_area.get_text(separator='\n').split('\n')
@@ -322,7 +329,6 @@ def crawl_seidosha():
                         for line in lines:
                             clean_line = line.strip()
                             
-                            # 🌟 嚴格過濾：必須包含全形斜線才視為目錄條目
                             if '／' in clean_line:
                                 parts = clean_line.split('／')
                                 article_title = parts[0].strip()
@@ -333,7 +339,7 @@ def crawl_seidosha():
                                     "type": "Journal",
                                     "title": article_title,
                                     "author": article_author,
-                                    "publisher_journal": journal_name, # 寫入獨立的期刊名稱
+                                    "publisher_journal": journal_name, 
                                     "issue_volume": issue_title, 
                                     "identifier": f"{link}_art_{article_count}",
                                     "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
@@ -346,7 +352,6 @@ def crawl_seidosha():
                 except Exception as e:
                     print(f"⚠️ 青土社目錄擷取失敗，退回整本記錄模式: {e}")
 
-            # 備用方案
             id_match = re.search(r'id=(\d+)', link)
             identifier = f"seidosha_{id_match.group(1)}" if id_match else link
             records.append({
@@ -365,13 +370,10 @@ def crawl_seidosha():
     except Exception as e: 
         print(f"❌ [青土社] 錯誤: {e}")
         return []        
-# ==========================================
-# 新增：期刊專用 Crossref API 擷取器
-# ==========================================
+
 def fetch_journal_from_crossref(issn, journal_name):
     print(f"🔍 [Crossref] 正在擷取期刊 {journal_name} 最新一期...")
     url = f"https://api.crossref.org/journals/{issn}/works"
-    # 將 rows 拉高以確保能完整覆蓋一整期的文章數量
     params = {"sort": "published", "order": "desc", "rows": 100}
     headers = {"User-Agent": "BiblioappCloud/1.0"}
     
@@ -380,7 +382,6 @@ def fetch_journal_from_crossref(issn, journal_name):
         items = res.json().get("message", {}).get("items", [])
         if not items: return []
         
-        # 1. 確立最新期號基準
         latest_item = items[0]
         target_issue = latest_item.get("issue", "")
         target_volume = latest_item.get("volume", "")
@@ -391,7 +392,6 @@ def fetch_journal_from_crossref(issn, journal_name):
 
         records = []
         for item in items:
-            # 2. 獲取當前迴圈文章的期號資訊
             curr_issue = item.get("issue", "")
             curr_vol = item.get("volume", "")
             
@@ -399,20 +399,18 @@ def fetch_journal_from_crossref(issn, journal_name):
             c_date_parts = c_date_obj.get("date-parts", [[]])[0]
             curr_ym = f"{c_date_parts[0]}-{c_date_parts[1]:02d}" if len(c_date_parts) >= 2 else str(c_date_parts[0]) if c_date_parts else ""
 
-            # 3. 嚴格過濾：有期號則比對期號與卷號，無期號則比對出版年月
             is_same_issue = False
             if target_issue:
                 if curr_issue == target_issue and curr_vol == target_volume: is_same_issue = True
             else:
                 if curr_ym == target_ym: is_same_issue = True
             
-            if not is_same_issue: continue # 剔除不屬於最新期的舊文章
+            if not is_same_issue: continue 
 
             title = item.get("title", ["未命名論文"])[0]
             authors_list = item.get("author", [])
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or journal_name
             
-            # 組合前端顯示用的期號文字
             issue_display = f"Vol. {curr_vol}, Issue {curr_issue}" if curr_vol and curr_issue else (f"Issue {curr_issue}" if curr_issue else curr_ym)
             link = item.get("URL", f"https://doi.org/{item.get('DOI', '')}")
             
@@ -428,26 +426,25 @@ def fetch_journal_from_crossref(issn, journal_name):
 def save_to_db(items):
     client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
     for item in items:
-        # 補上 category 預設值
         cat = item.get("category", "未分類")
         
-        # 🌟 修改 SQL：寫入 category，但 ON CONFLICT 不更新 category，防護手動修改
-        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, identifier, publish_date, abstract, link, image, category)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # 🌟 修復：補上 issue_volume 欄位
+        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, category)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
                  
-        client.execute(sql, [item["type"], item["title"], item["author"], item["publisher_journal"], 
-                             item["identifier"], item["publish_date"], item["abstract"], item["link"], item["image"], cat])
+        client.execute(sql, [
+            item.get("type"), item.get("title"), item.get("author"), 
+            item.get("publisher_journal"), item.get("issue_volume", ""),
+            item.get("identifier"), item.get("publish_date"), 
+            item.get("abstract"), item.get("link"), item.get("image"), cat
+        ])
     client.close()
     print("✅ 資料庫更新完成。")
 
-# ==========================================
-# 於主程式執行區段註冊所有期刊
-# ==========================================
 if __name__ == "__main__":
     all_books = []
     
-    # 既有專書來源
     all_books.extend(fetch_from_crossref("281", "MIT Press"))
     all_books.extend(fetch_from_crossref("73", "Duke University Press"))
     all_books.extend(crawl_utp())
@@ -455,7 +452,6 @@ if __name__ == "__main__":
     all_books.extend(crawl_urbanomic_forthcoming())
     all_books.extend(crawl_seidosha())
     
-    # 新增學術期刊追蹤清單
     all_books.extend(fetch_journal_from_crossref("2578-3491", "PRISM: Theory and Modern Chinese Literature"))
     all_books.extend(fetch_journal_from_crossref("2201-1919", "Environmental Humanities"))
     all_books.extend(fetch_journal_from_crossref("1067-9847", "positions: asia critique"))
