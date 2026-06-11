@@ -507,31 +507,78 @@ def fetch_movie_data(url):
     tmdb_key = st.secrets.get("TMDB_API_KEY") if hasattr(st, "secrets") else None
     if tmdb_key:
         try:
+            # 🌟 第一次請求：優先索取繁體中文資料
             tmdb_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id&language=zh-TW"
             res = requests.get(tmdb_url, timeout=10).json()
+
+            data = None
+            media_type_label = "🎬 電影"
+            is_tv = False
+
+            # 🌟 雙軌偵測：支援日本動畫與歐美影集
             if res.get('movie_results'):
                 data = res['movie_results'][0]
+            elif res.get('tv_results'):
+                data = res['tv_results'][0]
+                media_type_label = "📺 影集/動畫"
+                is_tv = True
+
+            if data:
                 tmdb_id = data.get('id')
+                # 影集的標題鍵值叫做 name，電影叫做 title
+                title = data.get('title') or data.get('name') or data.get('original_name', '未知影音')
+                summary = data.get('overview', '')
+                img_path = data.get('poster_path')
+
+                # 🌟 智慧語系兜底機制：如果中文版缺海報或缺簡介，啟動無語系請求補洞！
+                if not summary or not img_path:
+                    fallback_url = f"https://api.themoviedb.org/3/find/{imdb_id}?api_key={tmdb_key}&external_source=imdb_id"
+                    fallback_res = requests.get(fallback_url, timeout=10).json()
+                    fb_data = fallback_res.get('movie_results', [{}])[0] if not is_tv else fallback_res.get('tv_results', [{}])[0]
+                    
+                    if fb_data:
+                        if not summary: summary = fb_data.get('overview', '無簡介')
+                        if not img_path: img_path = fb_data.get('poster_path')
+
+                img_url = f"https://image.tmdb.org/t/p/w500{img_path}" if img_path else None
+
+                # 抓取導演/創作者 (針對電影與影集做不同處理)
                 creator_name = "TMDB"
                 if tmdb_id:
                     try:
-                        credits_res = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
-                        directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
-                        if directors: creator_name = ", ".join(directors)
+                        if is_tv:
+                            # 影集通常找 created_by
+                            details_res = requests.get(f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
+                            creators = [c['name'] for c in details_res.get('created_by', [])]
+                            if creators: creator_name = ", ".join(creators)
+                        else:
+                            # 電影找導演
+                            credits_res = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={tmdb_key}&language=zh-TW", timeout=5).json()
+                            directors = [crew['name'] for crew in credits_res.get('crew', []) if crew.get('job') == 'Director']
+                            if directors: creator_name = ", ".join(directors)
                     except: pass
-                img_url = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get('poster_path') else None
-                return {
-                    "media_type": "🎬 電影", "title": data.get('title') or data.get('original_title', '未知電影'),
-                    "creator": creator_name, "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
-                    "source_url": target_url, "summary": data.get('overview', '無簡介')
-                }
-        except: pass
 
+                # 已經套用我們之前的 Base64 壓縮防護！
+                return {
+                    "media_type": media_type_label,
+                    "title": title,
+                    "creator": creator_name,
+                    "cover_image": get_secure_image_base64(img_url, "tmdb") if img_url else None,
+                    "source_url": target_url,
+                    "summary": summary if summary else '無簡介'
+                }
+        except Exception as e:
+            print(f"TMDB 查詢失敗: {e}")
+
+    # ==================================
+    # 終極兜底：IMDb 網頁備存 (如果 TMDB 真的找不到)
+    # ==================================
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         soup = BeautifulSoup(requests.get(target_url, headers=headers, timeout=15).text, 'html.parser')
         ld_json = soup.find('script', type='application/ld+json')
         title, img_url, summary = f"IMDb ({imdb_id})", None, "IMDb 備存"
+        
         if ld_json:
             import json
             try:
@@ -541,13 +588,17 @@ def fetch_movie_data(url):
                 img_url = data.get('image')
                 summary = data.get('description', summary)
             except: pass
+            
         if not img_url and soup.find('meta', property='og:image'): img_url = soup.find('meta', property='og:image')['content']
+        
         return {
-            "media_type": "🎬 電影", "title": title, "creator": "IMDb",
+            "media_type": "🎬 電影/影集", "title": title, "creator": "IMDb",
             "cover_image": get_secure_image_base64(img_url, "imdb") if img_url else None,
             "source_url": target_url, "summary": summary
         }
-    except Exception as e: print(f"IMDb 爬蟲失敗: {e}")
+    except Exception as e: 
+        print(f"IMDb 爬蟲失敗: {e}")
+        
     return None
 
 def fetch_doi_metadata(doi):
