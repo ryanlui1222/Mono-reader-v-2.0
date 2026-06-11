@@ -9,6 +9,8 @@ import base64
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import urllib.parse
+from PIL import Image
+import io
 
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/", "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
@@ -212,14 +214,39 @@ def fetch_omni_items(category=None, search_query=""):
 # 🌐 網路請求與爬蟲模組 (全面採用 get_scraper)
 # ==========================================
 def get_secure_image_base64(img_url, source=""):
+    """獲取圖片並進行智慧壓縮與降級，大幅減少 Turso 資料庫容量消耗"""
     if not img_url: return ""
     if str(img_url).startswith("data:image"): return img_url
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         if source == "douban": headers["Referer"] = "https://book.douban.com/"
         res = get_scraper().get(img_url, headers=headers, timeout=10)
+        
         if res.status_code == 200 and len(res.content) > 500:
-            return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
+            # 🌟 圖片瘦身手術 (Pillow 壓縮機制)
+            try:
+                # 讀取下載好的二進位圖片
+                img = Image.open(io.BytesIO(res.content))
+                
+                # 轉換為 RGB 模式 (避免 PNG 透明背景轉 JPEG 時變黑或報錯)
+                if img.mode in ("RGBA", "P"): 
+                    img = img.convert("RGB")
+                
+                # 強制等比例縮小：最大寬度/高度 300px (對於書籤與卡片來說非常足夠且不影響觀感)
+                img.thumbnail((300, 450))
+                
+                # 將壓縮後的圖片存入記憶體緩衝區 (格式為 JPEG，畫質 75，啟用優化)
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=75, optimize=True)
+                compressed_content = buffer.getvalue()
+                
+                return f"data:image/jpeg;base64,{base64.b64encode(compressed_content).decode('utf-8')}"
+                
+            except Exception as e:
+                # 如果 Pillow 壓縮失敗 (可能不是圖片格式)，退回原始轉換機制
+                print(f"圖片壓縮失敗，退回原圖轉碼: {e}")
+                return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
+                
     except: pass
     return img_url
 
