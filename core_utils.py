@@ -61,6 +61,9 @@ def query_to_df(sql, params=None, lower_cols=False):
         print(f"資料庫讀取失敗: {e}")
         return pd.DataFrame()
 
+# ==========================================
+# 🛠️ 終極全域 CRUD 引擎
+# ==========================================
 def delete_records(table_name, item_ids, id_column="id"):
     if not isinstance(item_ids, list): item_ids = [item_ids]
     if not item_ids: return
@@ -292,57 +295,35 @@ def fetch_book_by_url(url):
     return None
 
 # ==========================================
-# 🌟 具備日誌追蹤的圖書 API 引擎 (透明化除錯 & 嚴格流程)
+# 🌟 核心圖書 API 引擎 (雙重兜底機制)
 # ==========================================
-def append_log(logs, msg):
-    """安全地寫入日誌"""
-    if logs is not None: logs.append(msg)
-    else: print(msg)
-
-def fetch_google_fallback(isbn, logs=None):
-    append_log(logs, f"🔍 [Google Books] 啟動最終兜底搜尋 (ISBN: {isbn})")
+def fetch_google_fallback(isbn):
+    """Google Books API 最終兜底搜尋，具備地區破解與寬鬆盲搜機制"""
     try:
         api_key = ""
         try: api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
         except: pass
 
-        if not api_key: append_log(logs, "⚠️ [Google] 警告：未讀取到 API 金鑰，將以無金鑰模式請求。")
-        else: append_log(logs, "🔑 [Google] 成功讀取 API 金鑰。")
-
-        # 🌟 破解 403 限制：加入 country 參數，並偽裝台灣 IP
-        google_headers = {"X-Forwarded-For": "168.95.1.1"} # 台灣中華電信 DNS IP
+        google_headers = {"X-Forwarded-For": "168.95.1.1"} # 台灣 IP 偽裝
         
-        # 第一波：嚴格 ISBN 搜尋
+        # 1. 嚴格 ISBN 搜尋
         url_strict = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&country=TW"
         if api_key: url_strict += f"&key={api_key}"
         
-        append_log(logs, "🌐 [Google] 1. 發送嚴格搜尋請求...")
         res = requests.get(url_strict, headers=google_headers, timeout=10)
-        append_log(logs, f"📡 [Google] 嚴格搜尋狀態碼: {res.status_code}")
-        
-        if res.status_code == 429:
-            append_log(logs, "❌ [Google] 429 請求過於頻繁！")
-            return None
-        elif res.status_code == 403:
-            append_log(logs, f"❌ [Google] 403 存取被拒 (可能 IP 被擋或未設定金鑰)。詳細: {res.text[:100]}")
-        elif res.status_code != 200:
-            append_log(logs, f"❌ [Google] 伺服器錯誤: {res.text[:100]}")
-            
         data = res.json() if res.status_code == 200 else {}
         
-        # 🌟 第二波：繁體書寬鬆搜尋
+        # 2. 寬鬆盲搜 (如果嚴格搜尋找不到)
         if "items" not in data or len(data.get("items", [])) == 0:
-            append_log(logs, "⚠️ [Google] 嚴格搜尋查無此書，啟動「無標籤寬鬆盲搜」...")
             url_loose = f"https://www.googleapis.com/books/v1/volumes?q={isbn}&country=TW"
             if api_key: url_loose += f"&key={api_key}"
             res_loose = requests.get(url_loose, headers=google_headers, timeout=10)
-            append_log(logs, f"📡 [Google] 寬鬆搜尋狀態碼: {res_loose.status_code}")
             data = res_loose.json() if res_loose.status_code == 200 else {}
 
+        # 3. 處理回傳結果
         if "items" in data and len(data["items"]) > 0:
             info = data["items"][0].get("volumeInfo", {})
             title = info.get("title", "未命名書籍")
-            append_log(logs, f"✅ [Google] 成功找到書籍: {title}")
             
             img_links = info.get("imageLinks", {})
             img_url = img_links.get("thumbnail", "") or img_links.get("smallThumbnail", "")
@@ -356,21 +337,14 @@ def fetch_google_fallback(isbn, logs=None):
                 "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
                 "image": final_image, "book_status": 0
             }
-        else:
-            append_log(logs, "❌ [Google] 寬鬆搜尋也找不到該書。")
-    except Exception as e:
-        append_log(logs, f"❌ [Google] 發生例外錯誤: {e}")
+    except Exception as e: print(f"Google Books API 解析失敗: {e}")
     return None
 
-def fetch_openbd(isbn, logs=None):
-    append_log(logs, f"🔍 [OpenBD] 啟動日本 OpenBD 搜尋...")
+def fetch_openbd(isbn):
     try:
-        res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10)
-        append_log(logs, f"📡 [OpenBD] 狀態碼: {res.status_code}")
-        data = res.json()
-        if data and data[0]:
-            info = data[0].get("summary", {})
-            append_log(logs, f"✅ [OpenBD] 成功找到書籍: {info.get('title', '未知')}")
+        res = requests.get(f"https://api.openbd.jp/v1/get?isbn={isbn}", timeout=10).json()
+        if res and res[0]:
+            info = res[0].get("summary", {})
             img_url = get_secure_image_base64(info.get("cover", ""), "openbd") if info.get("cover") else get_secure_image_base64(f"https://www.hanmoto.com/bd/img/{isbn}.jpg", "hanmoto")
             return {
                 "type": "Book", "title": info.get("title", "未命名"), "author": info.get("author", "未知"),
@@ -378,28 +352,19 @@ def fetch_openbd(isbn, logs=None):
                 "publish_date": info.get("pubdate", datetime.utcnow().strftime("%Y-%m-%d")), "abstract": "（日文出版品）",
                 "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "book_status": 0
             }
-        else:
-            append_log(logs, "⚠️ [OpenBD] 查無此書，放棄並交由主程序找下一個資料庫。")
-    except Exception as e: 
-        append_log(logs, f"❌ [OpenBD] 錯誤: {e}")
-    # 🌟 修改點：不再直接回傳 fetch_google_fallback，讓主控制台決定順序
+    except: pass
     return None
 
-def fetch_douban(isbn, logs=None):
-    append_log(logs, f"🔍 [Douban] 啟動豆瓣搜尋...")
+def fetch_douban(isbn):
     url = f"https://book.douban.com/isbn/{isbn}/"
     try:
         res = get_scraper().get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        append_log(logs, f"📡 [Douban] 狀態碼: {res.status_code}")
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
             title_tag = soup.find("span", property="v:itemreviewed")
-            if not title_tag:
-                append_log(logs, "⚠️ [Douban] 網頁連線成功，但被 WAF 阻擋或查無此書。")
-                return None # 🌟 修改點：放棄，交由主程序
+            if not title_tag: return None
             
             title = title_tag.text.strip()
-            append_log(logs, f"✅ [Douban] 成功找到書籍: {title}")
             mainpic = soup.find("div", id="mainpic")
             img_url = get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban") if mainpic and mainpic.find("img") else ""
             author_span = soup.find("span", string=re.compile("作者"))
@@ -413,23 +378,16 @@ def fetch_douban(isbn, logs=None):
                 "identifier": isbn, "publish_date": datetime.utcnow().strftime("%Y-%m-%d"),
                 "abstract": abstract[:600], "link": url, "image": img_url, "book_status": 0
             }
-        else:
-            append_log(logs, f"⚠️ [Douban] 請求被拒絕。")
-    except Exception as e: 
-        append_log(logs, f"❌ [Douban] 錯誤: {e}")
-    # 🌟 修改點：不再呼叫 Google
+    except: pass
     return None
 
-def fetch_crossref_isbn(isbn, logs=None):
-    append_log(logs, f"🔍 [Crossref] 啟動 Crossref 搜尋...")
+def fetch_crossref_isbn(isbn):
     try:
-        res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5)
-        append_log(logs, f"📡 [Crossref] 狀態碼: {res.status_code}")
-        items = res.json().get("message", {}).get("items", [])
+        res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
+        items = res.get("message", {}).get("items", [])
         if items:
             item = items[0]
             title = item.get("title", ["未命名書籍"])[0]
-            append_log(logs, f"✅ [Crossref] 成功找到書籍: {title}")
             author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
             date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
             pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
@@ -440,79 +398,57 @@ def fetch_crossref_isbn(isbn, logs=None):
                 "abstract": "（由 Crossref 學術庫匯入）", "link": item.get("URL", ""), 
                 "image": "", "book_status": 0
             }
-        else:
-            append_log(logs, "⚠️ [Crossref] 查無此書。")
-    except Exception as e: 
-        append_log(logs, f"❌ [Crossref] 錯誤: {e}")
+    except: pass
     return None
 
-def fetch_book_by_isbn(isbn, return_logs=False):
-    """全域入口：強制執行嚴格的降級搜尋順序"""
-    logs = []
+def fetch_book_by_isbn(isbn):
+    """嚴格控制順序的全域圖書入口"""
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
-    if not clean_isbn: 
-        append_log(logs, "❌ ISBN 格式無效。")
-        return (None, logs) if return_logs else None
-        
-    append_log(logs, f"▶️ 開始解析 ISBN: {clean_isbn}")
+    if not clean_isbn: return None
     
-    # === 階段 1：根據書系分流到專屬庫 ===
+    res = None
     if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): 
-        append_log(logs, "🔀 偵測為日文書系 (9784/9794)，進入 OpenBD。")
-        res = fetch_openbd(clean_isbn, logs)
-        if res: return (res, logs) if return_logs else res
+        res = fetch_openbd(clean_isbn)
     elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): 
-        append_log(logs, "🔀 偵測為中文書系，進入豆瓣。")
-        res = fetch_douban(clean_isbn, logs)
-        if res: return (res, logs) if return_logs else res
-    else:
-        append_log(logs, "🔀 偵測為歐美/通用書系。")
-        
-    # === 階段 1.5：預先獲取 Syndetics 高清書影備用 ===
+        res = fetch_douban(clean_isbn)
+    
     best_cover = ""
     try:
         syn_res = requests.get(f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test", timeout=5)
-        if syn_res.status_code == 200 and len(syn_res.content) > 100: 
-            best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
-            append_log(logs, "✅ [Syndetics] 取得備用高清封面。")
+        if syn_res.status_code == 200 and len(syn_res.content) > 100: best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
     except: pass
 
-    # === 階段 2：Crossref 備援 ===
-    res_crossref = fetch_crossref_isbn(clean_isbn, logs)
+    if res:
+        if best_cover and not res.get("image"): res["image"] = best_cover
+        return res
+        
+    res_crossref = fetch_crossref_isbn(clean_isbn)
     if res_crossref:
         if best_cover: res_crossref["image"] = best_cover
-        return (res_crossref, logs) if return_logs else res_crossref
+        return res_crossref
         
-    # === 階段 3：Open Library 備援 ===
-    append_log(logs, "🔍 [Open Library] 啟動 Open Library 搜尋...")
     try:
         ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
             info = ol_data[f"ISBN:{clean_isbn}"]
             authors = [a.get("name", "") for a in info.get("authors", [])]
-            append_log(logs, f"✅ [Open Library] 成功找到書籍: {info.get('title', '未命名')}")
-            res_ol = {
+            return {
                 "type": "Book", "title": info.get("title", "未命名"), "author": ", ".join(authors) or "未知",
                 "publisher_journal": info.get("publishers", [{"name": "手動加入"}])[0].get("name", "手動加入"), "issue_volume": "",
                 "identifier": clean_isbn, "publish_date": info.get("publish_date", datetime.utcnow().strftime("%Y-%m-%d")),
                 "abstract": "（Open Library 匯入）", "link": info.get("url", ""), 
                 "image": best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "book_status": 0
             }
-            return (res_ol, logs) if return_logs else res_ol
-        else:
-            append_log(logs, "⚠️ [Open Library] 查無此書。")
-    except Exception as e: 
-        append_log(logs, f"❌ [Open Library] 錯誤: {e}")
-        
-    # === 階段 4：Google Books 最終火力兜底 ===
-    res_google = fetch_google_fallback(clean_isbn, logs)
+    except: pass
+    
+    # 所有其他來源失敗時，最終交由 Google 兜底
+    res_google = fetch_google_fallback(clean_isbn)
     if res_google:
         if best_cover and not res_google.get("image"): res_google["image"] = best_cover
-        return (res_google, logs) if return_logs else res_google
+        return res_google
         
-    append_log(logs, "🛑 宣告失敗：所有 API 與資料庫皆無法找到此 ISBN 的資訊。")
-    return (None, logs) if return_logs else None
-    
+    return None
+
 def fetch_apple_music_data(url_or_id):
     apple_id = url_or_id.strip()
     if not apple_id.isdigit():
@@ -618,6 +554,28 @@ def fetch_movie_data(url):
             "source_url": target_url, "summary": summary
         }
     except Exception as e: print(f"IMDb 爬蟲失敗: {e}")
+    return None
+
+def fetch_doi_metadata(doi):
+    clean_doi = doi.replace("https://doi.org/", "").strip()
+    try:
+        res = requests.get(f"https://doi.org/{clean_doi}", headers={"Accept": "application/vnd.citationstyles.csl+json", "User-Agent": "BiblioappCloud/1.0"}, timeout=10, allow_redirects=True)
+        if res.status_code == 200:
+            item = res.json()
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
+            container = item.get("container-title", "")
+            vol, iss = item.get("volume", ""), item.get("issue", "")
+            issue_vol = f"Vol. {vol}, Issue {iss}" if vol and iss else (f"Issue {iss}" if iss else "")
+            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            
+            return {
+                "type": "Journal" if container else "Book", "title": item.get("title", "未命名文獻"), 
+                "author": author, "publisher_journal": container if container else item.get("publisher", ""),
+                "issue_volume": issue_vol, "identifier": clean_doi, "publish_date": pub_date,
+                "link": item.get("URL", f"https://doi.org/{clean_doi}")
+            }
+    except Exception as e: print(f"DOI 解析失敗: {e}")
     return None
 
 def fetch_from_openalex_by_title(title):
