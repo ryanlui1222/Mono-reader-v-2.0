@@ -13,7 +13,6 @@ def reset_biblio_page():
 
 def render_page():
     if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
-    if 'bib_grid_page' not in st.session_state: st.session_state.bib_grid_page = 1
 
     col_h1, col_h2 = st.columns([7, 3])
     with col_h1: st.header("🎓 Biblioapp：學術文獻與出版追蹤")
@@ -26,13 +25,12 @@ def render_page():
         bib_local_search = st.text_input("輸入關鍵字", placeholder="在此分頁中過濾...", label_visibility="collapsed", on_change=reset_biblio_page)
         st.markdown("---")
         
-        # 🌟 UI 優化：將待讀、已讀、實體合併為單一母選項「🔖 個人書庫」
         biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 個人書庫", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
         st.markdown("---")
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
-        active_shelf = "🔖 待讀書架" # 預設的子目錄書架
+        active_shelf = "🔖 待讀書架" 
 
         if biblio_view_mode == "📖 文獻探索":
             st.subheader("文獻篩選")
@@ -64,7 +62,6 @@ def render_page():
                     else: selected_issue = None
                 else: active_filter = selected_main
                 
-        # 🌟 UI 優化：當選擇「個人書庫」時，動態渲染次目錄單選按鈕
         elif biblio_view_mode == "🔖 個人書庫":
             st.subheader("📚 書架狀態")
             active_shelf = st.radio("選擇庫存狀態", ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫"], label_visibility="collapsed", on_change=reset_biblio_page)
@@ -246,26 +243,32 @@ def render_page():
                         st.divider()
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
 
-    # 🌟 UI 優化：將三種書架狀態合併於同一邏輯區塊處理，並將 API 代入 active_shelf
+    # ==========================================
+    # 🔖 個人書庫 (待讀、已讀、實體) 合併管理區塊
+    # ==========================================
     elif biblio_view_mode == "🔖 個人書庫":
-        # 僅在待讀書架顯示手動加入區塊 (保持邏輯合理)
-        if active_shelf == "🔖 待讀書架":
-            with st.expander("📥 手動新增待讀書目", expanded=False):
-                isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
-                if st.button("檢索並加入書架", use_container_width=True):
-                    if isbn_input:
-                        with st.spinner("正在呼叫多語系智能引擎..."):
-                            book_data = core_utils.fetch_book_by_isbn(isbn_input)
-                            if book_data:
-                                book_data['publisher_journal'] = "手動加入"
-                                success, msg = core_utils.add_manual_book(book_data)
-                                if success: st.success(msg)
-                                else: st.error(msg)
-                            else: st.error("❌ 找不到該 ISBN。")
-                    else: st.warning("⚠️ 請輸入 ISBN。")
-            st.markdown("---")
+        # 🌟 建立對照表：動態解析當前分頁應寫入的 book_status 數值與乾淨名稱
+        shelf_status_map = {"🔖 待讀書架": 1, "✅ 已讀書籍": 2, "📦 實體書庫": 3}
+        target_status = shelf_status_map.get(active_shelf, 1)
+        shelf_clean_name = active_shelf[2:] # 截取純文字做 UI
 
-        # 這裡的傳入參數改為 active_shelf
+        # 🌟 解除 active_shelf == "🔖 待讀書架" 的封印，讓三個子分頁全部擁有專屬輸入器
+        with st.expander(f"📥 快速匯入新書至【{shelf_clean_name}】", expanded=False):
+            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486", key=f"isbn_in_{shelf_clean_name}")
+            if st.button(f"檢索並加入【{shelf_clean_name}】", use_container_width=True, key=f"isbn_btn_{shelf_clean_name}"):
+                if isbn_input:
+                    with st.spinner("正在呼叫多語系智能引擎..."):
+                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
+                        if book_data:
+                            book_data['publisher_journal'] = "手動加入"
+                            # 🌟 傳入動態的 target_status 進行對應分頁寫入！
+                            success, msg = core_utils.add_manual_book(book_data, status=target_status)
+                            if success: st.success(msg); st.rerun()
+                            else: st.error(msg)
+                        else: st.error("❌ 找不到該 ISBN。")
+                else: st.warning("⚠️ 請輸入 ISBN。")
+        st.markdown("---")
+
         df_pubs = core_utils.fetch_academic_pubs(view_mode=active_shelf, pub_type="Book", source_filter="總覽", search_query=bib_local_search)
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
@@ -284,7 +287,7 @@ def render_page():
 
         if is_edit_mode:
             if df_pubs.empty: st.info(f"「{selected_category}」分類目前沒有符合的書籍。")
-            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix=ctx)
+            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="ctx")
         else:
             if df_pubs.empty: st.info(f"目前沒有相符書籍。")
             else:
@@ -379,7 +382,7 @@ def render_page():
             with st.expander("➕ 新增講座", expanded=False):
                 event_title_lec = st.text_input("講座名稱 / 主題 (必填)：", key="evt_title_biblioapp_lecture")
                 event_url_lec = st.text_input("相關連結 (報名網址/影片回放)：", key="evt_url_biblioapp_lecture")
-                event_notes_lec = st.text_area("講者 / 筆記 / 核心觀點：", height=150, key="evt_notes_biblioapp_lecture")
+                event_notes_lec = st.text_area("講座大綱 / 核心筆記：", height=150, key="evt_notes_biblioapp_lecture")
                 if st.button("💾 儲存講座記錄", use_container_width=True, type="primary", key="btn_save_lec"):
                     if event_title_lec:
                         success, msg = core_utils.add_manual_custom_resource("biblioapp_lecture", event_title_lec, event_url_lec, event_notes_lec)
