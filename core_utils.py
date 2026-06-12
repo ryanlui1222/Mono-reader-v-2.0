@@ -149,7 +149,6 @@ def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總�
         args.extend([like_term, like_term, like_term, like_term])
         
     if not is_global_search:
-        # 🌟 修改點：對接新的 book_status
         if view_mode == "🔖 待讀書架": sql += " AND book_status = 1 AND type != 'Web Link'"
         elif view_mode == "✅ 已讀書籍": sql += " AND book_status = 2 AND type != 'Web Link'"
         elif view_mode == "📦 實體書庫": sql += " AND book_status = 3 AND type != 'Web Link'"
@@ -273,7 +272,7 @@ def fetch_book_by_url(url):
             title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').replace('Amazon.com:', '').strip()
             
             og_img = soup.find('meta', property='og:image')
-            img_url = og_img['content'] if og_img and og_img.get('content') else ""
+            img_url = og_img['content'] if og_img protect and og_img.get('content') else ""
             if img_url: img_url = get_secure_image_base64(img_url, "url_backup")
             
             author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
@@ -627,10 +626,11 @@ def add_bibliography_reference(input_val, importance, notes):
         return True, f"✅ 已成功將《{data['title']}》加入參考書目庫！"
     except Exception as e: return False, f"寫入失敗: {e}"
 
-def add_manual_book(book_data):
+def add_manual_book(book_data, status=1):
+    """🌟 升級：增加 status 參數，讓書籍可以動態寫入待讀(1)、已讀(2)或實體(3)"""
     try:
-        sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, book_status, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
-        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image']])
+        sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, book_status, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
+        db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image'], status])
         st.cache_data.clear()
         return True, f"✅ 已將《{book_data['title']}》加入清單！"
     except Exception as e: return False, f"寫入失敗: {e}"
