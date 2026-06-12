@@ -251,32 +251,18 @@ def render_page():
         target_status = shelf_status_map.get(active_shelf, 1)
         shelf_clean_name = active_shelf[2:]
 
-        # 🌟 升級版書籍導入：具備日誌追蹤功能
         with st.expander(f"📥 快速匯入新書至【{shelf_clean_name}】", expanded=False):
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486", key=f"isbn_in_{shelf_clean_name}")
             if st.button(f"檢索並加入【{shelf_clean_name}】", use_container_width=True, key=f"isbn_btn_{shelf_clean_name}"):
                 if isbn_input:
                     with st.spinner("正在呼叫多語系智能引擎..."):
-                        # 開啟 return_logs 接收底層的除錯訊息
-                        book_data, logs = core_utils.fetch_book_by_isbn(isbn_input, return_logs=True)
-                        
-                        # 顯示日誌面板 (如果失敗自動展開，成功則折疊)
-                        with st.expander("🛠️ 展開查看 API 掃描追蹤日誌", expanded=(not book_data)):
-                            for log in logs:
-                                if "❌" in log or "🛑" in log: st.error(log)
-                                elif "⚠️" in log: st.warning(log)
-                                elif "✅" in log: st.success(log)
-                                else: st.text(log)
-                                
+                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
                             success, msg = core_utils.add_manual_book(book_data, status=target_status)
-                            if success: 
-                                st.success(msg)
-                            else: 
-                                st.error(msg)
-                        else: 
-                            st.error("❌ 找不到該 ISBN。請查看上方日誌了解哪裡被阻擋。")
+                            if success: st.success(msg); st.rerun()
+                            else: st.error(msg)
+                        else: st.error("❌ 找不到該 ISBN。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
         st.markdown("---")
 
@@ -298,7 +284,7 @@ def render_page():
 
         if is_edit_mode:
             if df_pubs.empty: st.info(f"「{selected_category}」分類目前沒有符合的書籍。")
-            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="ctx")
+            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix=ctx)
         else:
             if df_pubs.empty: st.info(f"目前沒有相符書籍。")
             else:
