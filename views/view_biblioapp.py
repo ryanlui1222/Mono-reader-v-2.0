@@ -13,6 +13,7 @@ def reset_biblio_page():
 
 def render_page():
     if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
+    if 'bib_grid_page' not in st.session_state: st.session_state.bib_grid_page = 1
 
     col_h1, col_h2 = st.columns([7, 3])
     with col_h1: st.header("🎓 Biblioapp：學術文獻與出版追蹤")
@@ -25,12 +26,14 @@ def render_page():
         bib_local_search = st.text_input("輸入關鍵字", placeholder="在此分頁中過濾...", label_visibility="collapsed", on_change=reset_biblio_page)
         st.markdown("---")
         
-        # 🌟 引入全新的狀態書架分類模式
-        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
+        # 🌟 UI 優化：將待讀、已讀、實體合併為單一母選項「🔖 個人書庫」
+        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 個人書庫", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
         st.markdown("---")
 
         active_filter = "總覽 (依日期遞減)"
         db_type = "Book"
+        active_shelf = "🔖 待讀書架" # 預設的子目錄書架
+
         if biblio_view_mode == "📖 文獻探索":
             st.subheader("文獻篩選")
             biblio_type_label = st.radio("文獻類型", ["📚 出版專書", "📄 期刊論文"], label_visibility="collapsed", on_change=reset_biblio_page)
@@ -60,6 +63,11 @@ def render_page():
                         selected_issue = st.radio(f"{active_filter} 期號/版本：", clean_issues, on_change=reset_biblio_page)
                     else: selected_issue = None
                 else: active_filter = selected_main
+                
+        # 🌟 UI 優化：當選擇「個人書庫」時，動態渲染次目錄單選按鈕
+        elif biblio_view_mode == "🔖 個人書庫":
+            st.subheader("📚 書架狀態")
+            active_shelf = st.radio("選擇庫存狀態", ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫"], label_visibility="collapsed", on_change=reset_biblio_page)
 
     # ==========================================
     # 🌟 獨立的搜尋中心分頁
@@ -207,7 +215,6 @@ def render_page():
                             doi_text, display_time = row.get('identifier', '無識別碼'), row.get('issue_volume', '') if pd.notna(row.get('issue_volume', '')) and row.get('issue_volume', '') else row.get('publish_date', '未知日期')
                             st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
                         with col_btn:
-                            # 🌟 文獻列表的狀態快捷按鈕，切換為「加入/移除待讀」
                             is_bk = row.get('book_status', 0) == 1
                             st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.update_book_status, args=([row['id']], 0 if is_bk else 1), help="加入/移除待讀")
                             
@@ -239,9 +246,10 @@ def render_page():
                         st.divider()
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
 
-    # 🌟 統一合併三種狀態的書庫處理 (待讀、已讀、實體)
-    elif biblio_view_mode in ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫"]:
-        if biblio_view_mode == "🔖 待讀書架":
+    # 🌟 UI 優化：將三種書架狀態合併於同一邏輯區塊處理，並將 API 代入 active_shelf
+    elif biblio_view_mode == "🔖 個人書庫":
+        # 僅在待讀書架顯示手動加入區塊 (保持邏輯合理)
+        if active_shelf == "🔖 待讀書架":
             with st.expander("📥 手動新增待讀書目", expanded=False):
                 isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
                 if st.button("檢索並加入書架", use_container_width=True):
@@ -257,7 +265,8 @@ def render_page():
                     else: st.warning("⚠️ 請輸入 ISBN。")
             st.markdown("---")
 
-        df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_local_search)
+        # 這裡的傳入參數改為 active_shelf
+        df_pubs = core_utils.fetch_academic_pubs(view_mode=active_shelf, pub_type="Book", source_filter="總覽", search_query=bib_local_search)
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
         
@@ -265,12 +274,11 @@ def render_page():
         selected_category = st.radio("📚 分類篩選：", BOOK_CATEGORIES, horizontal=True)
         if selected_category != "總覽": df_pubs = df_pubs[df_pubs['category'] == selected_category]
 
-        st.subheader(f"{biblio_view_mode} ({selected_category})")
+        st.subheader(f"{active_shelf} ({selected_category})")
         st.markdown("---")
 
-        # 使用字典分流不同的 session key 防止分頁衝突
         ctx_map = {"🔖 待讀書架": "bookshelf", "✅ 已讀書籍": "read", "📦 實體書庫": "physical"}
-        ctx = ctx_map[biblio_view_mode]
+        ctx = ctx_map[active_shelf]
 
         df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key=f"{ctx}_tab")
 
