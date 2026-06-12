@@ -272,7 +272,7 @@ def fetch_book_by_url(url):
             title = title.split('|')[0].split(' - ')[0].replace('Amazon.co.jp:', '').replace('Amazon.com:', '').strip()
             
             og_img = soup.find('meta', property='og:image')
-            img_url = og_img['content'] if og_img protect and og_img.get('content') else ""
+            img_url = og_img['content'] if og_img and og_img.get('content') else ""
             if img_url: img_url = get_secure_image_base64(img_url, "url_backup")
             
             author_meta = soup.find('meta', attrs={'name': 'author'}) or soup.find('meta', property='article:author')
