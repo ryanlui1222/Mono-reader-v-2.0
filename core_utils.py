@@ -292,7 +292,7 @@ def fetch_book_by_url(url):
     return None
 
 # ==========================================
-# 🌟 具備日誌追蹤的圖書 API 引擎 (透明化除錯)
+# 🌟 具備日誌追蹤的圖書 API 引擎 (透明化除錯 & 嚴格流程)
 # ==========================================
 def append_log(logs, msg):
     """安全地寫入日誌"""
@@ -300,7 +300,7 @@ def append_log(logs, msg):
     else: print(msg)
 
 def fetch_google_fallback(isbn, logs=None):
-    append_log(logs, f"🔍 [Google Books] 啟動兜底搜尋 (ISBN: {isbn})")
+    append_log(logs, f"🔍 [Google Books] 啟動最終兜底搜尋 (ISBN: {isbn})")
     try:
         api_key = ""
         try: api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
@@ -309,31 +309,35 @@ def fetch_google_fallback(isbn, logs=None):
         if not api_key: append_log(logs, "⚠️ [Google] 警告：未讀取到 API 金鑰，將以無金鑰模式請求。")
         else: append_log(logs, "🔑 [Google] 成功讀取 API 金鑰。")
 
+        # 🌟 破解 403 限制：加入 country 參數，並偽裝台灣 IP
+        google_headers = {"X-Forwarded-For": "168.95.1.1"} # 台灣中華電信 DNS IP
+        
         # 第一波：嚴格 ISBN 搜尋
-        url_strict = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+        url_strict = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&country=TW"
         if api_key: url_strict += f"&key={api_key}"
         
-        append_log(logs, "🌐 [Google] 1. 發送嚴格搜尋請求 (q=isbn:xxx)...")
-        res = requests.get(url_strict, timeout=10)
+        append_log(logs, "🌐 [Google] 1. 發送嚴格搜尋請求...")
+        res = requests.get(url_strict, headers=google_headers, timeout=10)
         append_log(logs, f"📡 [Google] 嚴格搜尋狀態碼: {res.status_code}")
         
         if res.status_code == 429:
-            append_log(logs, "❌ [Google] 429 請求過於頻繁！無金鑰或金鑰額度已滿。")
+            append_log(logs, "❌ [Google] 429 請求過於頻繁！")
             return None
+        elif res.status_code == 403:
+            append_log(logs, f"❌ [Google] 403 存取被拒 (可能 IP 被擋或未設定金鑰)。詳細: {res.text[:100]}")
         elif res.status_code != 200:
             append_log(logs, f"❌ [Google] 伺服器錯誤: {res.text[:100]}")
-            return None
             
-        data = res.json()
+        data = res.json() if res.status_code == 200 else {}
         
-        # 🌟 關鍵修復：繁體書寬鬆搜尋
-        if "items" not in data or len(data["items"]) == 0:
+        # 🌟 第二波：繁體書寬鬆搜尋
+        if "items" not in data or len(data.get("items", [])) == 0:
             append_log(logs, "⚠️ [Google] 嚴格搜尋查無此書，啟動「無標籤寬鬆盲搜」...")
-            url_loose = f"https://www.googleapis.com/books/v1/volumes?q={isbn}"
+            url_loose = f"https://www.googleapis.com/books/v1/volumes?q={isbn}&country=TW"
             if api_key: url_loose += f"&key={api_key}"
-            res_loose = requests.get(url_loose, timeout=10)
+            res_loose = requests.get(url_loose, headers=google_headers, timeout=10)
             append_log(logs, f"📡 [Google] 寬鬆搜尋狀態碼: {res_loose.status_code}")
-            data = res_loose.json()
+            data = res_loose.json() if res_loose.status_code == 200 else {}
 
         if "items" in data and len(data["items"]) > 0:
             info = data["items"][0].get("volumeInfo", {})
@@ -375,10 +379,11 @@ def fetch_openbd(isbn, logs=None):
                 "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "book_status": 0
             }
         else:
-            append_log(logs, "⚠️ [OpenBD] 查無此書，轉交 Google 兜底。")
+            append_log(logs, "⚠️ [OpenBD] 查無此書，放棄並交由主程序找下一個資料庫。")
     except Exception as e: 
         append_log(logs, f"❌ [OpenBD] 錯誤: {e}")
-    return fetch_google_fallback(isbn, logs)
+    # 🌟 修改點：不再直接回傳 fetch_google_fallback，讓主控制台決定順序
+    return None
 
 def fetch_douban(isbn, logs=None):
     append_log(logs, f"🔍 [Douban] 啟動豆瓣搜尋...")
@@ -390,8 +395,8 @@ def fetch_douban(isbn, logs=None):
             soup = BeautifulSoup(res.text, "html.parser")
             title_tag = soup.find("span", property="v:itemreviewed")
             if not title_tag:
-                append_log(logs, "⚠️ [Douban] 網頁連線成功，但被 WAF 阻擋或找不到書名。轉交 Google 兜底。")
-                return fetch_google_fallback(isbn, logs)
+                append_log(logs, "⚠️ [Douban] 網頁連線成功，但被 WAF 阻擋或查無此書。")
+                return None # 🌟 修改點：放棄，交由主程序
             
             title = title_tag.text.strip()
             append_log(logs, f"✅ [Douban] 成功找到書籍: {title}")
@@ -409,13 +414,14 @@ def fetch_douban(isbn, logs=None):
                 "abstract": abstract[:600], "link": url, "image": img_url, "book_status": 0
             }
         else:
-            append_log(logs, f"⚠️ [Douban] 請求被拒絕，轉交 Google 兜底。")
+            append_log(logs, f"⚠️ [Douban] 請求被拒絕。")
     except Exception as e: 
         append_log(logs, f"❌ [Douban] 錯誤: {e}")
-    return fetch_google_fallback(isbn, logs)
+    # 🌟 修改點：不再呼叫 Google
+    return None
 
 def fetch_crossref_isbn(isbn, logs=None):
-    append_log(logs, f"🔍 [Crossref] 啟動 Crossref 備援搜尋...")
+    append_log(logs, f"🔍 [Crossref] 啟動 Crossref 搜尋...")
     try:
         res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5)
         append_log(logs, f"📡 [Crossref] 狀態碼: {res.status_code}")
@@ -441,7 +447,7 @@ def fetch_crossref_isbn(isbn, logs=None):
     return None
 
 def fetch_book_by_isbn(isbn, return_logs=False):
-    """全域入口：根據設定決定是否回傳執行日誌以供除錯"""
+    """全域入口：強制執行嚴格的降級搜尋順序"""
     logs = []
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: 
@@ -450,41 +456,35 @@ def fetch_book_by_isbn(isbn, return_logs=False):
         
     append_log(logs, f"▶️ 開始解析 ISBN: {clean_isbn}")
     
-    # 1. 根據開頭智能分流 (日文/中文優先)
+    # === 階段 1：根據書系分流到專屬庫 ===
     if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): 
-        append_log(logs, "🔀 偵測為日文書系 (9784/9794)，優先進入 OpenBD。")
+        append_log(logs, "🔀 偵測為日文書系 (9784/9794)，進入 OpenBD。")
         res = fetch_openbd(clean_isbn, logs)
         if res: return (res, logs) if return_logs else res
     elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): 
-        append_log(logs, "🔀 偵測為中文書系，優先進入豆瓣。")
+        append_log(logs, "🔀 偵測為中文書系，進入豆瓣。")
         res = fetch_douban(clean_isbn, logs)
         if res: return (res, logs) if return_logs else res
     else:
         append_log(logs, "🔀 偵測為歐美/通用書系。")
         
-    # 2. 獲取 Syndetics 高清書影備用
+    # === 階段 1.5：預先獲取 Syndetics 高清書影備用 ===
     best_cover = ""
     try:
         syn_res = requests.get(f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test", timeout=5)
         if syn_res.status_code == 200 and len(syn_res.content) > 100: 
             best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
-            append_log(logs, "✅ [Syndetics] 取得備用高清書影。")
+            append_log(logs, "✅ [Syndetics] 取得備用高清封面。")
     except: pass
 
-    # 3. 🌟 主力英文兜底：直接呼叫 Google Books
-    res = fetch_google_fallback(clean_isbn, logs)
-    if res:
-        if best_cover and not res.get("image"): res["image"] = best_cover
-        return (res, logs) if return_logs else res
-        
-    # 4. 如果連 Google 都沒有，才退到 Crossref
+    # === 階段 2：Crossref 備援 ===
     res_crossref = fetch_crossref_isbn(clean_isbn, logs)
     if res_crossref:
         if best_cover: res_crossref["image"] = best_cover
         return (res_crossref, logs) if return_logs else res_crossref
         
-    # 5. 最後的最後：Open Library
-    append_log(logs, "🔍 [Open Library] 啟動最終備援搜尋...")
+    # === 階段 3：Open Library 備援 ===
+    append_log(logs, "🔍 [Open Library] 啟動 Open Library 搜尋...")
     try:
         ol_data = requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data", timeout=5).json()
         if f"ISBN:{clean_isbn}" in ol_data:
@@ -504,9 +504,15 @@ def fetch_book_by_isbn(isbn, return_logs=False):
     except Exception as e: 
         append_log(logs, f"❌ [Open Library] 錯誤: {e}")
         
-    append_log(logs, "🛑 宣告失敗：所有資料庫皆無法找到此 ISBN。")
+    # === 階段 4：Google Books 最終火力兜底 ===
+    res_google = fetch_google_fallback(clean_isbn, logs)
+    if res_google:
+        if best_cover and not res_google.get("image"): res_google["image"] = best_cover
+        return (res_google, logs) if return_logs else res_google
+        
+    append_log(logs, "🛑 宣告失敗：所有 API 與資料庫皆無法找到此 ISBN 的資訊。")
     return (None, logs) if return_logs else None
-
+    
 def fetch_apple_music_data(url_or_id):
     apple_id = url_or_id.strip()
     if not apple_id.isdigit():
