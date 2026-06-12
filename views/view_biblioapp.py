@@ -122,7 +122,8 @@ def render_page():
                     if ref_input:
                         with st.spinner("正在擷取..."):
                             success, msg = core_utils.add_bibliography_reference(ref_input, ref_importance, ref_notes)
-                            if success: st.cache_data.clear(); st.success(msg); st.rerun()
+                            # 🌟 移除 st.rerun()
+                            if success: st.success(msg)
                             else: st.error(msg)
             with tab_man:
                 col_m1, col_m2 = st.columns(2)
@@ -139,7 +140,8 @@ def render_page():
                 if st.button("💾 手動寫入參考庫", use_container_width=True):
                     if manual_title and manual_author and manual_id:
                         success, msg = core_utils.add_manual_bibliography_reference(manual_id, manual_title, manual_author, manual_importance, manual_notes, manual_year, manual_type)
-                        if success: st.cache_data.clear(); st.success(msg); st.rerun()
+                        # 🌟 移除 st.rerun()
+                        if success: st.success(msg)
                         else: st.error(msg)
                     else: st.warning("請務必填寫必填資訊。")
 
@@ -260,7 +262,8 @@ def render_page():
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
                             success, msg = core_utils.add_manual_book(book_data, status=target_status)
-                            if success: st.success(msg); st.rerun()
+                            # 🌟 移除 st.rerun()
+                            if success: st.success(msg)
                             else: st.error(msg)
                         else: st.error("❌ 找不到該 ISBN。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
@@ -307,6 +310,7 @@ def render_page():
                         url_book_data = core_utils.fetch_book_by_url(backup_url_input)
                         if url_book_data:
                             success, msg = core_utils.add_url_backup(url_book_data)
+                            # 🌟 移除 st.rerun()
                             if success: st.success(msg)
                             else: st.error(msg)
                         else: st.error("❌ 無法從該網址中萃取出有效的圖書元資料。")
@@ -349,6 +353,7 @@ def render_page():
                     if st.button("➕ 擷取並加入", use_container_width=True, key="bib_res_btn"):
                         if new_bib_url:
                             success, msg = core_utils.add_custom_resource("biblioapp", new_bib_url)
+                            # 🌟 移除 st.rerun()
                             if success: st.success(msg)
                             else: st.error(msg)
             st.markdown("---")
@@ -383,7 +388,8 @@ def render_page():
                 if st.button("💾 儲存講座記錄", use_container_width=True, type="primary", key="btn_save_lec"):
                     if event_title_lec:
                         success, msg = core_utils.add_manual_custom_resource("biblioapp_lecture", event_title_lec, event_url_lec, event_notes_lec)
-                        if success: st.success(msg); st.rerun()
+                        # 🌟 移除 st.rerun()
+                        if success: st.success(msg)
                         else: st.error(msg)
             st.markdown("---")
 
@@ -423,7 +429,8 @@ def render_page():
                 if st.button("💾 儲存會議記錄", use_container_width=True, type="primary", key="btn_save_conf"):
                     if event_title_conf:
                         success, msg = core_utils.add_manual_custom_resource("biblioapp_conference", event_title_conf, event_url_conf, event_notes_conf)
-                        if success: st.success(msg); st.rerun()
+                        # 🌟 移除 st.rerun()
+                        if success: st.success(msg)
                         else: st.error(msg)
             st.markdown("---")
 
