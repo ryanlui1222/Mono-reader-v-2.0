@@ -126,9 +126,6 @@ def apply_local_search(df, search_query):
 # ==========================================
 # 1. 全域分頁引擎 (Universal Pagination)
 # ==========================================
-# ==========================================
-# 1. 全域分頁引擎 (Universal Pagination)
-# ==========================================
 def paginate_data(data, per_page, session_key):
     total_items = len(data)
     if total_items == 0: return data, 0, 1
@@ -276,16 +273,17 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
             edit_comment = st.text_area("💡 閱讀心得/筆記:", value=old_comment, key=f"p_cmt_{k_id}", height=120)
         
         new_cat = None
-        if context == "bookshelf":
+        # 🌟 Biblioapp 的書籍分類選單
+        if table_name == "academic_pubs":
             current_cat = row.get('category', '未分類')
             valid_cats = ["未分類", "研究", "學術", "小說", "詩", "次文化", "藝術", "音樂"]
-            new_cat = st.selectbox("📚 變更書架分類：", valid_cats, index=valid_cats.index(current_cat) if current_cat in valid_cats else 0, key=f"p_cat_{k_id}")
+            new_cat = st.selectbox("📚 變更書籍分類：", valid_cats, index=valid_cats.index(current_cat) if current_cat in valid_cats else 0, key=f"p_cat_{k_id}")
 
-        if st.button("💾 儲存文字變更", key=f"p_save_{k_id}", use_container_width=True, type="primary"):
+        if st.button("💾 儲存文字與分類變更", key=f"p_save_{k_id}", use_container_width=True, type="primary"):
             kwargs = {}
             if table_name == "articles": 
                 kwargs['Title'] = edit_title
-                kwargs['comment'] = edit_comment # 🌟 將心得送入全域引擎
+                kwargs['comment'] = edit_comment
             elif table_name == "media_vault": kwargs.update({'title': edit_title, 'summary': edit_summary})
             elif table_name == "academic_pubs": 
                 kwargs.update({'title': edit_title, 'abstract': edit_summary})
@@ -295,13 +293,38 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
 
         st.divider()
         st.markdown("**⭐ 狀態管理**")
-        btn_label = "💔 移出書架" if context == "bookshelf" else ("💔 移除收藏" if is_bk else "❤️ 加入收藏")
-        if table_name == "media_vault": btn_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
         
-        if st.button(btn_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
-            next_state = 0 if is_bk else 1
-            core_utils.toggle_bookmark(table_name, [item_id], next_state, id_column=id_col)
-            st.rerun()
+        # 🌟 針對不同資料表的專屬狀態切換邏輯
+        if table_name == "media_vault": 
+            btn_label = "✅ 標記為已完食" if is_bk else "⏳ 退回待播清單"
+            if st.button(btn_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
+                next_state = 0 if is_bk else 1
+                core_utils.toggle_bookmark(table_name, [item_id], next_state, id_column=id_col)
+                st.rerun()
+                
+        elif table_name == "academic_pubs":
+            # 🌟 全新的 4 階段 book_status 下拉式選單
+            current_status = row.get('book_status', 0)
+            status_map = {0: "📖 一般探索 (無標記)", 1: "🔖 待讀書架", 2: "✅ 已讀書籍", 3: "📦 實體書庫"}
+            inv_map = {v: k for k, v in status_map.items()}
+            
+            new_status_str = st.selectbox(
+                "更改閱讀與庫存狀態：", 
+                list(status_map.values()), 
+                index=list(status_map.keys()).index(current_status) if current_status in status_map else 0,
+                key=f"p_status_{k_id}"
+            )
+            
+            if st.button("更新狀態", key=f"btn_status_{k_id}", use_container_width=True):
+                core_utils.update_book_status([item_id], inv_map[new_status_str])
+                st.rerun()
+                
+        else: # articles 等其他仍使用 is_bookmarked 的表
+            btn_label = "💔 移除收藏" if is_bk else "❤️ 加入收藏"
+            if st.button(btn_label, key=f"p_toggle_bk_{k_id}", use_container_width=True):
+                next_state = 0 if is_bk else 1
+                core_utils.toggle_bookmark(table_name, [item_id], next_state, id_column=id_col)
+                st.rerun()
 
         st.divider()
         st.markdown("<span style='color:#EF4444;'>**⚠️ 危險區域**</span>", unsafe_allow_html=True)
@@ -343,6 +366,7 @@ def render_batch_editor(df, table_name, key_prefix=""):
     df_edit.insert(0, 'Select', False) 
     
     if 'is_bookmarked' in df_edit.columns: df_edit['is_bookmarked'] = df_edit['is_bookmarked'].astype(bool)
+    if 'book_status' in df_edit.columns: df_edit['book_status'] = df_edit['book_status'].fillna(0).astype(int)
 
     # 欄位顯示設定
     if table_name == "custom_resources":
@@ -352,10 +376,11 @@ def render_batch_editor(df, table_name, key_prefix=""):
     elif table_name == "media_vault":  
         display_cols, disabled_cols = ['Select', 'title', 'creator', 'source_url', 'is_bookmarked'], ['source_url', 'creator']
     elif table_name == "academic_pubs":
-        display_cols, disabled_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'is_bookmarked'], ['publisher_journal', 'author']
+        # 🌟 換上 book_status
+        display_cols, disabled_cols = ['Select', 'title', 'author', 'publisher_journal', 'category', 'book_status'], ['publisher_journal', 'author']
     elif table_name == "bibliography_notes":
         display_cols, disabled_cols = ['Select', 'title', 'author', 'importance', 'notes'], ['title', 'author']
-    elif table_name == "articles": # 🌟 加入 articles 的專屬欄位設定，包含 comment
+    elif table_name == "articles":
         display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'comment', 'is_bookmarked'], ['Link', 'Source']
     else:
         display_cols, disabled_cols = ['Select', 'Title', 'Source', 'Link', 'is_bookmarked'], ['Link', 'Source']
@@ -404,8 +429,9 @@ def render_batch_editor(df, table_name, key_prefix=""):
                     elif table_name == "academic_pubs":
                         kwargs = {'title': str(row_edit['title'])}
                         if 'category' in row_edit and row_edit['category'] != row_orig['category']: kwargs['category'] = str(row_edit['category'])
+                        # 🌟 寫入對應的 book_status
+                        if 'book_status' in row_edit and row_edit['book_status'] != row_orig['book_status']: kwargs['book_status'] = int(row_edit['book_status'])
                     elif table_name == "articles":
-                        # 🌟 把 comment 一起抓下來儲存
                         kwargs = {'Title': str(row_edit['Title']), 'comment': str(row_edit.get('comment', ''))}
                     elif table_name == "bibliography_notes":
                         kwargs = {'importance': str(row_edit.get('importance', '待讀')), 'notes': str(row_edit.get('notes', ''))}
