@@ -247,25 +247,36 @@ def render_page():
     # 🔖 個人書庫 (待讀、已讀、實體) 合併管理區塊
     # ==========================================
     elif biblio_view_mode == "🔖 個人書庫":
-        # 🌟 建立對照表：動態解析當前分頁應寫入的 book_status 數值與乾淨名稱
         shelf_status_map = {"🔖 待讀書架": 1, "✅ 已讀書籍": 2, "📦 實體書庫": 3}
         target_status = shelf_status_map.get(active_shelf, 1)
-        shelf_clean_name = active_shelf[2:] # 截取純文字做 UI
+        shelf_clean_name = active_shelf[2:]
 
-        # 🌟 解除 active_shelf == "🔖 待讀書架" 的封印，讓三個子分頁全部擁有專屬輸入器
+        # 🌟 升級版書籍導入：具備日誌追蹤功能
         with st.expander(f"📥 快速匯入新書至【{shelf_clean_name}】", expanded=False):
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486", key=f"isbn_in_{shelf_clean_name}")
             if st.button(f"檢索並加入【{shelf_clean_name}】", use_container_width=True, key=f"isbn_btn_{shelf_clean_name}"):
                 if isbn_input:
                     with st.spinner("正在呼叫多語系智能引擎..."):
-                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
+                        # 開啟 return_logs 接收底層的除錯訊息
+                        book_data, logs = core_utils.fetch_book_by_isbn(isbn_input, return_logs=True)
+                        
+                        # 顯示日誌面板 (如果失敗自動展開，成功則折疊)
+                        with st.expander("🛠️ 展開查看 API 掃描追蹤日誌", expanded=(not book_data)):
+                            for log in logs:
+                                if "❌" in log or "🛑" in log: st.error(log)
+                                elif "⚠️" in log: st.warning(log)
+                                elif "✅" in log: st.success(log)
+                                else: st.text(log)
+                                
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
-                            # 🌟 傳入動態的 target_status 進行對應分頁寫入！
                             success, msg = core_utils.add_manual_book(book_data, status=target_status)
-                            if success: st.success(msg); st.rerun()
-                            else: st.error(msg)
-                        else: st.error("❌ 找不到該 ISBN。")
+                            if success: 
+                                st.success(msg)
+                            else: 
+                                st.error(msg)
+                        else: 
+                            st.error("❌ 找不到該 ISBN。請查看上方日誌了解哪裡被阻擋。")
                 else: st.warning("⚠️ 請輸入 ISBN。")
         st.markdown("---")
 
