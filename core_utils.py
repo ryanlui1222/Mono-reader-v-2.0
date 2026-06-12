@@ -49,11 +49,9 @@ db = init_connection()
 # 🛠️ 核心共用引擎 (Helpers)
 # ==========================================
 def get_scraper():
-    """全域爬蟲實體生成器，統一管理瀏覽器偽裝與 Timeout"""
     return cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
 
 def query_to_df(sql, params=None, lower_cols=False):
-    """全域 SQL 轉 DataFrame 引擎，取代原本重複的 50 行防呆邏輯"""
     try:
         res = db.execute(sql, params or [])
         if not res.rows: return pd.DataFrame()
@@ -64,10 +62,9 @@ def query_to_df(sql, params=None, lower_cols=False):
         return pd.DataFrame()
 
 # ==========================================
-# 🛠️ 終極全域 CRUD 引擎 (取代 16 個舊函數)
+# 🛠️ 終極全域 CRUD 引擎
 # ==========================================
 def delete_records(table_name, item_ids, id_column="id"):
-    """全域統一刪除：支援單筆與多筆，自動清除快取"""
     if not isinstance(item_ids, list): item_ids = [item_ids]
     if not item_ids: return
     try:
@@ -79,7 +76,6 @@ def delete_records(table_name, item_ids, id_column="id"):
         st.error(f"刪除失敗: {e}")
 
 def update_record(table_name, item_id, id_column="id", **kwargs):
-    """全域統一更新：自動將 kwargs 轉為 SQL 的 SET 語法"""
     if not kwargs: return False
     try:
         set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
@@ -92,7 +88,6 @@ def update_record(table_name, item_id, id_column="id", **kwargs):
         return False
 
 def toggle_bookmark(table_name, item_ids, to_state, id_column="id"):
-    """全域狀態切換：自動將指定的 ID 切換至 to_state 狀態"""
     if not isinstance(item_ids, list): item_ids = [item_ids]
     if not item_ids: return
     try:
@@ -104,7 +99,6 @@ def toggle_bookmark(table_name, item_ids, to_state, id_column="id"):
         st.error(f"狀態更新失敗: {e}")
 
 def update_book_status(item_ids, new_status):
-    """全域狀態切換：專用於 academic_pubs 的閱讀狀態 (0=一般, 1=待讀, 2=已讀, 3=實體)"""
     if not isinstance(item_ids, list): item_ids = [item_ids]
     if not item_ids: return
     try:
@@ -213,7 +207,7 @@ def fetch_omni_items(category=None, search_query=""):
     return query_to_df(sql, args)
 
 # ==========================================
-# 🌐 網路請求與爬蟲模組 (全面採用 get_scraper)
+# 🌐 網路請求與爬蟲模組
 # ==========================================
 def get_secure_image_base64(img_url, source=""):
     if not img_url: return ""
@@ -234,7 +228,6 @@ def get_secure_image_base64(img_url, source=""):
                 compressed_content = buffer.getvalue()
                 return f"data:image/jpeg;base64,{base64.b64encode(compressed_content).decode('utf-8')}"
             except Exception as e:
-                print(f"圖片壓縮失敗，退回原圖轉碼: {e}")
                 return f"data:{res.headers.get('Content-Type', 'image/jpeg')};base64,{base64.b64encode(res.content).decode('utf-8')}"
     except: pass
     return img_url
@@ -301,39 +294,50 @@ def fetch_book_by_url(url):
     except Exception as e: print(f"網址備存解析失敗: {e}")
     return None
 
+# ==========================================
+# 🌟 核心圖書 API 引擎 (雙重兜底機制)
+# ==========================================
 def fetch_google_fallback(isbn):
+    """Google Books API 最終兜底搜尋，具備地區破解與寬鬆盲搜機制"""
     try:
-        api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
-        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-        if api_key:
-            url += f"&key={api_key}"
-            
-        res = requests.get(url, timeout=10)
+        api_key = ""
+        try: api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
+        except: pass
+
+        google_headers = {"X-Forwarded-For": "168.95.1.1"} # 台灣 IP 偽裝
         
-        if res.status_code == 429:
-            print("❌ Google Books API 請求過於頻繁 (429)。")
-            return None
-        elif res.status_code != 200:
-            print(f"❌ Google Books API 伺服器錯誤: {res.status_code}")
-            return None
-            
-        data = res.json()
+        # 1. 嚴格 ISBN 搜尋
+        url_strict = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&country=TW"
+        if api_key: url_strict += f"&key={api_key}"
+        
+        res = requests.get(url_strict, headers=google_headers, timeout=10)
+        data = res.json() if res.status_code == 200 else {}
+        
+        # 2. 寬鬆盲搜 (如果嚴格搜尋找不到)
+        if "items" not in data or len(data.get("items", [])) == 0:
+            url_loose = f"https://www.googleapis.com/books/v1/volumes?q={isbn}&country=TW"
+            if api_key: url_loose += f"&key={api_key}"
+            res_loose = requests.get(url_loose, headers=google_headers, timeout=10)
+            data = res_loose.json() if res_loose.status_code == 200 else {}
+
+        # 3. 處理回傳結果
         if "items" in data and len(data["items"]) > 0:
             info = data["items"][0].get("volumeInfo", {})
+            title = info.get("title", "未命名書籍")
+            
             img_links = info.get("imageLinks", {})
             img_url = img_links.get("thumbnail", "") or img_links.get("smallThumbnail", "")
             img_url = img_url.replace("http://", "https://")
             final_image = get_secure_image_base64(img_url, "google") if img_url else ""
             
             return {
-                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", [])),
+                "type": "Book", "title": title, "author": ", ".join(info.get("authors", [])),
                 "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
                 "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
                 "image": final_image, "book_status": 0
             }
-    except Exception as e:
-        print(f"Google Books API 解析失敗: {e}")
+    except Exception as e: print(f"Google Books API 解析失敗: {e}")
     return None
 
 def fetch_openbd(isbn):
@@ -349,25 +353,6 @@ def fetch_openbd(isbn):
                 "link": f"https://ndlsearch.ndl.go.jp/books/R100000002-I{isbn}", "image": img_url, "book_status": 0
             }
     except: pass
-    return fetch_google_fallback(isbn)
-
-def fetch_crossref_isbn(isbn):
-    try:
-        res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
-        items = res.get("message", {}).get("items", [])
-        if items:
-            item = items[0]
-            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
-            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
-            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
-            return {
-                "type": "Book", "title": item.get("title", ["未命名書籍"])[0], "author": author or "未知",
-                "publisher_journal": item.get("publisher", "手動加入"), "issue_volume": "",
-                "identifier": isbn, "publish_date": pub_date,
-                "abstract": "（由 Crossref 學術庫匯入）", "link": item.get("URL", ""), 
-                "image": "", "book_status": 0
-            }
-    except: pass
     return None
 
 def fetch_douban(isbn):
@@ -376,7 +361,10 @@ def fetch_douban(isbn):
         res = get_scraper().get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            title = soup.find("span", property="v:itemreviewed").text.strip() if soup.find("span", property="v:itemreviewed") else "未知"
+            title_tag = soup.find("span", property="v:itemreviewed")
+            if not title_tag: return None
+            
+            title = title_tag.text.strip()
             mainpic = soup.find("div", id="mainpic")
             img_url = get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban") if mainpic and mainpic.find("img") else ""
             author_span = soup.find("span", string=re.compile("作者"))
@@ -391,14 +379,38 @@ def fetch_douban(isbn):
                 "abstract": abstract[:600], "link": url, "image": img_url, "book_status": 0
             }
     except: pass
-    return fetch_google_fallback(isbn)
+    return None
+
+def fetch_crossref_isbn(isbn):
+    try:
+        res = requests.get(f"https://api.crossref.org/works?filter=isbn:{isbn}", headers={"User-Agent": "BiblioappCloud/1.0"}, timeout=5).json()
+        items = res.get("message", {}).get("items", [])
+        if items:
+            item = items[0]
+            title = item.get("title", ["未命名書籍"])[0]
+            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in item.get("author", [])])
+            date_parts = item.get("issued", {}).get("date-parts", [[]])[0]
+            pub_date = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else "未知日期"
+            return {
+                "type": "Book", "title": title, "author": author or "未知",
+                "publisher_journal": item.get("publisher", "手動加入"), "issue_volume": "",
+                "identifier": isbn, "publish_date": pub_date,
+                "abstract": "（由 Crossref 學術庫匯入）", "link": item.get("URL", ""), 
+                "image": "", "book_status": 0
+            }
+    except: pass
+    return None
 
 def fetch_book_by_isbn(isbn):
+    """嚴格控制順序的全域圖書入口"""
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: return None
     
-    if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): return fetch_openbd(clean_isbn)
-    elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): return fetch_douban(clean_isbn)
+    res = None
+    if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"): 
+        res = fetch_openbd(clean_isbn)
+    elif clean_isbn.startswith("9787") or clean_isbn.startswith("978957") or clean_isbn.startswith("978986") or clean_isbn.startswith("978626"): 
+        res = fetch_douban(clean_isbn)
     
     best_cover = ""
     try:
@@ -406,7 +418,6 @@ def fetch_book_by_isbn(isbn):
         if syn_res.status_code == 200 and len(syn_res.content) > 100: best_cover = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
     except: pass
 
-    res = fetch_google_fallback(clean_isbn)
     if res:
         if best_cover and not res.get("image"): res["image"] = best_cover
         return res
@@ -429,6 +440,13 @@ def fetch_book_by_isbn(isbn):
                 "image": best_cover if best_cover else info.get("cover", {}).get("large", f"https://covers.openlibrary.org/b/isbn/{clean_isbn}-L.jpg"), "book_status": 0
             }
     except: pass
+    
+    # 所有其他來源失敗時，最終交由 Google 兜底
+    res_google = fetch_google_fallback(clean_isbn)
+    if res_google:
+        if best_cover and not res_google.get("image"): res_google["image"] = best_cover
+        return res_google
+        
     return None
 
 def fetch_apple_music_data(url_or_id):
@@ -581,7 +599,7 @@ def fetch_from_openalex_by_title(title):
     return None
 
 # ==========================================
-# 📥 寫入與新增模組區 (保持原樣，直接對接 DB)
+# 📥 寫入與新增模組區
 # ==========================================
 def init_bibliography_table():
     try:
@@ -627,7 +645,6 @@ def add_bibliography_reference(input_val, importance, notes):
     except Exception as e: return False, f"寫入失敗: {e}"
 
 def add_manual_book(book_data, status=1):
-    """🌟 升級：增加 status 參數，讓書籍可以動態寫入待讀(1)、已讀(2)或實體(3)"""
     try:
         sql = "INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, book_status, is_manual, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '未分類') ON CONFLICT(identifier) DO UPDATE SET title=excluded.title, image=excluded.image;"
         db.execute(sql, [book_data['type'], book_data['title'], book_data['author'], book_data['publisher_journal'], book_data['issue_volume'], book_data['identifier'], book_data['publish_date'], book_data['abstract'], book_data['link'], book_data['image'], status])
