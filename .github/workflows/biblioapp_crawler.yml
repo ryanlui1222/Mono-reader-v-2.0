@@ -19,12 +19,15 @@ jobs:
       - name: 📦 安裝相依套件
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser beautifulsoup4 libsql-client cloudscraper
+          # 🌟 修正：補上 Pillow 與 requests
+          pip install feedparser beautifulsoup4 libsql-client cloudscraper Pillow requests
           
       - name: 🚀 執行 Biblioapp 學術文獻爬蟲
         env:
           # 將 GitHub Secrets 注入為環境變數，讓爬蟲腳本讀取
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
+          # 🌟 修正：將 Google Books API 金鑰注入虛擬機
+          GOOGLE_BOOKS_API_KEY: ${{ secrets.GOOGLE_BOOKS_API_KEY }}
         run: |
           python scholar_crawler.py
