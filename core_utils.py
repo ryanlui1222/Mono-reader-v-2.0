@@ -302,35 +302,57 @@ def fetch_book_by_url(url):
     return None
 
 def fetch_google_fallback(isbn):
+    """Google Books API 終極兜底引擎 (支援寬鬆搜索與雙重防護)"""
     try:
-        api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
-        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-        if api_key:
-            url += f"&key={api_key}"
+        # 1. 安全抓取金鑰
+        api_key = ""
+        try:
+            api_key = st.secrets.get("GOOGLE_BOOKS_API_KEY", "")
+        except: pass
+
+        # 2. 第一波：嚴格 ISBN 搜尋
+        url_strict = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+        if api_key: url_strict += f"&key={api_key}"
             
-        res = requests.get(url, timeout=10)
+        res = requests.get(url_strict, timeout=10)
         
         if res.status_code == 429:
-            print("❌ Google Books API 請求過於頻繁 (429)。")
-            return None
-        elif res.status_code != 200:
-            print(f"❌ Google Books API 伺服器錯誤: {res.status_code}")
+            print("❌ Google API 請求過於頻繁 (429)，請確認雲端金鑰是否設定正確。")
             return None
             
         data = res.json()
+        
+        # 3. 🌟 關鍵修復：如果嚴格搜尋找不到，啟動「無標籤寬鬆搜尋」！
+        # 很多繁體書在 Google 資料庫中沒有正確標記 ISBN 屬性，但直接搜數字卻搜得到。
+        if "items" not in data or len(data["items"]) == 0:
+            print("⚠️ Google 嚴格搜尋查無此書，啟動寬鬆數字盲搜...")
+            url_loose = f"https://www.googleapis.com/books/v1/volumes?q={isbn}"
+            if api_key: url_loose += f"&key={api_key}"
+            res_loose = requests.get(url_loose, timeout=10)
+            data = res_loose.json()
+
+        # 4. 解析最終結果
         if "items" in data and len(data["items"]) > 0:
             info = data["items"][0].get("volumeInfo", {})
             img_links = info.get("imageLinks", {})
             img_url = img_links.get("thumbnail", "") or img_links.get("smallThumbnail", "")
             img_url = img_url.replace("http://", "https://")
+            
+            # 使用新版 Pillow 壓縮函數
             final_image = get_secure_image_base64(img_url, "google") if img_url else ""
             
             return {
-                "type": "Book", "title": info.get("title", "未命名書籍"), "author": ", ".join(info.get("authors", [])),
-                "publisher_journal": info.get("publisher", "手動加入"), "issue_volume": "", "identifier": isbn, 
+                "type": "Book", 
+                "title": info.get("title", "未命名書籍"), 
+                "author": ", ".join(info.get("authors", [])),
+                "publisher_journal": info.get("publisher", "手動加入"), 
+                "issue_volume": "", 
+                "identifier": isbn, 
                 "publish_date": info.get("publishedDate", datetime.utcnow().strftime("%Y-%m-%d")),
-                "abstract": info.get("description", "（無摘要）")[:600], "link": info.get("infoLink", ""),
-                "image": final_image, "book_status": 0
+                "abstract": info.get("description", "（無摘要）")[:600], 
+                "link": info.get("infoLink", ""),
+                "image": final_image, 
+                "book_status": 0
             }
     except Exception as e:
         print(f"Google Books API 解析失敗: {e}")
@@ -376,7 +398,13 @@ def fetch_douban(isbn):
         res = get_scraper().get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            title = soup.find("span", property="v:itemreviewed").text.strip() if soup.find("span", property="v:itemreviewed") else "未知"
+            title_tag = soup.find("span", property="v:itemreviewed")
+            
+            # 🌟 關鍵修復：如果豆瓣遇到阻擋或查無此書，會沒有 title_tag，此時必須強制交給 Google 兜底！
+            if not title_tag:
+                return fetch_google_fallback(isbn)
+                
+            title = title_tag.text.strip()
             mainpic = soup.find("div", id="mainpic")
             img_url = get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban") if mainpic and mainpic.find("img") else ""
             author_span = soup.find("span", string=re.compile("作者"))
@@ -391,8 +419,10 @@ def fetch_douban(isbn):
                 "abstract": abstract[:600], "link": url, "image": img_url, "book_status": 0
             }
     except: pass
+    
+    # 網路連線失敗，交由 Google 兜底
     return fetch_google_fallback(isbn)
-
+    
 def fetch_book_by_isbn(isbn):
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper())
     if not clean_isbn: return None
