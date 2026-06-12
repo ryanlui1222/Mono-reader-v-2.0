@@ -13,7 +13,6 @@ def reset_biblio_page():
 
 def render_page():
     if 'biblio_page' not in st.session_state: st.session_state.biblio_page = 1
-    if 'bib_grid_page' not in st.session_state: st.session_state.bib_grid_page = 1
 
     col_h1, col_h2 = st.columns([7, 3])
     with col_h1: st.header("🎓 Biblioapp：學術文獻與出版追蹤")
@@ -22,13 +21,12 @@ def render_page():
         is_edit_mode = st.toggle("🛠️ 進入試算表管理模式", key="biblio_edit_mode")
     
     with st.sidebar:
-        # 🌟 還原左側局域搜尋
         st.subheader("🔍 當前分頁搜尋")
         bib_local_search = st.text_input("輸入關鍵字", placeholder="在此分頁中過濾...", label_visibility="collapsed", on_change=reset_biblio_page)
         st.markdown("---")
         
-        # 🌟 將搜尋中心置於最底
-        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
+        # 🌟 引入全新的狀態書架分類模式
+        biblio_view_mode = st.radio("功能模式", ["📖 文獻探索", "🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫", "📚 參考書目", "🔗 網址備存", "🌐 可用資源", "🔍 搜尋中心"], on_change=reset_biblio_page)
         st.markdown("---")
 
         active_filter = "總覽 (依日期遞減)"
@@ -55,7 +53,6 @@ def render_page():
                 
                 if selected_main.startswith("📁 "):
                     active_filter = selected_main.replace("📁 ", "")
-                    # 局域搜尋掛載
                     temp_df = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_local_search)
                     raw_issues = temp_df['issue_volume'].dropna().unique().tolist() if not temp_df.empty else []
                     clean_issues = [iss for iss in raw_issues if str(iss).strip()]
@@ -76,12 +73,12 @@ def render_page():
         if not global_q:
             st.info("👈 請在上方輸入關鍵字開始檢索。")
         else:
-            # 🌟 強制傳入 view_mode="🔍 搜尋中心" 觸發後端無差別地毯搜索
             df_pubs = core_utils.fetch_academic_pubs(view_mode="🔍 搜尋中心", search_query=global_q)
             if not df_pubs.empty:
                 st.markdown(f"#### 📖 學術文獻與書架 ({len(df_pubs)} 筆)")
+                status_dict = {1: "待讀書架", 2: "已讀書籍", 3: "實體書庫"}
                 for _, row in df_pubs.iterrows():
-                    location = "待讀書架" if row.get('is_bookmarked') == 1 else ("網址備存" if row.get('type') == 'Web Link' else "文獻探索")
+                    location = "網址備存" if row.get('type') == 'Web Link' else status_dict.get(row.get('book_status', 0), "文獻探索")
                     st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('link', '#')})** ｜ 👤 {row.get('author', '未知')} ｜ 📍 位於：`{location}`")
                 st.write("")
                 
@@ -144,7 +141,6 @@ def render_page():
         st.subheader("📚 參考書目與註釋管理")
         st.markdown("---")
 
-        # 🌟 傳入局域搜尋
         df_refs = core_utils.fetch_bibliography_references(search_query=bib_local_search)
         df_refs = ui_components.apply_smart_sort(df_refs, table_name="bibliography_notes", context_key="ref_tab")
         
@@ -173,7 +169,6 @@ def render_page():
         st.subheader(f"🏛️ {active_filter} - 目錄")
         st.markdown("---")
 
-        # 🌟 傳入局域搜尋
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type=db_type, source_filter=active_filter, search_query=bib_local_search)
         if db_type == "Journal" and active_filter != "總覽 (依日期遞減)" and 'selected_issue' in locals() and selected_issue:
             df_pubs = df_pubs[df_pubs['issue_volume'] == selected_issue]
@@ -212,8 +207,9 @@ def render_page():
                             doi_text, display_time = row.get('identifier', '無識別碼'), row.get('issue_volume', '') if pd.notna(row.get('issue_volume', '')) and row.get('issue_volume', '') else row.get('publish_date', '未知日期')
                             st.markdown(f"- **[{row.get('title', '未命名論文')}]({row.get('link', '#')})** ｜ 👤 *{row.get('author', '未知')}* ｜ 🔖 `{doi_text}` ｜ 📅 {display_time}")
                         with col_btn:
-                            is_bk = bool(row.get('is_bookmarked', 0))
-                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.toggle_bookmark, args=("academic_pubs", [row['id']], 0 if is_bk else 1), help="加入待讀")
+                            # 🌟 文獻列表的狀態快捷按鈕，切換為「加入/移除待讀」
+                            is_bk = row.get('book_status', 0) == 1
+                            st.button("❤️" if is_bk else "🤍", key=f"bk_mini_{row['id']}", on_click=core_utils.update_book_status, args=([row['id']], 0 if is_bk else 1), help="加入/移除待讀")
                             
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
                 else:
@@ -243,23 +239,24 @@ def render_page():
                         st.divider()
                     ui_components.render_pagination_ui(total_pages, current_page, "biblio_page")
 
-    elif biblio_view_mode == "🔖 待讀書架":
-        with st.expander("📥 手動新增待讀書目", expanded=False):
-            isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
-            if st.button("檢索並加入書架", use_container_width=True):
-                if isbn_input:
-                    with st.spinner("正在呼叫多語系智能引擎..."):
-                        book_data = core_utils.fetch_book_by_isbn(isbn_input)
-                        if book_data:
-                            book_data['publisher_journal'] = "手動加入"
-                            success, msg = core_utils.add_manual_book(book_data)
-                            if success: st.success(msg)
-                            else: st.error(msg)
-                        else: st.error("❌ 找不到該 ISBN。")
-                else: st.warning("⚠️ 請輸入 ISBN。")
-        st.markdown("---")
+    # 🌟 統一合併三種狀態的書庫處理 (待讀、已讀、實體)
+    elif biblio_view_mode in ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫"]:
+        if biblio_view_mode == "🔖 待讀書架":
+            with st.expander("📥 手動新增待讀書目", expanded=False):
+                isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486")
+                if st.button("檢索並加入書架", use_container_width=True):
+                    if isbn_input:
+                        with st.spinner("正在呼叫多語系智能引擎..."):
+                            book_data = core_utils.fetch_book_by_isbn(isbn_input)
+                            if book_data:
+                                book_data['publisher_journal'] = "手動加入"
+                                success, msg = core_utils.add_manual_book(book_data)
+                                if success: st.success(msg)
+                                else: st.error(msg)
+                            else: st.error("❌ 找不到該 ISBN。")
+                    else: st.warning("⚠️ 請輸入 ISBN。")
+            st.markdown("---")
 
-        # 🌟 傳入局域搜尋
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Book", source_filter="總覽", search_query=bib_local_search)
         if 'category' not in df_pubs.columns: df_pubs['category'] = "未分類"
         df_pubs['category'] = df_pubs['category'].fillna("未分類").replace("", "未分類").replace("學術專著", "研究")
@@ -268,25 +265,30 @@ def render_page():
         selected_category = st.radio("📚 分類篩選：", BOOK_CATEGORIES, horizontal=True)
         if selected_category != "總覽": df_pubs = df_pubs[df_pubs['category'] == selected_category]
 
-        st.subheader(f"🔖 待讀書架 ({selected_category})")
+        st.subheader(f"{biblio_view_mode} ({selected_category})")
         st.markdown("---")
 
-        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="bookshelf_tab")
+        # 使用字典分流不同的 session key 防止分頁衝突
+        ctx_map = {"🔖 待讀書架": "bookshelf", "✅ 已讀書籍": "read", "📦 實體書庫": "physical"}
+        ctx = ctx_map[biblio_view_mode]
+
+        df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key=f"{ctx}_tab")
 
         if is_edit_mode:
             if df_pubs.empty: st.info(f"「{selected_category}」分類目前沒有符合的書籍。")
-            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="bookshelf")
+            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix=ctx)
         else:
             if df_pubs.empty: st.info(f"目前沒有相符書籍。")
             else:
-                df_grid_page, total_grid_pages, current_grid_page = ui_components.paginate_data(df_pubs, per_page=15, session_key="bib_grid_page")
+                if f'bib_{ctx}_grid_page' not in st.session_state: st.session_state[f'bib_{ctx}_grid_page'] = 1
+                df_grid_page, total_grid_pages, current_grid_page = ui_components.paginate_data(df_pubs, per_page=15, session_key=f"bib_{ctx}_grid_page")
                 cols = st.columns(5)
                 for idx, row in df_grid_page.reset_index(drop=True).iterrows():
                     with cols[idx % 5]:
                         ui_components.render_grid_card(row)
-                        ui_components.render_smart_popover(row, table_name="academic_pubs", context="bookshelf")
+                        ui_components.render_smart_popover(row, table_name="academic_pubs", context=ctx)
                         st.write("") 
-                ui_components.render_pagination_ui(total_grid_pages, current_grid_page, "bib_grid_page")
+                ui_components.render_pagination_ui(total_grid_pages, current_grid_page, f"bib_{ctx}_grid_page")
                         
     elif biblio_view_mode == "🔗 網址備存":
         with st.expander("📥 網址備存匯入 (當 ISBN 掃描失敗時強制擷取)", expanded=False):
@@ -305,7 +307,6 @@ def render_page():
         st.subheader(f"🔗 網址備存清單")
         st.markdown("---")
         
-        # 🌟 傳入局域搜尋
         df_pubs = core_utils.fetch_academic_pubs(view_mode=biblio_view_mode, pub_type="Web Link", source_filter="總覽", search_query=bib_local_search)
         df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key="weblink_tab")
         
@@ -344,7 +345,6 @@ def render_page():
                             else: st.error(msg)
             st.markdown("---")
 
-            # 🌟 傳入局域搜尋
             df_res = core_utils.fetch_custom_resources("biblioapp", search_query=bib_local_search)
             df_res = ui_components.apply_smart_sort(df_res, table_name="custom_resources", context_key="web")
             
