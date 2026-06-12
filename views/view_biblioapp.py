@@ -247,12 +247,10 @@ def render_page():
     # 🔖 個人書庫 (待讀、已讀、實體) 合併管理區塊
     # ==========================================
     elif biblio_view_mode == "🔖 個人書庫":
-        # 🌟 建立對照表：動態解析當前分頁應寫入的 book_status 數值與乾淨名稱
         shelf_status_map = {"🔖 待讀書架": 1, "✅ 已讀書籍": 2, "📦 實體書庫": 3}
         target_status = shelf_status_map.get(active_shelf, 1)
-        shelf_clean_name = active_shelf[2:] # 截取純文字做 UI
+        shelf_clean_name = active_shelf[2:]
 
-        # 🌟 解除 active_shelf == "🔖 待讀書架" 的封印，讓三個子分頁全部擁有專屬輸入器
         with st.expander(f"📥 快速匯入新書至【{shelf_clean_name}】", expanded=False):
             isbn_input = st.text_input("輸入 ISBN：", placeholder="例如: 9780226321486", key=f"isbn_in_{shelf_clean_name}")
             if st.button(f"檢索並加入【{shelf_clean_name}】", use_container_width=True, key=f"isbn_btn_{shelf_clean_name}"):
@@ -261,7 +259,6 @@ def render_page():
                         book_data = core_utils.fetch_book_by_isbn(isbn_input)
                         if book_data:
                             book_data['publisher_journal'] = "手動加入"
-                            # 🌟 傳入動態的 target_status 進行對應分頁寫入！
                             success, msg = core_utils.add_manual_book(book_data, status=target_status)
                             if success: st.success(msg); st.rerun()
                             else: st.error(msg)
@@ -287,7 +284,7 @@ def render_page():
 
         if is_edit_mode:
             if df_pubs.empty: st.info(f"「{selected_category}」分類目前沒有符合的書籍。")
-            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix="ctx")
+            else: ui_components.render_batch_editor(df_pubs, table_name="academic_pubs", key_prefix=ctx)
         else:
             if df_pubs.empty: st.info(f"目前沒有相符書籍。")
             else:
