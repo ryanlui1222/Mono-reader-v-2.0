@@ -31,6 +31,7 @@ def get_secure_image_base64(img_url, source=""):
             
         res = scraper.get(img_url, headers=headers, timeout=10)
         if res.status_code == 200 and len(res.content) > 500:
+            # 🌟 圖片瘦身手術同步實裝
             try:
                 img = Image.open(io.BytesIO(res.content))
                 if img.mode in ("RGBA", "P"): 
@@ -54,6 +55,7 @@ def get_best_cover(isbn, title, author, publisher):
     headers = {"User-Agent": "Mozilla/5.0"}
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper()) if isbn else ""
 
+    # --- 1. 日文與華文出版品分流 ---
     if clean_isbn:
         if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"):
             try:
@@ -74,6 +76,7 @@ def get_best_cover(isbn, title, author, publisher):
                         return get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban")
             except: pass
 
+    # --- 2. 歐美出版品：Syndetics 優先 ---
     if clean_isbn:
         syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
         try:
@@ -82,6 +85,7 @@ def get_best_cover(isbn, title, author, publisher):
                 return syndetics_url
         except: pass
     
+    # --- 3. MIT Press 專屬 CDN ---
     if publisher == "MIT Press" and clean_isbn:
         img_url = f"https://mit-press-new-us.imgix.net/covers/{clean_isbn}.jpg"
         try:
@@ -89,27 +93,42 @@ def get_best_cover(isbn, title, author, publisher):
                 return img_url
         except: pass
 
+    # --- 4. Google Books (精準搜尋與降噪盲搜，同步 403 破解) ---
+    google_headers = {"X-Forwarded-For": "168.95.1.1"} # 🌟 台灣 IP 偽裝
+    
     if clean_isbn:
         try:
-            url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{clean_isbn}"
+            # 🌟 加入 country=TW
+            url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{clean_isbn}&country=TW"
             if GOOGLE_BOOKS_API_KEY: url += f"&key={GOOGLE_BOOKS_API_KEY}"
-            res = requests.get(url, timeout=5).json()
-            if "items" in res:
+            res = requests.get(url, headers=google_headers, timeout=5).json()
+            
+            if "items" in res and len(res["items"]) > 0:
                 img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
                 if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
+            else:
+                # 🌟 如果嚴格標籤搜不到，啟動寬鬆數字盲搜兜底
+                url_loose = f"https://www.googleapis.com/books/v1/volumes?q={clean_isbn}&country=TW"
+                if GOOGLE_BOOKS_API_KEY: url_loose += f"&key={GOOGLE_BOOKS_API_KEY}"
+                res_loose = requests.get(url_loose, headers=google_headers, timeout=5).json()
+                if "items" in res_loose and len(res_loose["items"]) > 0:
+                    img = res_loose["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
+                    if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
         except: pass
 
     try:
         short_title = re.sub(r'[^a-zA-Z0-9\s]', '', title.split(':')[0].strip())
         query = urllib.parse.quote(f"{short_title} {author.split(',')[0]}")
-        url = f"https://www.googleapis.com/books/v1/volumes?q={query}"
+        # 🌟 書名盲搜同樣加入 country=TW 與標頭
+        url = f"https://www.googleapis.com/books/v1/volumes?q={query}&country=TW"
         if GOOGLE_BOOKS_API_KEY: url += f"&key={GOOGLE_BOOKS_API_KEY}"
-        res = requests.get(url, timeout=5).json()
-        if "items" in res:
+        res = requests.get(url, headers=google_headers, timeout=5).json()
+        if "items" in res and len(res["items"]) > 0:
             img = res["items"][0].get("volumeInfo", {}).get("imageLinks", {}).get("thumbnail")
             if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
     except: pass
 
+    # --- 5. Open Library (最終備用) ---
     if clean_isbn:
         try:
             if requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json", timeout=5).json():
@@ -419,7 +438,6 @@ def save_to_db(items):
     for item in items:
         cat = item.get("category", "未分類")
         
-        # 🌟 修復：補上 issue_volume 與 預設的 book_status
         sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, category, book_status)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                  ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
