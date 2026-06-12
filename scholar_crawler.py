@@ -31,7 +31,6 @@ def get_secure_image_base64(img_url, source=""):
             
         res = scraper.get(img_url, headers=headers, timeout=10)
         if res.status_code == 200 and len(res.content) > 500:
-            # 🌟 圖片瘦身手術同步實裝
             try:
                 img = Image.open(io.BytesIO(res.content))
                 if img.mode in ("RGBA", "P"): 
@@ -55,7 +54,6 @@ def get_best_cover(isbn, title, author, publisher):
     headers = {"User-Agent": "Mozilla/5.0"}
     clean_isbn = re.sub(r'[^0-9X]', '', str(isbn).upper()) if isbn else ""
 
-    # --- 1. 日文與華文出版品分流 ---
     if clean_isbn:
         if clean_isbn.startswith("9784") or clean_isbn.startswith("9794"):
             try:
@@ -76,7 +74,6 @@ def get_best_cover(isbn, title, author, publisher):
                         return get_secure_image_base64(mainpic.find("img").get("src", "").replace("/s/public/", "/l/public/"), "douban")
             except: pass
 
-    # --- 2. 歐美出版品：Syndetics 優先 ---
     if clean_isbn:
         syndetics_url = f"https://syndetics.com/index.aspx?isbn={clean_isbn}/lc.jpg&client=test"
         try:
@@ -85,7 +82,6 @@ def get_best_cover(isbn, title, author, publisher):
                 return syndetics_url
         except: pass
     
-    # --- 3. MIT Press 專屬 CDN ---
     if publisher == "MIT Press" and clean_isbn:
         img_url = f"https://mit-press-new-us.imgix.net/covers/{clean_isbn}.jpg"
         try:
@@ -93,7 +89,6 @@ def get_best_cover(isbn, title, author, publisher):
                 return img_url
         except: pass
 
-    # --- 4. Google Books (精準搜尋與降噪盲搜) ---
     if clean_isbn:
         try:
             url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{clean_isbn}"
@@ -115,7 +110,6 @@ def get_best_cover(isbn, title, author, publisher):
             if img: return get_secure_image_base64(img.replace("http://", "https://"), "google")
     except: pass
 
-    # --- 5. Open Library (最終備用) ---
     if clean_isbn:
         try:
             if requests.get(f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json", timeout=5).json():
@@ -172,7 +166,6 @@ def fetch_from_crossref(member_id, publisher_name):
         return []
 
 def crawl_urbanomic_forthcoming():
-    """精準抓取 Urbanomic Forthcoming 區塊書籍"""
     print("🔍 [Urbanomic] 準備擷取 Forthcoming 書目...")
     url = "https://www.urbanomic.com/book/"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -217,7 +210,6 @@ def crawl_urbanomic_forthcoming():
     return books
 
 def crawl_utp():
-    """精準抓取東京大学出版会新刊網頁"""
     print("🔍 [東京大学出版会] 準備擷取新刊清單...")
     url = "https://www.utp.or.jp/search/new.html"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -267,7 +259,6 @@ def crawl_utp():
     return books
     
 def crawl_verso():
-    """抓取 Verso Books Atom Feed"""
     print("🔍 [Verso Books] 準備擷取 Atom...")
     url = "https://www.versobooks.com/collections/catalog.atom"
     feed = feedparser.parse(url)
@@ -428,9 +419,9 @@ def save_to_db(items):
     for item in items:
         cat = item.get("category", "未分類")
         
-        # 🌟 修復：補上 issue_volume 欄位
-        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, category)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # 🌟 修復：補上 issue_volume 與 預設的 book_status
+        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, category, book_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                  ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
                  
         client.execute(sql, [
