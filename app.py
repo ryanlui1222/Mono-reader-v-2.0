@@ -39,7 +39,7 @@ with st.sidebar:
     
     st.markdown("---")
 
-    # 🌟 爬蟲健康度指示燈
+    # 🌟 爬蟲健康度指示燈 (全新精準邏輯)
     import core_utils
     from datetime import datetime
     
@@ -49,22 +49,24 @@ with st.sidebar:
         error_list = []
         
         for row in health_data:
-            # 計算距離最後一次檢查的時間差 (小時)
-            try:
-                # 處理 ISO 格式時間 (相容 Python 各版本)
-                clean_iso = row['last_check'].replace('Z', '+00:00')
-                last_check_dt = datetime.fromisoformat(clean_iso).replace(tzinfo=None)
-                hours_diff = (datetime.utcnow() - last_check_dt).total_seconds() / 3600
-            except:
-                hours_diff = 0
+            status = row.get('status', 'OK')
+            
+            # 🌟 只在爬蟲處於異常狀態 (EMPTY 或 ERROR) 時才進行時間衰退判定
+            if status in ['EMPTY', 'ERROR']:
+                try:
+                    clean_iso = row['last_check'].replace('Z', '+00:00')
+                    last_check_dt = datetime.fromisoformat(clean_iso).replace(tzinfo=None)
+                    hours_diff = (datetime.utcnow() - last_check_dt).total_seconds() / 3600
+                except:
+                    hours_diff = 0
 
-            # 判斷異常：直接報錯，或超過 48 小時未更新 (靜默失敗)
-            if row.get('status') == 'ERROR':
-                has_error = True
-                error_list.append(f"🔴 **{row['source_name']}**: 程式崩潰 ({row.get('error_msg','')})")
-            elif hours_diff > 48:
-                has_error = True
-                error_list.append(f"🟡 **{row['source_name']}**: 超過 {int(hours_diff)} 小時未成功抓取新文")
+                # 🌟 異常狀態持續超過 48 小時，才發出警告 (排除偶發性阻擋)
+                if hours_diff > 48:
+                    has_error = True
+                    if status == 'ERROR':
+                        error_list.append(f"🔴 **{row['source_name']}**: 嚴重崩潰達 {int(hours_diff)} 小時 ({row.get('error_msg','')})")
+                    else:
+                        error_list.append(f"🟡 **{row['source_name']}**: 超過 {int(hours_diff)} 小時無法獲取任何文章")
 
         # 渲染燈號與面板
         if has_error:
@@ -73,8 +75,8 @@ with st.sidebar:
                     st.caption(err)
         else:
             with st.expander("🟢 系統健康度：良好", expanded=False):
-                st.caption("所有來源皆在 48 小時內成功更新。")
-                st.caption(f"最後檢查時間: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} (UTC)")
+                st.caption("所有來源皆正常運作，或仍在容許等待期內。")
+                st.caption(f"檢查時間: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} (UTC)")
 
 # ==========================================
 # 3. 模組渲染導流
