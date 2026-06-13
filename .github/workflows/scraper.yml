@@ -1,7 +1,10 @@
 name: Auto Culture Crawler
 
 on:
-  workflow_dispatch:       # 🎯 唯一啟用的觸發條件：僅允許在 GitHub 網頁上手動點擊執行
+  schedule:
+    # 🕒 更改為每 8 小時執行一次 (UTC 時間 00:00, 08:00, 16:00)
+    - cron: '0 */8 * * *'
+  workflow_dispatch:       # 允許手動執行測試
 
 jobs:
   run-crawler:
@@ -21,13 +24,23 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: 執行爬蟲腳本並同步雲端 (DEV 環境)
+    - name: 執行爬蟲腳本並同步雲端
       env:
-        # 🎯 完美綁定：Python 認得左邊的名字，GitHub 負責把測試庫的金鑰從右邊塞進去
-        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
-        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
+        # 🌟 透過 GitHub Secrets 安全注入 Turso 金鑰
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
         python crawler.py
 
-    # 🌟 結構優化：已移除 git-auto-commit-action 
-    # 因為我們現在直接同步到 Turso，不再需要把 json 檔推回 GitHub 了
+    - name: 📡 發送真實瀏覽器請求戳醒 Streamlit (Keep-Alive)
+      run: |
+        echo "正在發送心跳訊號至 Monoreader 雲端伺服器..."
+        
+        # 1. 敲擊主頁面：拔掉 -I，加入動態時間戳 (?ping=時間) 破除 CDN 快取，並偽裝成 Chrome 瀏覽器
+        curl -s -o /dev/null -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "https://monoreaderv2.streamlit.app/?ping=$(date +%s)"
+        
+        # 2. 敲擊底層伺服器 API (Streamlit 專屬後門)：
+        # 這是 Streamlit Tornado 伺服器專用的健康檢查端點，能強制喚醒後端 Python 容器
+        curl -s -o /dev/null -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "https://monoreaderv2.streamlit.app/_stcore/health"
+        
+        echo "✅ 打卡成功！已模擬真實流量並穿透快取，Streamlit 已被強制喚醒並重置休眠倒數。"
