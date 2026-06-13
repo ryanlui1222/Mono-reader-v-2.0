@@ -21,16 +21,12 @@ TIMEOUT = 15
 # ==========================================
 # 🛠️ 輔助函數 (Helpers)
 # ==========================================
-# ==========================================
-# 🛠️ 輔助函數 (Helpers)
-# ==========================================
 def get_soup(url, custom_headers=None):
     """通用的 HTML 獲取與解析器 (雙引擎切換備援)"""
     headers = custom_headers or HEADERS
     html_content = None
     
     try:
-        # 引擎 1：Cloudscraper 突破常規防護
         res = scraper.get(url, headers=headers, timeout=TIMEOUT)
         if res.status_code == 200:
             html_content = res.text
@@ -38,7 +34,6 @@ def get_soup(url, custom_headers=None):
     
     if not html_content:
         try:
-            # 引擎 2：如果被 Cloudscraper 特徵識別擋下，改用最乾淨的原生 requests 偽裝
             fallback_headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
@@ -78,7 +73,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
     try:
         content = None
         
-        # 策略 1: 帶有完整 Browser Headers 的原生 requests (繞過結繩志 SSL 報錯)
         custom_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/rss+xml, application/xml, text/xml, */*'
@@ -89,7 +83,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                 content = res.content
         except: pass
 
-        # 策略 2: Cloudscraper (常規突破)
         if not content:
             try:
                 res = scraper.get(feed_url, timeout=10)
@@ -97,7 +90,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     content = res.content
             except: pass
 
-        # 🌟 策略 3: rss2json API (終極代理備援，專治 Substack 的焦油坑防護)
         if not content:
             try:
                 proxy_url = f"https://api.rss2json.com/v1/api.json?rss_url={urllib.parse.quote(feed_url)}"
@@ -147,7 +139,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
             print(f"⚠️ {source_name}: 三重連線皆被伺服器拒絕或超時，跳過此來源。")
             return []
 
-        # 正常解析 XML (從 strategy 1 或 2 取得的 content)
         parsed = feedparser.parse(content)
         if not parsed.entries:
             return []
@@ -156,15 +147,11 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
             raw_date = entry.get('published') or entry.get('pubDate') or entry.get('updated') or "最新"
             author = entry.get('author') or entry.get('author_detail', {}).get('name') or ""
             
-            # 🌟 終極修復：無死角 RSS 內文萃取邏輯
             raw_text = ""
-            # 優先級 1: 標準 content 陣列
             if 'content' in entry and len(entry.content) > 0:
                 raw_text = entry.content[0].value
-            # 優先級 2: 特殊的 content_encoded 屬性 (MIT Press 專用)
             elif 'content_encoded' in entry:
                 raw_text = entry.content_encoded
-            # 優先級 3: 摘要或描述標籤
             elif 'summary' in entry:
                 raw_text = entry.summary
             elif 'description' in entry:
@@ -172,7 +159,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
 
             soup = BeautifulSoup(raw_text, 'html.parser')
             
-            # 增強：精準捕捉 Substack 與各類 RSS 的預覽圖
             img_url = None
             img_tag = soup.find('img')
             if img_tag and 'src' in img_tag.attrs:
@@ -186,10 +172,8 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                             img_url = link_obj['href']
                             break
                             
-            # 從 soup 中萃取純文字
             text = soup.get_text(separator=" ", strip=True)
             
-            # 🌟 修復二：如果 RSS 給的摘要太短 (例如有些只給一句話)，我們就強制執行 deep_fetch 去抓原文！
             needs_deep_fetch = deep_fetch or len(text) < 100
             
             if needs_deep_fetch:
@@ -207,7 +191,6 @@ def fetch_rss(feed_url, source_name, limit=20, deep_fetch=False):
                     clean_p = [p for p in paragraphs if not any(bad in p.lower() for bad in ["subscribe", "newsletter", "sign up"])]
                     if clean_p: text = " ".join(clean_p[:3])
             
-            # 防呆：如果文字真的極短，仍保留一個基本說明
             if len(text) < 20: text = "（請點擊標題閱讀原文）"
             
             return {
@@ -338,7 +321,6 @@ def fetch_webgenron():
 def fetch_funambulist():
     articles = []
     try:
-        # 1. 進入目錄總覽頁，直接鎖定「最新一期」的第一張卡片
         index_url = "https://thefunambulist.net/magazine/issues"
         index_soup = get_soup(index_url)
         if not index_soup: return articles
@@ -352,15 +334,12 @@ def fetch_funambulist():
         issue_href = a_tag.get('href', '')
         latest_issue_url = issue_href if issue_href.startswith('http') else urllib.parse.urljoin("https://thefunambulist.net", issue_href)
         
-        # 2. 從卡片右上角精準擷取最新一期的期號數字 (例如: 65)
         num_div = latest_card.find('div', class_=re.compile(r'absolute top-0 right-0'))
         issue_num = num_div.get_text(strip=True) if num_div else ""
         
-        # 3. 從卡片下方擷取最新一期的專題名稱 (例如: Fifty Years After Soweto)
         title_tag = latest_card.find('h2', class_='entry-title')
         issue_title = title_tag.get_text(strip=True) if title_tag else "最新刊"
         
-        # 4. 🌟 精準拼接成與歷史回溯腳本完全一致的 UI 子資料夾歸檔目錄格式
         if issue_num:
             source_name = f"The Funambulist (Issue {issue_num}) ({issue_title})"
         else:
@@ -368,7 +347,6 @@ def fetch_funambulist():
             
         print(f"📖 The Funambulist 發現最新一期: {source_name}")
         
-        # 5. 造訪最新一期專頁，爬取當期所有文章
         issue_soup = get_soup(latest_issue_url)
         if not issue_soup: return articles
         
@@ -601,11 +579,9 @@ def fetch_tripleampersand():
     except Exception as e: print(f"TripleAmpersand 錯誤: {e}")
     return articles
 
-# 🌟 新增：觸樂夜話專屬爬蟲
 def fetch_chuapp():
     articles = []
     try:
-        # 直接進入「觸樂怪話 / 夜話」的分類頁面
         soup = get_soup("http://www.chuapp.com/tag/index/id/20369.html")
         if not soup: return articles
         
@@ -613,7 +589,6 @@ def fetch_chuapp():
         if not container: return articles
         
         seen = set()
-        # 夜話列表結構為 a.fn-clear
         for a in container.find_all('a', class_='fn-clear', recursive=False):
             href = a.get('href')
             if not href or not href.startswith('/article/'): continue
@@ -639,7 +614,6 @@ def fetch_chuapp():
                 
                 span = dl.find('span', class_='fn-left')
                 if span:
-                    # 濾除作者名稱，保留時間字串，例如「05月15日」
                     published = span.get_text(strip=True).replace(author, '').strip()
                     
                 dds = dl.find_all('dd')
@@ -663,18 +637,14 @@ def fetch_chuapp():
     return articles
 
 def fetch_larb():
-    """Los Angeles Review of Books 客製化爬蟲 (對抗 Next.js 隨機 Class 綴碼)"""
     articles = []
     try:
         url = "https://lareviewofbooks.org/"
-        # 利用現有的雙引擎 helper 獲取網頁
         soup = get_soup(url)
         if not soup: return articles
         
         seen = set()
-        # LARB 的每篇文章都被整齊地包裝在 <article> 標籤中
         for article in soup.find_all('article'):
-            # 1. 萃取標題與連結
             h2_tag = article.find('h2')
             if not h2_tag or not h2_tag.find('a'): continue
             
@@ -682,15 +652,12 @@ def fetch_larb():
             title = a_tag.get_text(strip=True)
             link = urllib.parse.urljoin(url, a_tag['href'])
             
-            # 避免抓到重複的文章版位
             if link in seen: continue
             seen.add(link)
             
-            # 2. 萃取摘要 (Dek) - 模糊匹配 styles_dek
             dek_tag = article.find(class_=re.compile(r'styles_dek'))
             summary = dek_tag.get_text(" ", strip=True) if dek_tag else "（請點擊標題閱讀原文）"
             
-            # 3. 萃取作者與日期 - 兩者都在帶有 styles_author 的 span 中
             author = ""
             published = "最新"
             author_tags = article.find_all('span', class_=re.compile(r'styles_author'))
@@ -698,7 +665,6 @@ def fetch_larb():
             if author_tags:
                 author_names = []
                 for tag in author_tags:
-                    # 如果 class 包含 styles_date，則是日期；否則視為作者
                     classes = tag.get('class', [])
                     if any('styles_date' in c for c in classes):
                         published = tag.get_text(strip=True)
@@ -708,11 +674,9 @@ def fetch_larb():
                 if author_names:
                     author = "、".join(author_names)
             
-            # 4. 萃取圖片
             img_tag = article.find('img')
             img_url = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
             
-            # 5. 組合並寫入陣列
             articles.append({
                 "Source": "Los Angeles Review of Books",
                 "Title": title,
@@ -722,13 +686,13 @@ def fetch_larb():
                 "Image": img_url
             })
             
-            # 限制抓取數量，保持系統輕量 (首頁通常有最新十幾篇)
             if len(articles) >= 15: break
             
     except Exception as e: 
         print(f"LARB 錯誤: {e}")
         
     return articles
+
 # ==========================================
 # 主程式排程
 # ==========================================
@@ -736,11 +700,9 @@ def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
     
-    # 🌟 新增的監控變數
-    health_records = {} # 記錄每個來源的健康狀態
-    futures_map = {}    # 用來對應 Future 與來源名稱，方便捕捉是誰失敗
+    health_records = {} 
+    futures_map = {}    
     
-    # 🌟 完全保留您的 RSS 清單
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -752,8 +714,8 @@ def main():
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
         ("https://radii.co/feed", "Radii", 15, True),
-        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True), # 深度評論解析
-        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               # 音樂/街頭快訊
+        ("https://www.tcj.com/feed/", "The Comics Journal", 15, True),
+        ("https://fnmnl.tv/feed/", "FNMNL", 15, False),               
         ("https://dukeupress.wordpress.com/feed/", "Duke Press", 15, False),
         ("https://asianreviewofbooks.com/feed/", "Asian Review of Books", 15, False),
         ("https://u.osu.edu/mclc/feed/", "MCLC Resource Center", 15, False),
@@ -761,8 +723,6 @@ def main():
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
-
-        # 👇 🌟 新增：讓 MIT Press 透過強大的主力 fetch_rss 來抓取
         ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False),
         ("https://outputs.lighthouseapp.io/rss-feeds/ab81C4IONT.xml", "FRIEZE", 15, False)
     ]
@@ -772,7 +732,6 @@ def main():
             future = executor.submit(fetch_rss, url, name, limit, deep)
             futures_map[future] = name
         
-        # 🌟 將 fetch_frieze 加入客製化爬蟲陣列
         custom_scrapers = [
             fetch_webgenron, fetch_eflux, fetch_funambulist, 
             fetch_eurozine, fetch_bijutsutecho, 
@@ -781,38 +740,34 @@ def main():
             fetch_tripleampersand, fetch_chuapp, fetch_larb
         ]        
         
-        # 2. 提交客製化爬蟲任務並記錄名稱
         for func in custom_scrapers:
             future = executor.submit(func)
-            # 若為客製化函數，暫時以函數名稱紀錄 (例如 'fetch_webgenron')
             futures_map[future] = func.__name__
         
-        # 3. 🌟 攔截與狀態記錄 (替換掉原本單純的 extend)
+        # 🌟 全新升級：三階段健康度攔截 (OK / EMPTY / ERROR)
         for future in concurrent.futures.as_completed(futures_map):
             source_name = futures_map[future]
             try:
                 res = future.result()
-                # 若執行成功未拋出例外，先標記為 OK
-                health_records[source_name] = {'status': 'OK', 'error_msg': ''}
-                
                 if res:
-                    # 嘗試從爬回來的資料中提取更準確的 Source 名稱 (把 fetch_xxx 換掉)
                     if len(res) > 0 and 'Source' in res[0]:
                         actual_source = res[0]['Source']
-                        health_records[actual_source] = health_records.pop(source_name)
                         source_name = actual_source
-                        
+                    
+                    # 🟢 OK: 只要有抓到文章 (無論新舊)
+                    health_records[source_name] = {'status': 'OK', 'error_msg': ''}
                     all_articles.extend(res)
                     print(f"✅ {source_name}: 抓取 {len(res)} 篇")
                 else:
-                    print(f"⚠️ {source_name}: 抓取成功但目前無新文章")
+                    # 🟡 EMPTY: 抓取成功，但沒有任何文章 (可能版面改版或被擋)
+                    print(f"⚠️ {source_name}: 抓取成功但目前無文章回傳")
+                    health_records[source_name] = {'status': 'EMPTY', 'error_msg': '無文章回傳 (可能結構改變或被防爬蟲阻擋)'}
                     
             except Exception as exc:
+                # 🔴 ERROR: 發生程式崩潰或網路錯誤
                 print(f"❌ {source_name} 爬取產生嚴重例外: {exc}")
-                # 記錄嚴重崩潰的錯誤訊息
                 health_records[source_name] = {'status': 'ERROR', 'error_msg': str(exc)[:200]}
 
-    # 🌟 修改條件：只要有抓到文章「或」有健康紀錄需要更新，就連線資料庫
     if all_articles or health_records:
         db = get_db_client()
         if not db:
@@ -821,7 +776,7 @@ def main():
 
         try:
             # ==========================================
-            # 1. 處理並寫入文章 (完全保留您的原版邏輯)
+            # 1. 處理並寫入文章
             # ==========================================
             if all_articles:
                 links_to_check = [a['Link'] for a in all_articles]
@@ -844,7 +799,6 @@ def main():
                     
                     if article_data.get('Published') and not any(k in str(article_data['Published']) for k in ["最新", "Issue", "刊", "歷史歸檔"]):
                         try:
-                            # 觸樂抓下來的「05月15日」等無年份時間字串，如果失敗會自動被指派 utcnow()
                             dt = pd.to_datetime(article_data['Published'], errors='coerce', utc=True)
                             if not pd.isna(dt):
                                 article_data['Published'] = dt.strftime('%Y-%m-%d')
@@ -888,16 +842,20 @@ def main():
                 print(f"✅ 成功同步 {success_count} 篇文章至 Turso 資料庫！(失敗: {error_count} 筆)")
             
             # ==========================================
-            # 2. 🌟 寫入爬蟲健康度紀錄 (全新整合區塊)
+            # 2. 🌟 寫入爬蟲健康度紀錄 (僅在 OK 時更新最後檢查時間)
             # ==========================================
             sql_health = """
             INSERT INTO crawler_health (source_name, status, last_check, error_msg)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(source_name) DO UPDATE SET 
-                status=excluded.status, last_check=excluded.last_check, error_msg=excluded.error_msg;
+                status = excluded.status, 
+                error_msg = excluded.error_msg,
+                last_check = CASE 
+                    WHEN excluded.status = 'OK' THEN excluded.last_check 
+                    ELSE crawler_health.last_check 
+                END;
             """
             for src, h_data in health_records.items():
-                # 優化名稱：如果自訂爬蟲沒有成功抓到文章，名稱會殘留 fetch_，把它移除
                 display_src = src.replace('fetch_', '') if src.startswith('fetch_') else src
                 try:
                     db.execute(sql_health, [display_src, h_data['status'], datetime.utcnow().isoformat(), h_data['error_msg']])
