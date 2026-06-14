@@ -1,4 +1,4 @@
-name: Weekly Database Cleanup
+name: Monthly Database Cleanup
 
 on:
   workflow_dispatch:       # 允許在 GitHub 網頁上手動點擊按鈕測試
@@ -19,12 +19,11 @@ jobs:
     - name: 安裝依賴套件
       run: |
         python -m pip install --upgrade pip
-        pip install libsql-client  # 🌟 修正：改為安裝 Turso 的套件
+        pip install libsql-client  # 安裝 Turso 套件
 
     - name: 執行資料庫大掃除
       env:
-        # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
-        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
-        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
+        TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
         python maintenance.py
