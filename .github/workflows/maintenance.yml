@@ -1,9 +1,9 @@
-name: Weekly Database Cleanup
+name: Monthly Database Cleanup
 
 on:
   schedule:
-    # 這裡的設定代表：每個月的 1 號和 15 號的 UTC 00:00 (台灣/香港時間早上 8:00) 執行一次
-    - cron: '0 0 1,15 * *'
+    # 🌟 修正：每個月的 1 號 UTC 00:00 (台灣時間早上 8:00) 執行一次
+    - cron: '0 0 1 * *'
   workflow_dispatch:       # 允許在 GitHub 網頁上手動點擊按鈕測試
 
 jobs:
@@ -22,11 +22,10 @@ jobs:
     - name: 安裝依賴套件
       run: |
         python -m pip install --upgrade pip
-        pip install libsql-client  # 🌟 修正：改為安裝 Turso 的套件
+        pip install libsql-client  # 安裝 Turso 套件
 
     - name: 執行資料庫大掃除
       env:
-        # 🌟 修正：將環境變數名稱與 GitHub Secrets 名稱改為 TURSO
         TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
         TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
