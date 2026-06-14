@@ -318,6 +318,49 @@ def fetch_webgenron():
         return articles
     except Exception as e: print(f"webゲンロン 錯誤: {e}"); return []
 
+def fetch_shanghaishuping():
+    """利用 Next.js 底層 JSON 直接萃取上海書評文章"""
+    articles = []
+    try:
+        # 使用手機版標頭與網址，通常能拿到最乾淨無干擾的 JSON
+        iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        # 上海書評的頻道 ID 為 26878
+        res = scraper.get("https://m.thepaper.cn/list_26878", headers=iphone_headers, timeout=TIMEOUT)
+        
+        # 精準攔截 __NEXT_DATA__ 中的 JSON 區塊
+        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
+        if not match: return []
+        
+        # 將字串轉換為字典，並直接定位到文章陣列
+        items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
+        
+        for item in items[:15]:
+            if not item.get('name') or not item.get('contId'): continue
+            
+            title = item.get('name', '')
+            link = f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}"
+            img_url = item.get('pic', '')
+            pub_date = item.get('pubTimeNew', '最新')
+            
+            # 從 tagList 陣列中萃取文章的討論標籤
+            tags = [t.get('tag', '') for t in item.get('tagList', []) if t.get('tag')]
+            tag_str = '、'.join(tags) if tags else '無'
+            summary = f"**🏷️ 探討議題：** {tag_str}\n\n（請點擊標題閱讀原文）"
+            
+            articles.append({
+                "Source": "上海书评",
+                "Title": title,
+                "Link": link,
+                "Published": pub_date,
+                "Summary": format_summary(summary), 
+                "Image": img_url
+            })
+            
+    except Exception as e: 
+        print(f"上海书评 錯誤: {e}")
+        
+    return articles
+
 def fetch_funambulist():
     articles = []
     try:
@@ -709,7 +752,6 @@ def main():
         ("https://www.421.news/en/rss/", "421 News (EN)", 15, False),
         ("https://www.421.news/zh/rss/", "421 News (ZH)", 15, False),
         ("https://www.linking.vision/feed/", "聯經思想空間", 15, False),
-        ("https://feedx.net/rss/shanghaishuping.xml", "上海書評", 15, False),
         ("https://www.leapleapleap.com/feed/", "藝術界", 15, False),
         ("https://www.versobooks.com/blogs/news.atom", "Verso Blog", 15, False),
         ("https://wired.jp/feed/rss", "WIRED.jp", 15, True),
@@ -737,7 +779,7 @@ def main():
             fetch_eurozine, fetch_bijutsutecho, 
             fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
             fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp, fetch_larb
+            fetch_tripleampersand, fetch_chuapp, fetch_larb, fetch_shanghaishuping
         ]        
         
         for func in custom_scrapers:
