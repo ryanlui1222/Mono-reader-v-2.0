@@ -15,7 +15,7 @@ import io
 SOURCE_URLS = {
     "Aeon 思想誌": "https://aeon.co/", "New Yorker, Books and Culture": "https://www.newyorker.com/culture",
     "421 News (EN)": "https://www.421.news/en", "421 News (ZH)": "https://www.421.news/zh",
-    "聯經思想空間": "https://www.linking.vision/", "上海書評": "https://www.thepaper.cn/list_25444",
+    "聯經思想空間": "https://www.linking.vision/", "上海书评": "https://www.thepaper.cn/list_25444",
     "藝術界": "https://www.leapleapleap.com/", "MIT Press Reader": "https://thereader.mitpress.mit.edu/",
     "webゲンロン": "https://webgenron.com/", "e-flux Journal": "https://www.e-flux.com/journal/",
     "Eurozine": "https://www.eurozine.com/essays/", "美術手帖": "https://bijutsutecho.com/magazine/series",
