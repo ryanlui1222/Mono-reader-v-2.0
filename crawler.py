@@ -290,16 +290,6 @@ def fetch_bijutsutecho():
         return articles
     except Exception as e: print(f"美術手帖 錯誤: {e}"); return []
 
-def fetch_thepaper():
-    try:
-        iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
-        res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
-        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
-        if not match: return []
-        items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
-        return [{"Source": "澎湃思想市場", "Title": item.get('name', ''), "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}", "Published": item.get('pubTimeNew', '最新'), "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）", "Image": item.get('pic', '')} for item in items[:15] if item.get('name') and item.get('contId')]
-    except Exception as e: print(f"澎湃 錯誤: {e}"); return []
-
 def fetch_webgenron():
     try:
         soup = get_soup("https://webgenron.com/")
@@ -322,16 +312,12 @@ def fetch_shanghaishuping():
     """利用 Next.js 底層 JSON 直接萃取上海書評文章"""
     articles = []
     try:
-        # 使用手機版標頭與網址，通常能拿到最乾淨無干擾的 JSON
         iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
-        # 上海書評的頻道 ID 為 26878
         res = scraper.get("https://m.thepaper.cn/list_26878", headers=iphone_headers, timeout=TIMEOUT)
         
-        # 精準攔截 __NEXT_DATA__ 中的 JSON 區塊
         match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
         if not match: return []
         
-        # 將字串轉換為字典，並直接定位到文章陣列
         items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
         
         for item in items[:15]:
@@ -342,7 +328,6 @@ def fetch_shanghaishuping():
             img_url = item.get('pic', '')
             pub_date = item.get('pubTimeNew', '最新')
             
-            # 從 tagList 陣列中萃取文章的討論標籤
             tags = [t.get('tag', '') for t in item.get('tagList', []) if t.get('tag')]
             tag_str = '、'.join(tags) if tags else '無'
             summary = f"**🏷️ 探討議題：** {tag_str}\n\n（請點擊標題閱讀原文）"
@@ -360,6 +345,16 @@ def fetch_shanghaishuping():
         print(f"上海书评 錯誤: {e}")
         
     return articles
+
+def fetch_thepaper():
+    try:
+        iphone_headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'}
+        res = scraper.get("https://m.thepaper.cn/list_25483", headers=iphone_headers, timeout=TIMEOUT)
+        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.DOTALL)
+        if not match: return []
+        items = json.loads(match.group(1)).get('props', {}).get('pageProps', {}).get('data', {}).get('list', [])
+        return [{"Source": "澎湃思想市場", "Title": item.get('name', ''), "Link": f"https://www.thepaper.cn/newsDetail_forward_{item.get('contId')}", "Published": item.get('pubTimeNew', '最新'), "Summary": f"**🏷️ 探討議題：** {'、'.join([t.get('tag', '') for t in item.get('tagList', [])]) or '無'}\n\n（點擊標題閱讀原文）", "Image": item.get('pic', '')} for item in items[:15] if item.get('name') and item.get('contId')]
+    except Exception as e: print(f"澎湃 錯誤: {e}"); return []
 
 def fetch_funambulist():
     articles = []
@@ -746,6 +741,7 @@ def main():
     health_records = {} 
     futures_map = {}    
     
+    # 🌟 已還原 MIT Press Reader 回 rss_sources 陣列
     rss_sources = [
         ("https://aeon.co/feed.rss", "Aeon 思想誌", 15, True),
         ("https://www.newyorker.com/feed/culture/rss", "New Yorker, Books and Culture", 15, True),
@@ -765,7 +761,7 @@ def main():
         ("https://bostonreviewofbooks.substack.com/feed", "波士頓書評", 15, False),
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
-        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False),
+        ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False), # 👈 MIT Press 成功還原至此
         ("https://outputs.lighthouseapp.io/rss-feeds/ab81C4IONT.xml", "FRIEZE", 15, False)
     ]
     
@@ -775,40 +771,48 @@ def main():
             futures_map[future] = name
         
         custom_scrapers = [
-            fetch_webgenron, fetch_eflux, fetch_funambulist, 
-            fetch_eurozine, fetch_bijutsutecho, 
-            fetch_thepaper, fetch_thepoint, fetch_verse, fetch_cinra, 
-            fetch_jiemian, fetch_sabukaru, fetch_biede,
-            fetch_tripleampersand, fetch_chuapp, fetch_larb, fetch_shanghaishuping
+            (fetch_webgenron, "webゲンロン"),
+            (fetch_eflux, "e-flux Journal"),
+            (fetch_funambulist, "The Funambulist"),
+            (fetch_eurozine, "Eurozine"),
+            (fetch_bijutsutecho, "美術手帖"),
+            (fetch_thepaper, "澎湃思想市場"),
+            (fetch_thepoint, "The Point"),
+            (fetch_verse, "VERSE"),
+            (fetch_cinra, "CINRA"),
+            (fetch_jiemian, "界面文化"),
+            (fetch_sabukaru, "Sabukaru"),
+            (fetch_biede, "BIE別的"),
+            (fetch_tripleampersand, "TripleAmpersand"),
+            (fetch_chuapp, "触乐"),
+            (fetch_larb, "LARB"),
+            (fetch_shanghaishuping, "上海书评")
         ]        
         
-        for func in custom_scrapers:
+        for func, static_name in custom_scrapers:
             future = executor.submit(func)
-            futures_map[future] = func.__name__
+            futures_map[future] = static_name  # 將 Future 綁定在固定名稱上
         
-        # 🌟 全新升級：三階段健康度攔截 (OK / EMPTY / ERROR)
+        # 🌟 三階段健康度攔截 (OK / EMPTY / ERROR)，RSS 與自定義爬蟲統一適用
         for future in concurrent.futures.as_completed(futures_map):
-            source_name = futures_map[future]
+            base_source_name = futures_map[future]
             try:
                 res = future.result()
                 if res:
-                    if len(res) > 0 and 'Source' in res[0]:
-                        actual_source = res[0]['Source']
-                        source_name = actual_source
+                    # 🟢 OK: 有抓到文章 (健康度紀錄使用 base_source_name)
+                    health_records[base_source_name] = {'status': 'OK', 'error_msg': ''}
                     
-                    # 🟢 OK: 只要有抓到文章 (無論新舊)
-                    health_records[source_name] = {'status': 'OK', 'error_msg': ''}
                     all_articles.extend(res)
-                    print(f"✅ {source_name}: 抓取 {len(res)} 篇")
+                    print(f"✅ {base_source_name}: 抓取 {len(res)} 篇")
                 else:
-                    # 🟡 EMPTY: 抓取成功，但沒有任何文章 (可能版面改版或被擋)
-                    print(f"⚠️ {source_name}: 抓取成功但目前無文章回傳")
-                    health_records[source_name] = {'status': 'EMPTY', 'error_msg': '無文章回傳 (可能結構改變或被防爬蟲阻擋)'}
+                    # 🟡 EMPTY: 抓取成功，但沒有任何文章回傳
+                    print(f"⚠️ {base_source_name}: 抓取成功但目前無文章回傳")
+                    health_records[base_source_name] = {'status': 'EMPTY', 'error_msg': '無文章回傳 (可能結構改變或被防爬蟲阻擋)'}
                     
             except Exception as exc:
                 # 🔴 ERROR: 發生程式崩潰或網路錯誤
-                print(f"❌ {source_name} 爬取產生嚴重例外: {exc}")
-                health_records[source_name] = {'status': 'ERROR', 'error_msg': str(exc)[:200]}
+                print(f"❌ {base_source_name} 爬取產生嚴重例外: {exc}")
+                health_records[base_source_name] = {'status': 'ERROR', 'error_msg': str(exc)[:200]}
 
     if all_articles or health_records:
         db = get_db_client()
@@ -884,7 +888,7 @@ def main():
                 print(f"✅ 成功同步 {success_count} 篇文章至 Turso 資料庫！(失敗: {error_count} 筆)")
             
             # ==========================================
-            # 2. 🌟 寫入爬蟲健康度紀錄 (僅在 OK 時更新最後檢查時間)
+            # 2. 🌟 寫入爬蟲健康度紀錄 (嚴格對應固定名稱)
             # ==========================================
             sql_health = """
             INSERT INTO crawler_health (source_name, status, last_check, error_msg)
@@ -898,11 +902,10 @@ def main():
                 END;
             """
             for src, h_data in health_records.items():
-                display_src = src.replace('fetch_', '') if src.startswith('fetch_') else src
                 try:
-                    db.execute(sql_health, [display_src, h_data['status'], datetime.utcnow().isoformat(), h_data['error_msg']])
+                    db.execute(sql_health, [src, h_data['status'], datetime.utcnow().isoformat(), h_data['error_msg']])
                 except Exception as he:
-                    print(f"⚠️ 健康度寫入失敗 ({display_src}): {he}")
+                    print(f"⚠️ 健康度寫入失敗 ({src}): {he}")
                     
             print("🩺 爬蟲系統健康度報告已更新！")
 
