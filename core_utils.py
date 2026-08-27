@@ -146,6 +146,7 @@ def fetch_academic_pubs(view_mode="探索", pub_type="Book", source_filter="總�
         if view_mode == "🔖 待讀書架": sql += " AND book_status = 1 AND type != 'Web Link'"
         elif view_mode == "✅ 已讀書籍": sql += " AND book_status = 2 AND type != 'Web Link'"
         elif view_mode == "📦 實體書庫": sql += " AND book_status = 3 AND type != 'Web Link'"
+        elif view_mode == "📱 電子書架": sql += " AND book_status = 4 AND type != 'Web Link'"  # 🌟 新增這一行
         elif view_mode == "🔗 網址備存": sql += " AND type = 'Web Link'"
         else:
             sql += " AND type = ?"; args.append(pub_type)
