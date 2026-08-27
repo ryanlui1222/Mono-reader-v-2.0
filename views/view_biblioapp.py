@@ -64,7 +64,7 @@ def render_page():
                 
         elif biblio_view_mode == "🔖 個人書庫":
             st.subheader("📚 書架狀態")
-            active_shelf = st.radio("選擇庫存狀態", ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫"], label_visibility="collapsed", on_change=reset_biblio_page)
+            active_shelf = st.radio("選擇庫存狀態", ["🔖 待讀書架", "✅ 已讀書籍", "📦 實體書庫", "📱 電子書架"], label_visibility="collapsed", on_change=reset_biblio_page)
 
     # ==========================================
     # 🌟 獨立的搜尋中心分頁
@@ -81,7 +81,7 @@ def render_page():
             df_pubs = core_utils.fetch_academic_pubs(view_mode="🔍 搜尋中心", search_query=global_q)
             if not df_pubs.empty:
                 st.markdown(f"#### 📖 學術文獻與書架 ({len(df_pubs)} 筆)")
-                status_dict = {1: "待讀書架", 2: "已讀書籍", 3: "實體書庫"}
+                status_dict = {1: "待讀書架", 2: "已讀書籍", 3: "實體書庫", 4: "電子書架"}
                 for _, row in df_pubs.iterrows():
                     location = "網址備存" if row.get('type') == 'Web Link' else status_dict.get(row.get('book_status', 0), "文獻探索")
                     st.markdown(f"- **[{row.get('title', '未命名')}]({row.get('link', '#')})** ｜ 👤 {row.get('author', '未知')} ｜ 📍 位於：`{location}`")
@@ -249,7 +249,7 @@ def render_page():
     # 🔖 個人書庫 (待讀、已讀、實體) 合併管理區塊
     # ==========================================
     elif biblio_view_mode == "🔖 個人書庫":
-        shelf_status_map = {"🔖 待讀書架": 1, "✅ 已讀書籍": 2, "📦 實體書庫": 3}
+        shelf_status_map = {"🔖 待讀書架": 1, "✅ 已讀書籍": 2, "📦 實體書庫": 3, "📱 電子書架": 4}
         target_status = shelf_status_map.get(active_shelf, 1)
         shelf_clean_name = active_shelf[2:]
 
@@ -280,7 +280,7 @@ def render_page():
         st.subheader(f"{active_shelf} ({selected_category})")
         st.markdown("---")
 
-        ctx_map = {"🔖 待讀書架": "bookshelf", "✅ 已讀書籍": "read", "📦 實體書庫": "physical"}
+        ctx_map = {"🔖 待讀書架": "bookshelf", "✅ 已讀書籍": "read", "📦 實體書庫": "physical", "📱 電子書架": "ebook"}
         ctx = ctx_map[active_shelf]
 
         df_pubs = ui_components.apply_smart_sort(df_pubs, table_name="academic_pubs", context_key=f"{ctx}_tab")
