@@ -303,9 +303,9 @@ def _edit_popover(row, table_name, context, item_id, current_title, current_summ
                 st.rerun()
                 
         elif table_name == "academic_pubs":
-            # 🌟 全新的 4 階段 book_status 下拉式選單
+            # 🌟 把原本的 4 階段擴充為 5 階段 book_status 下拉式選單
             current_status = row.get('book_status', 0)
-            status_map = {0: "📖 一般探索 (無標記)", 1: "🔖 待讀書架", 2: "✅ 已讀書籍", 3: "📦 實體書庫"}
+            status_map = {0: "📖 一般探索 (無標記)", 1: "🔖 待讀書架", 2: "✅ 已讀書籍", 3: "📦 實體書庫", 4: "📱 電子書架"}
             inv_map = {v: k for k, v in status_map.items()}
             
             new_status_str = st.selectbox(
