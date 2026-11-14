@@ -79,7 +79,22 @@ def login_page():
 
 def check_origin(request):
     origin = request.headers.get('origin')
-    if origin and urlsplit(origin).netloc != request.headers.get('host'):
+    if not origin:
+        return
+    # The external HTTPS hostname can differ from the Host seen behind Vercel.
+    # Trust only exact configured origins, never arbitrary forwarded headers or
+    # a wildcard such as *.vercel.app (which includes other people's projects).
+    allowed = {'https://' + request.headers.get('host', '').lower()}
+    for name in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'):
+        host = os.getenv(name, '').strip().lower()
+        if host and '/' not in host and '@' not in host:
+            allowed.add('https://' + host)
+    allowed.update(x.strip().rstrip('/').lower()
+                   for x in os.getenv('APP_ALLOWED_ORIGINS', '').split(',') if x.strip())
+    parsed = urlsplit(origin)
+    if (parsed.scheme != 'https' or not parsed.netloc or parsed.username
+            or parsed.password or parsed.path or parsed.query or parsed.fragment
+            or origin.lower() not in allowed):
         raise HTTPException(403, '來源不符。')
 
 
