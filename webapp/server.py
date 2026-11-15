@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 ROOT = Path(__file__).parent
@@ -57,7 +57,7 @@ def require_login(request):
 async def headers(request, call_next):
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Monoreader-Version'] = 'layout-v4'
+    response.headers['X-Monoreader-Version'] = 'pwa-v4'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     # Native HTML form POSTs can send Origin: null under no-referrer.
@@ -67,12 +67,12 @@ async def headers(request, call_next):
     return response
 
 
-LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Monoreader 登入</title><style>body{background:#f5f3ed;color:#233e38;font:16px/1.7 system-ui;display:grid;place-items:center;min-height:90vh;margin:20px}main{max-width:380px;width:100%}h1{font-family:Georgia,serif;font-size:40px}input,button{box-sizing:border-box;width:100%;padding:14px;font:inherit;margin:10px 0;border:1px solid #c5cec1;border-radius:8px}button{background:#233e38;color:white}p{color:#657268;font-size:14px}</style><main><h1>monoreader</h1><p>完整分頁與搜尋 · 唯讀版本</p><form method="post" action="/login"><label for="password">你設定的 App 登入密碼</label><input id="password" type="password" name="password" required autocomplete="current-password" maxlength="512"><button>登入</button></form><p>密碼是在 Vercel 的 APP_PASSWORD 設定，不是 GitHub 或 Turso 密碼。</p></main><script>try{for(const k of Object.keys(localStorage)){if(k.startsWith('monoreader-pages-'))localStorage.removeItem(k)}}catch(e){}</script></html>'''
+LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Monoreader 登入</title><meta name="theme-color" content="#f5f3ed"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Monoreader"><style>body{background:#f5f3ed;color:#233e38;font:16px/1.7 system-ui;display:grid;place-items:center;min-height:90vh;margin:20px}main{max-width:380px;width:100%}h1{font-family:Georgia,serif;font-size:40px}input,button{box-sizing:border-box;width:100%;padding:14px;font:inherit;margin:10px 0;border:1px solid #c5cec1;border-radius:8px}button{background:#233e38;color:white}p{color:#657268;font-size:14px}</style><main><h1>monoreader</h1><p>完整分頁與搜尋 · 唯讀版本</p><form method="post" action="/login"><label for="password">你設定的 App 登入密碼</label><input id="password" type="password" name="password" required autocomplete="current-password" maxlength="512"><button>登入</button></form><p>密碼是在 Vercel 的 APP_PASSWORD 設定，不是 GitHub 或 Turso 密碼。</p></main><script>try{for(const k of Object.keys(localStorage)){if(k.startsWith('monoreader-pages-'))localStorage.removeItem(k)}}catch(e){}</script><script src="/pwa.js" defer></script></html>'''
 
 
 @app.get('/health')
 def health():
-    return {'status': 'running', 'mode': 'read-only', 'version': 'layout-v4'}
+    return {'status': 'running', 'mode': 'read-only', 'version': 'pwa-v4'}
 
 
 @app.get('/login', response_class=HTMLResponse)
@@ -351,7 +351,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     _,items=await query('SELECT '+','.join(projected)+f' FROM ({base}) ORDER BY ({order}) IS NULL, {order} '+('ASC' if asc else 'DESC')+', id ASC LIMIT ? OFFSET ?',args+[size,(page-1)*size])
     return {'items':items,'total':total,'page':page,'page_size':size,
             'sources':[r['value'] for r in fs],'issues':[r['value'] for r in fi],
-            'checked_at':int(time.time()),'version':'layout-v4'}
+            'checked_at':int(time.time()),'version':'pwa-v4'}
 
 
 @app.get('/api/folders')
@@ -389,3 +389,13 @@ async def stats(request: Request):
 def session_status(request: Request):
     require_login(request)
     return {'authenticated': True}
+
+
+# Public PWA assets only. No arbitrary file access or authenticated-page cache.
+PWA_TYPES = {"manifest.webmanifest": "application/manifest+json", "sw.js": "application/javascript", "pwa.js": "application/javascript", "offline.html": "text/html", "icon-192.png": "image/png", "icon-512.png": "image/png", "maskable-512.png": "image/png", "apple-touch-icon.png": "image/png"}
+
+@app.get('/{asset}', include_in_schema=False)
+def pwa_asset(asset: str):
+    if asset not in PWA_TYPES:
+        raise HTTPException(404)
+    return FileResponse(ROOT / 'pwa' / asset, media_type=PWA_TYPES[asset], headers={"Service-Worker-Allowed": "/"} if asset == "sw.js" else {})

@@ -5,7 +5,7 @@
   "functions": {
     "server.py": {
       "maxDuration": 300,
-      "includeFiles": "index.html"
+      "includeFiles": "**"
     }
   }
 }

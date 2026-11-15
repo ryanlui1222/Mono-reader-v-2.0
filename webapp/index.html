@@ -33,7 +33,7 @@
 @media(max-width:1279px){.shelves{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:900px){.shelves{grid-template-columns:repeat(3,minmax(0,1fr))}.entry-head{gap:12px}}
 @media(max-width:640px){.shelves{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 14px}.entry-head{display:block}.entry h2{font-size:19px}.entry-details{font-size:12px;margin-top:6px}.entry-notes{padding:16px}.longtext{font-size:16px;line-height:1.9}#editor{width:calc(100vw - 16px);max-height:96dvh;padding:16px}#editor .dialogtop{top:-16px}#editor .dialogtop h2{font-size:17px}.detail-title h2{font-size:22px}.detail-notes,.detail-summary{padding:16px;margin:20px 0}.detail-metadata dl{grid-template-columns:1fr}.detail-notes .longtext{min-height:240px}}
-</style></head><body>
+</style><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Monoreader"></head><body>
 <aside><div class="brand">mono<b>reader</b></div><div class="subtitle">COLLECT YOUR CURIOSITY</div><nav id="desktopNav" aria-label="主模組"></nav><div class="aside-foot"><p>一個人的閱讀、研究與收藏。</p><p>真實資料 · 唯讀</p><button data-action="refresh">更新目前頁面</button><form method="post" action="/logout"><button>登出</button></form></div></aside>
 <main><div id="connection" role="status" style="padding:14px;border:1px solid #b5c7ae;border-radius:8px;margin-bottom:16px">準備讀取目前頁面…</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button data-action="refresh">↻ 更新目前頁面</button><button data-action="stats">資料表總數</button><button data-action="clearCache">清除裝置快取</button></div><div class="topline"><span>MONOREADER / 你的私人知識與收藏空間</span><span><button data-action="theme" aria-label="切換深淺色">◐ 配色</button> <form method="post" action="/logout" style="display:inline"><button>登出</button></form></span></div><header class="hero"><div><div class="eyebrow" id="eyebrow"></div><h1 id="heading"></h1><p class="description" id="description"></p></div><div class="hero-actions"><button id="importButton" data-action="import">↙ 解析匯入</button><button class="primary" id="addButton" data-action="add">＋ 新增</button></div></header>
 <nav class="tabs" id="tabs" aria-label="功能分頁"></nav><div id="crumb" class="crumb"></div><div class="subtabs" id="subtabs" aria-label="子分類"></div><div class="summarybar"><span id="viewInfo"></span><span class="optional">真實資料 · 唯讀</span></div>
@@ -172,4 +172,4 @@ window.addEventListener('pageshow',async e=>{if(e.persisted){$('content').replac
 setTimeout(expire,Math.max(0,BOOT.expires*1000-Date.now()));
 render();load(true);
 
-</script></body></html>
+</script><script src="/pwa.js" defer></script></body></html>
