@@ -1,11 +1,11 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const html=fs.readFileSync(require('path').join(__dirname,'index.html'),'utf8');const code=html.split('<script>')[1].split('</script>')[0];
-const elements={};const el=id=>elements[id]??=( {id,innerHTML:'',textContent:'',value:'',hidden:false,style:{},dataset:{},classList:{toggle(){}},querySelectorAll(){return[]},showModal(){this.open=true},close(){this.open=false},replaceChildren(){this.innerHTML=''}} );
+const elements={};const el=id=>elements[id]??=( {id,innerHTML:'',textContent:'',value:'',hidden:false,style:{},dataset:{},classList:{toggle(){}},addEventListener(type,fn){this['handler_'+type]=fn},querySelectorAll(){return[]},showModal(){this.open=true},close(){this.open=false},focus(){},after(){},add(){},replaceChildren(){this.innerHTML=''}} );
 const handlers={};const storage={};Object.defineProperties(storage,{getItem:{value:k=>storage[k]??null},setItem:{value:(k,v)=>storage[k]=v},removeItem:{value:k=>delete storage[k]}});
 let requests=[],delayed=false,pending=[],fail=false;
-const makeData=url=>{const u=new URL(url,'https://test');if(u.pathname==='/api/folders')return {folders:[{name:'Art',total:120,image:''}]};const p=Number(u.searchParams.get('page')||1);return{items:[{id:'articles:'+p,type:'article',title:'Page '+p,summary:'summary',added:'2026-11-14T00:00:00'}],total:7780,page:p,page_size:30,sources:['Review'],issues:[]}};
-const context={console,URL,URLSearchParams,Date,JSON,Set,Map,Math,Number,String,Object,Array,Boolean,RegExp,Promise,AbortController,
- document:{getElementById:el,body:{classList:{toggle(){}}},addEventListener:(type,fn)=>handlers[type]=fn,hidden:false},
+const makeData=url=>{const u=new URL(url,'https://test');if(u.pathname==='/api/categories')return {categories:['未分類','研究']};if(u.pathname==='/api/folders')return {folders:[{name:'Art',total:120,image:''}]};const p=Number(u.searchParams.get('page')||1);return{items:[{id:'articles:'+p,type:'article',title:'Page '+p,summary:'summary',added:'2026-11-14T00:00:00'}],total:7780,page:p,page_size:30,sources:['Review'],issues:[]}};
+const context={confirm:()=>true,console,URL,URLSearchParams,Date,JSON,Set,Map,Math,Number,String,Object,Array,Boolean,RegExp,Promise,AbortController,
+ document:{createElement:()=>el('created'),getElementById:el,body:{classList:{toggle(){}}},addEventListener:(type,fn)=>handlers[type]=fn,hidden:false},
  localStorage:storage,location:{replace(path){this.target=path}},setTimeout:()=>1,clearTimeout(){},
  fetch:async (url,opts)=>{requests.push(url);if(delayed)await new Promise(resolve=>pending.push(resolve));if(fail)throw Error('offline');return{ok:true,status:200,json:async()=>makeData(url)}}};
 context.window=context;context.MONOREADER_BOOT={expires:Date.now()/1000+43200,cacheKey:'test-db'};context.addEventListener=(k,f)=>handlers[k]=f;
@@ -37,5 +37,46 @@ vm.createContext(context);const run=s=>vm.runInContext(s,context),flush=()=>new 
  assert(el('count').textContent.includes('19–36'));assert(el('pages').innerHTML.includes('2 / 8'));assert.equal(el('content').className,'shelves');
  run("db.items=[{id:'long',type:'reference',title:'Long note',notes:'LONG'.repeat(6000)}];openEditor('long')");
  assert(el('fields').innerHTML.includes('LONG'.repeat(6000)));assert(!el('fields').innerHTML.includes('<textarea'));assert(!el('fields').innerHTML.includes('disabled'));
- console.log('PASS: layout-v4 article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
+ run("BOOT.writes=true;state.module='bib';db.items=[{id:'bibliography_notes:1',type:'reference',title:'Reference',notes:'Old note',_revision:'signed-row',_editable:['title','notes']}]");
+ await run("openWriter('bibliography_notes:1')");
+ el('w_title').value='Reference';el('w_notes').value='New note\nSecond line';
+ let mutation=null;const originalFetch=context.fetch;
+ context.fetch=async(url,opts)=>{if(url==='/api/update'){mutation=JSON.parse(opts.body);return{ok:false,status:409,json:async()=>({detail:'Conflict: updated elsewhere'})}}return originalFetch(url,opts)};
+ await el('writeForm').handler_submit({preventDefault(){}});
+ assert.equal(mutation.revision,'signed-row');assert.deepEqual(mutation.changes,{notes:'New note\nSecond line'});
+ assert(el('writer').open);assert(el('writeStatus').textContent.includes('Conflict'));assert.equal(el('w_notes').value,'New note\nSecond line');assert(!el('writeSave').disabled);
+ context.fetch=async(url,opts)=>url==='/api/update'?{ok:true,status:200,json:async()=>({ok:true})}:originalFetch(url,opts);
+ await el('writeForm').handler_submit({preventDefault(){}});assert(!el('writer').open);assert(storage['monoreader-data-updated']);
+ context.fetch=originalFetch;
+
+ // Grouped archive folders, latest selection and independent bookmark controls.
+ run("state.module='mono';state.tab='分類存檔';state.source='全部';state.layout='grid';result={sources:['e-flux Journal','Review'],issues:[],journals:[{name:'e-flux Journal',issues:4,latest:'e-flux Journal (Issue 110)'}]};db.items=[{id:'articles:one',type:'article',title:'Article',saved:false}];render()");
+ assert(el('journalFolders').innerHTML.includes('開啟最新一期'));
+ assert(el('source').innerHTML.includes('▣ e-flux Journal'));
+ assert(!el('source').innerHTML.includes('Issue 110'));
+ const actions=el('content').innerHTML;
+ assert(actions.indexOf('詳情與筆記')<actions.indexOf('data-action="bookmark"'));
+ run("state.source='e-flux Journal';state.issue='最新';result.grouped_source=true;result.selected_issue='e-flux Journal (Issue 110)';result.issues=['e-flux Journal (Issue 110)','e-flux Journal (Issue 10)'];render()");
+ assert(el('journalFolders').innerHTML.includes('Issue 110'));
+ assert(el('issue').innerHTML.includes('最新一期'));assert(!el('issue').hidden);
+ let bookmarkPayload;
+ context.fetch=async(url,opts)=>{if(url==='/api/bookmark'){bookmarkPayload=JSON.parse(opts.body);return{ok:true,status:200,json:async()=>({ok:true,saved:true})}}return originalFetch(url,opts)};
+ await run("setBookmark('articles:one')");assert.equal(bookmarkPayload.saved,true);
+ assert.equal(bookmarkPayload.id,'articles:one');assert.equal(run('bookmarkPending.size'),0);
+ // Lookup must prefill only. No /api/create or /api/update until explicit submit.
+ run("state.module='bib';state.tab='個人書庫';state.sub='待讀書架';writeOriginal=null;writeKind='book';writeFields=['title','author','identifier','notes','summary'];capabilities={types:{book:writeFields}};renderWriter();$('writer').showModal()");
+ for(const field of ['title','author','identifier','summary'])el('w_'+field).value='';
+ el('w_notes').value='My original notes';el('lookupKind').value='isbn';el('lookupValue').value='9780140328721';
+ const lookupRequests=[];
+ context.fetch=async(url,opts)=>{lookupRequests.push(url);return{ok:true,status:200,json:async()=>({type:'book',provider:'Fixture',fields:{title:'Matilda',author:'Roald Dahl',identifier:'9780140328721',summary:'Summary',image:'https://example/cover'},warnings:[]})}};
+ await run('runLookup()');assert.deepEqual(lookupRequests,['/api/lookup']);assert.equal(el('w_title').value,'Matilda');assert.equal(el('w_notes').value,'My original notes');assert(el('lookupStatus').textContent.includes('尚未儲存'));assert(el('lookupStatus').textContent.includes('圖片網址'));assert(!el('writeSave').disabled);
+ context.fetch=async()=>({ok:false,status:503,json:async()=>({detail:'Provider unavailable'})});
+ await run('runLookup()');assert.equal(el('w_title').value,'Matilda');assert(el('lookupStatus').textContent.includes('Provider unavailable'));
+ // Slow lookup must not overwrite text typed while waiting.
+ let releaseLookup;
+ context.fetch=async()=>{await new Promise(r=>releaseLookup=r);return{ok:true,status:200,json:async()=>({provider:'Fixture',fields:{title:'Overwrite'}})}};
+ const lookupTask=run('runLookup()');el('w_title').value='User typed while fetching';releaseLookup();await lookupTask;
+ assert.equal(el('w_title').value,'User typed while fetching');assert(el('lookupStatus').textContent.includes('未自動套用'));
+ context.fetch=originalFetch;
+ console.log('PASS: v6 folders, latest issue, bookmark mutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
 })().catch(e=>{console.error(e);process.exitCode=1});

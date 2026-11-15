@@ -93,7 +93,7 @@ function openEditor(id){
 }
 
 const BOOT=window.MONOREADER_BOOT||{expires:0,cacheKey:'unavailable'};
-const PREFIX='monoreader-pages-', CACHE=PREFIX+BOOT.cacheKey, DAY=86400000;
+const PREFIX='monoreader-pages-', CACHE=PREFIX+'v7-'+BOOT.cacheKey, DAY=86400000;
 let state={module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
 let db={items:[],folders:[],theme:'light'}, result={items:[],total:0,page:1,page_size:30,sources:[],issues:[]}, timer, editing=null;
 let generation=0, controller, searchTimer, busy=false, checked=0, entries={}, detailGeneration=0;
@@ -101,7 +101,7 @@ try{entries=JSON.parse(localStorage.getItem(CACHE)||'{}');if(!entries||typeof en
 function toast(s){$('toast').textContent=s;$('toast').hidden=false;clearTimeout(timer);timer=setTimeout(()=>$('toast').hidden=true,3500)}
 function canLeave(){return true}
 function typeNow(){return 'article'}
-function showImage(url){return /^(https?:\/\/|data:image\/(?:jpeg|png|webp|gif);base64,)/i.test(url||'')}
+function showImage(url){if(String(url||'').startsWith('/api/image?'))return true;return /^(https?:\/\/|data:image\/(?:jpeg|png|webp|gif);base64,)/i.test(url||'')}
 function img(url,cls=''){return showImage(url)?`<img class="${cls}" src="${E(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`:''}
 function tag(x){return x.type==='media'?x.stage:['book','journal'].includes(x.type)?x.shelf:x.type==='reference'?'評級 '+x.rating:x.type==='article'?(x.news?'文化快訊':'評論文章'):x.category}
 function quick(){return ''}
@@ -127,6 +127,11 @@ function render(){
  opts($('issue'),[...new Set([...(result.grouped_source?['最新']:[]),'全部',...issues,...(['全部','最新'].includes(state.issue)?[]:[state.issue])])].map(v=>[v,v==='全部'?'全部期號':v==='最新'?'最新一期':v]),state.issue);
  $('source').hidden=isFolderHome()||sources.length===0&&state.source==='全部';$('issue').hidden=isFolderHome()||issues.length===0&&['全部','最新'].includes(state.issue);
  renderJournals();
+ let cats=$('categoryChips');if(!cats){cats=document.createElement('div');cats.id='categoryChips';cats.className='subtabs';$('subtabs').after(cats)}
+ cats.hidden=!(state.module==='bib'&&state.tab==='個人書庫');
+ cats.innerHTML=cats.hidden?'':['全部',...sources].map(v=>`<button type="button" data-category="${E(v)}" class="${state.source===v?'active':''}">${E(v==='全部'?'總覽':v)}</button>`).join('');
+ cats.onclick=e=>{const b=e.target.closest('[data-category]');if(b){state.source=b.dataset.category;state.page=1;load(true)}};
+
  $('importButton').hidden=!['bib','media'].includes(state.module);$('importButton').textContent=state.module==='bib'?'ISBN／DOI 檢索':'IMDb／音樂檢索';
  let sorts=[['added',state.module==='mono'?'擷取／加入時間':'加入日期（缺漏時依出版日）'],['title','標題']];
  if(state.module==='bib')sorts.push(['published','出版日期'],['author','作者']);if(state.module==='media')sorts.push(['author','創作者']);if(state.module==='omni')sorts.push(['category','分類']);if(state.tab==='參考書目')sorts.push(['rating','評級']);
@@ -157,7 +162,7 @@ async function load(force=false){
  busy=true;checked=Date.now();
  if(cached&&cached.data&&Date.now()-cached.at<DAY){apply(cached.data);status('顯示此裝置快取（'+new Date(cached.at).toLocaleString()+'）· 正在核對更新…');if(!force&&Date.now()-cached.at<60000){busy=false;render();status('此裝置快取 · '+new Date(cached.at).toLocaleTimeString()+' 已核對；按「更新目前頁面」即時重查。');return}}
  else{result={items:[],total:0,sources:[],issues:[]};db.items=[];render();status('正在讀取目前頁面（書架與影音每頁18筆，其他每頁30筆）…')}
- try{const r=await fetch(key,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(seq!==generation)return;if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'讀取失敗（'+r.status+'）');if(seq!==generation)return;busy=false;cacheWrite(key,body);apply(body);status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 編輯與安裝版 v6')}
+ try{const r=await fetch(key,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(seq!==generation)return;if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'讀取失敗（'+r.status+'）');if(seq!==generation)return;busy=false;cacheWrite(key,body);apply(body);status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 編輯與安裝版 v7')}
  catch(e){if(e.name==='AbortError'||seq!==generation)return;busy=false;render();status((cached?'更新失敗，目前顯示快取，可能不是最新資料。':'讀取失敗。')+' '+e.message+' 可按「更新目前頁面」重試。')}
 }
 function resetFilters(){state.page=1;state.query='';state.source='全部';state.issue='全部';state.sort='added';state.asc=false;$('search').value=''}
@@ -198,6 +203,7 @@ window.addEventListener('pageshow',async e=>{if(e.persisted){$('content').replac
 setTimeout(expire,Math.max(0,BOOT.expires*1000-Date.now()));
 let writeOriginal=null,writeKind=null,writeFields=[],writeBusy=false,capabilities=null;
 const LABELS={title:'標題／名稱',author:'作者／創作者',source:'來源／出版社／期刊',category:'分類／資料夾',notes:'我的筆記／閱讀心得',summary:'摘要／簡介',url:'相關網址',image:'圖片網址',identifier:'ISBN／DOI／識別碼',published:'出版日期',issue:'期號',shelf:'書架位置',stage:'待播／典藏',saved:'文章收藏',rating:'重要性評級',pubtype:'文獻類型'};
+let categoryChoices=['未分類'];
 const CHOICES={shelf:['未入書庫',...SHELVES],stage:['待播','典藏'],saved:['未收藏','已收藏'],rating:REFS,pubtype:['專書','期刊論文']};
 const TYPES={mono:['article','monoResource'],bib:['book','journal','reference','bibLink','bibResource'],media:['media','mediaResource'],omni:['omni']};
 function formValue(field,x){if(field==='saved')return x.saved?'已收藏':'未收藏';if(field==='url'||field==='image')return externalUrl(x[field])||'';return x[field]??''}
@@ -209,6 +215,7 @@ async function openWriter(id){
  if(!BOOT.writes){toast('尚未啟用寫入。');return}
  if(id){const x=db.items.find(x=>x.id===id);if(!x||!x._revision){toast('請先開啟完整詳情。');return}writeOriginal=JSON.parse(JSON.stringify(x));writeKind=x.type;writeFields=x._editable||[]}
  else{try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.status===401){expire();return}capabilities=await r.json();if(!r.ok||!capabilities.writes)throw Error('目前部署未啟用寫入。');writeOriginal=null;writeKind=defaultKind();writeFields=capabilities.types[writeKind]||[]}catch(e){toast(e.message);return}}
+ try{const r=await fetch('/api/categories?module='+encodeURIComponent(state.module),{cache:'no-store'});if(!r.ok)throw Error();categoryChoices=(await r.json()).categories}catch(e){categoryChoices=['未分類'];toast('未能讀取分類清單，可保留原分類或新增分類。')}
  renderWriter();$('writer').showModal();$('writer').scrollTop=0;
 }
 function renderWriter(){
@@ -219,7 +226,10 @@ function renderWriter(){
  const categoryOptions=writeKind==='media'?['電影與影集','音樂與專輯']:writeKind==='bibResource'?['網路資源','講座記錄','學術會議']:[];
  $('writerCategoryWrap').hidden=!!writeOriginal||!categoryOptions.length;
  opts($('writerCategory'),categoryOptions.map(k=>[k,k]),categoryOptions.includes(state.sub)?state.sub:categoryOptions[0]);
- $('writeFields').innerHTML=writeFields.map(k=>{const value=formValue(k,x),long=['notes','summary'].includes(k),options=CHOICES[k];return `<div class="${long||['title','url','image'].includes(k)?'full':''}"><label for="w_${k}">${E(LABELS[k])}${k==='title'?' *':''}</label>${long?`<textarea id="w_${k}" maxlength="50000" class="writing-text">${E(value)}</textarea>`:options?`<select id="w_${k}">${options.map(v=>`<option ${v===value?'selected':''}>${E(v)}</option>`).join('')}</select>`:`<input id="w_${k}" type="${['url','image'].includes(k)?'url':'text'}" value="${E(value)}" ${k==='title'?'required':''} maxlength="${['url','image'].includes(k)?4000:1000}">`}</div>`}).join('');
+ $('writeFields').innerHTML=writeFields.map(k=>{const value=formValue(k,x),long=['notes','summary'].includes(k),options=k==='category'?[...new Set([...categoryChoices,value].filter(Boolean))]:CHOICES[k];return `<div class="${long||['title','url','image'].includes(k)?'full':''}"><label for="w_${k}">${E(LABELS[k])}${k==='title'?' *':''}</label>${long?`<textarea id="w_${k}" maxlength="50000" class="writing-text">${E(value)}</textarea>`:options?`<select id="w_${k}">${options.map(v=>`<option ${v===value?'selected':''}>${E(v)}</option>`).join('')}</select>`:`<input id="w_${k}" type="${['url','image'].includes(k)?'url':'text'}" value="${E(value)}" ${k==='title'?'required':''} maxlength="${['url','image'].includes(k)?4000:1000}">`}</div>`}).join('');
+ if($('w_category')){
+ const add=document.createElement('button');add.type='button';add.textContent='＋ 新分類';add.onclick=()=>{const v=prompt('新分類名稱');if(v&&v.trim()){const value=v.trim();if(value.length>1000)return;categoryChoices.push(value);const o=new Option(value,value,true,true);$('w_category').add(o)}};$('w_category').after(add);
+ }
  $('writeStatus').textContent=writeFields.includes('notes')?'按儲存後才會寫入 Turso；筆記保留換行。':'此資料表沒有獨立筆記欄位，因此本版不顯示筆記編輯，也不會自動新增欄位。';
  $('writeSave').disabled=false;$('writeSave').textContent=writeOriginal?'儲存修改':'新增至資料庫';
  renderLookup();
@@ -276,4 +286,11 @@ document.body.classList.toggle('can-write',!!BOOT.writes);
 
 render();load(true);
 
-</script><script src="/pwa.js" defer></script></body></html>
+</script><script src="/pwa.js" defer></script><script>
+(async function(){
+ const box=document.createElement('details');box.style.cssText='margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:12px';
+ box.innerHTML='<summary>爬蟲狀態：讀取中…</summary><button type="button">更新狀態</button><div></div>';document.querySelector('.topline').after(box);
+ const refresh=async()=>{try{const r=await fetch('/api/crawler-health',{cache:'no-store'});if(!r.ok)throw Error();const b=await r.json();box.querySelector('summary').textContent=!b.available?'爬蟲狀態：未找到狀態表':b.alerts?'⚠ 爬蟲狀態：'+b.alerts+' 個來源異常':'爬蟲狀態：無超過 48 小時的異常';box.querySelector('summary').style.color=b.alerts?'#c87935':'';box.querySelector('div').innerHTML='<p>沿用原版門檻：EMPTY／ERROR 且距記錄時間超過 48 小時。此時間不是每次執行時間；OK 亦不保證近期仍有執行。</p>'+b.items.map(x=>'<p><strong>'+E(x.source_name)+'</strong> · '+E(x.status)+' · '+E(x.last_check||'時間未知')+'<br>'+E(x.error_msg||'')+'</p>').join('')}catch(e){box.querySelector('summary').textContent='爬蟲狀態：暫時無法讀取，請重試'}};
+ box.querySelector('button').onclick=refresh;await refresh();setInterval(()=>{if(!document.hidden)refresh()},300000);
+})();
+</script></body></html>

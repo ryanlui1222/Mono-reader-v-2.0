@@ -1,5 +1,6 @@
 """Monoreader connection milestone. Authenticated reading, editing and metadata lookup service."""
 import json
+import base64
 import re
 import uuid
 from datetime import datetime, timezone
@@ -9,11 +10,11 @@ import os
 import time
 from collections import deque
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlsplit, quote
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 ROOT = Path(__file__).parent
@@ -60,7 +61,7 @@ def require_login(request):
 async def headers(request, call_next):
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Monoreader-Version'] = 'editing-pwa-v6'
+    response.headers['X-Monoreader-Version'] = 'editing-pwa-v7'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     # Native HTML form POSTs can send Origin: null under no-referrer.
@@ -75,7 +76,7 @@ LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name=
 
 @app.get('/health')
 def health():
-    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v6'}
+    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v7'}
 
 
 @app.get('/login', response_class=HTMLResponse)
@@ -418,10 +419,13 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
         elif k=='image': projected.append("CASE WHEN length(image)<=30000 THEN image ELSE '' END AS image")
         else: projected.append(ident(k))
     _,items=await query('SELECT '+','.join(projected)+f' FROM ({base}) ORDER BY ({order}) IS NULL, {order} '+('ASC' if asc else 'DESC')+', id ASC LIMIT ? OFFSET ?',args+[size,(page-1)*size])
+    for item in items:
+        if not item.get('image'):
+            item['image']='/api/image?module='+quote(module)+'&id='+quote(item['id'],safe='')
     return {'items':items,'total':total,'page':page,'page_size':size,
             'sources':[r['value'] for r in fs],'issues':[r['value'] for r in fi],
             'journals':journals,'grouped_source':grouped,'selected_issue':selected_issue,
-            'checked_at':int(time.time()),'version':'editing-pwa-v6'}
+            'checked_at':int(time.time()),'version':'editing-pwa-v7'}
 
 
 @app.get('/api/folders')
@@ -677,3 +681,41 @@ def pwa_asset(asset: str):
     if asset not in PWA_TYPES:
         raise HTTPException(404)
     return FileResponse(ROOT / 'pwa' / asset, media_type=PWA_TYPES[asset], headers={"Service-Worker-Allowed": "/"} if asset == "sw.js" else {})
+
+@app.get('/api/image')
+async def item_image(request: Request, module: str, id: str):
+    require_login(request)
+    sql=await module_sql(module)
+    _, rows=await query(f'SELECT image FROM ({sql}) WHERE id = ? LIMIT 1',[id])
+    value=rows[0]['image'] if rows else ''
+    match=re.fullmatch(r'data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=\s]+)',value or '')
+    if not match: raise HTTPException(404,'沒有內嵌圖片。')
+    try: data=base64.b64decode(match[2],validate=False)
+    except ValueError: raise HTTPException(404,'圖片格式無效。')
+    return Response(data,media_type='image/'+match[1],headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
+
+@app.get('/api/categories')
+async def categories(request: Request, module: str):
+    require_login(request)
+    sql=await module_sql(module)
+    _, rows=await query(f"SELECT DISTINCT category FROM ({sql}) WHERE category != '' ORDER BY category COLLATE NOCASE")
+    defaults=['未分類','研究','學術','小說','詩','次文化','藝術','音樂'] if module=='bib' else ['未分類']
+    return {'categories':list(dict.fromkeys(defaults+[r['category'] for r in rows]))}
+
+@app.get('/api/crawler-health')
+async def crawler_health(request: Request):
+    require_login(request)
+    _, tables=await query("SELECT name FROM sqlite_master WHERE type='table' AND name='crawler_health'")
+    if not tables: return {'available':False,'items':[],'alerts':0}
+    _, rows=await query('SELECT source_name,status,last_check,error_msg FROM crawler_health ORDER BY source_name')
+    alerts=0
+    for row in rows:
+        try:
+            dt=datetime.fromisoformat((row.get('last_check') or '').replace('Z','+00:00'))
+            if dt.tzinfo is None: dt=dt.replace(tzinfo=timezone.utc)
+            hours=max(0,(datetime.now(timezone.utc)-dt).total_seconds()/3600)
+        except (ValueError,TypeError): hours=None
+        row['hours']=round(hours,1) if hours is not None else None
+        row['alert']=row.get('status') in ('EMPTY','ERROR') and hours is not None and hours>48
+        alerts+=int(row['alert'])
+    return {'available':True,'items':rows,'alerts':alerts,'checked_at':int(time.time())}
