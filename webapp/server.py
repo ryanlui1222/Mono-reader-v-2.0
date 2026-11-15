@@ -1,5 +1,8 @@
-"""Monoreader connection milestone. Authenticated SELECT-only service."""
+"""Monoreader connection milestone. Authenticated reading, editing and metadata lookup service."""
 import json
+import re
+import uuid
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import os
@@ -57,7 +60,7 @@ def require_login(request):
 async def headers(request, call_next):
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Monoreader-Version'] = 'pwa-v4'
+    response.headers['X-Monoreader-Version'] = 'editing-pwa-v6'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     # Native HTML form POSTs can send Origin: null under no-referrer.
@@ -67,12 +70,12 @@ async def headers(request, call_next):
     return response
 
 
-LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Monoreader 登入</title><meta name="theme-color" content="#f5f3ed"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Monoreader"><style>body{background:#f5f3ed;color:#233e38;font:16px/1.7 system-ui;display:grid;place-items:center;min-height:90vh;margin:20px}main{max-width:380px;width:100%}h1{font-family:Georgia,serif;font-size:40px}input,button{box-sizing:border-box;width:100%;padding:14px;font:inherit;margin:10px 0;border:1px solid #c5cec1;border-radius:8px}button{background:#233e38;color:white}p{color:#657268;font-size:14px}</style><main><h1>monoreader</h1><p>完整分頁與搜尋 · 唯讀版本</p><form method="post" action="/login"><label for="password">你設定的 App 登入密碼</label><input id="password" type="password" name="password" required autocomplete="current-password" maxlength="512"><button>登入</button></form><p>密碼是在 Vercel 的 APP_PASSWORD 設定，不是 GitHub 或 Turso 密碼。</p></main><script>try{for(const k of Object.keys(localStorage)){if(k.startsWith('monoreader-pages-'))localStorage.removeItem(k)}}catch(e){}</script><script src="/pwa.js" defer></script></html>'''
+LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Monoreader 登入</title><meta name="theme-color" content="#f5f3ed"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Monoreader"><style>body{background:#f5f3ed;color:#233e38;font:16px/1.7 system-ui;display:grid;place-items:center;min-height:90vh;margin:20px}main{max-width:380px;width:100%}h1{font-family:Georgia,serif;font-size:40px}input,button{box-sizing:border-box;width:100%;padding:14px;font:inherit;margin:10px 0;border:1px solid #c5cec1;border-radius:8px}button{background:#233e38;color:white}p{color:#657268;font-size:14px}</style><main><h1>monoreader</h1><p>私人閱讀與收藏 · 安全登入</p><form method="post" action="/login"><label for="password">你設定的 App 登入密碼</label><input id="password" type="password" name="password" required autocomplete="current-password" maxlength="512"><button>登入</button></form><p>密碼是在 Vercel 的 APP_PASSWORD 設定，不是 GitHub 或 Turso 密碼。</p></main><script>try{for(const k of Object.keys(localStorage)){if(k.startsWith('monoreader-pages-'))localStorage.removeItem(k)}}catch(e){}</script><script src="/pwa.js" defer></script></html>'''
 
 
 @app.get('/health')
 def health():
-    return {'status': 'running', 'mode': 'read-only', 'version': 'pwa-v4'}
+    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v6'}
 
 
 @app.get('/login', response_class=HTMLResponse)
@@ -137,7 +140,7 @@ def home(request: Request):
     if not authenticated(request):
         return RedirectResponse('/login', status_code=303)
     expires = int(request.cookies[COOKIE].split('.')[0])
-    boot = {'expires': expires, 'cacheKey': signature('cache-v4:' + os.getenv('TURSO_DATABASE_URL', ''))[:32]}
+    boot = {'expires': expires, 'writes': writes_enabled(), 'cacheKey': signature('cache-v6:' + os.getenv('TURSO_DATABASE_URL', ''))[:32]}
     return (ROOT / 'index.html').read_text(encoding='utf-8').replace('<!--APP_BOOT-->', '<script>window.MONOREADER_BOOT=' + json.dumps(boot) + ';</script>')
 
 
@@ -174,15 +177,28 @@ async def query(sql, args=None):
     # There is no user-supplied SQL route. Guard every internal statement as well.
     if not sql.lstrip().upper().startswith('SELECT ') or ';' in sql:
         raise RuntimeError('Only SELECT is permitted')
+    return await execute_sql(sql, args)
+
+
+async def execute_sql(sql, args=None):
     url, token = endpoint()
     try:
         async with httpx.AsyncClient(timeout=35, follow_redirects=False) as client:
-            res = await client.post(url, headers={'Authorization': 'Bearer ' + token}, json={'requests': [{'type': 'execute', 'stmt': {'sql': sql, 'args': [{'type': 'integer', 'value': str(v)} if isinstance(v, int) else {'type': 'text', 'value': str(v)} for v in (args or [])], 'want_rows': True}}, {'type': 'close'}]})
+            res = await client.post(url, headers={'Authorization': 'Bearer ' + token}, json={'requests': [{'type': 'execute', 'stmt': {'sql': sql, 'args': [{'type':'null'} if v is None else {'type': 'integer', 'value': str(v)} if isinstance(v, int) else {'type':'float','value':v} if isinstance(v,float) else {'type': 'text', 'value': str(v)} for v in (args or [])], 'want_rows': True}}, {'type': 'close'}]})
         if res.status_code in (401, 403):
             raise HTTPException(502, 'Turso 拒絕連線，請核對 URL 與 Token 是否屬於同一個資料庫。')
         if res.status_code != 200:
             raise HTTPException(502, 'Turso 連線失敗（HTTP ' + str(res.status_code) + '）。')
-        return decode_result(res.json())
+        payload = res.json()
+        error = payload.get('results', [{}])[0]
+        if error.get('type') == 'error':
+            message = str(error.get('error', {}).get('message', '')).lower()
+            if 'unique' in message or 'constraint_unique' in message:
+                raise HTTPException(409, '相同網址或識別碼已存在。請搜尋既有項目後編輯。')
+            if 'readonly' in message or 'read-only' in message:
+                raise HTTPException(403, 'Turso Token 只有唯讀權限，請在 Vercel 設定可寫入的 Token 並重新部署。')
+            raise HTTPException(502, '資料庫未接受操作，請檢查權限與欄位結構。資料未確認儲存。')
+        return decode_result(payload)
     except HTTPException:
         raise
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
@@ -316,6 +332,25 @@ def conditions(module, tab, sub, folder, q):
     return where,args
 
 
+JOURNAL_ROOTS = ('e-flux Journal', 'The Funambulist', 'The Point', '421 News', 'TripleAmpersand')
+
+
+def source_group(source):
+    for root in JOURNAL_ROOTS:
+        if source.lower() == root.lower() or source.lower().startswith(root.lower() + ' ('):
+            return root, True
+    match = re.match(r'^(.*?)\s*\((?:Issue|Vol\.?|No\.?)\s*\d+', source, re.I)
+    return (match.group(1).strip(), True) if match else (source, False)
+
+
+def issue_order(source, added=''):
+    root, _ = source_group(source)
+    suffix = source[len(root):]
+    match = re.search(r'(?:Issue|No\.?|#)\s*#?\s*(\d+)', suffix, re.I) or re.search(r'\((\d+)\)', suffix)
+    # Numeric issue ordering: 110 > 10 > 2, independent of ingestion date.
+    return (1 if match else 0, int(match.group(1)) if match else 0, added or '', source)
+
+
 @app.get('/api/browse')
 async def browse(request: Request, module: str='mono', tab: str='全部來源總覽',
                  sub: str='', folder: str='', q: str='', source: str='全部',
@@ -329,10 +364,44 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     where,args=conditions(module,tab,sub,folder,q)
     base=f'SELECT * FROM ({sql}) WHERE '+(' AND '.join(where) or '1')
     field='source' if module=='mono' or (module=='bib' and tab=='文獻探索') else 'category'
-    _,fs=await query(f'SELECT DISTINCT {ident(field)} AS value FROM ({base}) WHERE {ident(field)} != \'\' ORDER BY value COLLATE NOCASE',args)
-    if source!='全部': base+=f' AND {ident(field)} = ?'; args=args+[source]
-    _,fi=await query(f"SELECT DISTINCT issue AS value FROM ({base}) WHERE issue != '' ORDER BY value COLLATE NOCASE",args)
-    if issue!='全部': base+=' AND issue = ?'; args=args+[issue]
+    journals=[]; selected_issue=''; grouped=False
+    if module == 'mono' and tab != '未來典藏':
+        # Keep the folder/issue directory stable while searching within an issue.
+        facet_where,facet_args=conditions(module,tab,sub,folder,'')
+        if tab == '搜尋中心': facet_where=[]
+        facet_base=f'SELECT * FROM ({sql}) WHERE '+(' AND '.join(facet_where) or '1')
+        _,raw_sources=await query(f"SELECT source AS value, MAX(added) AS added FROM ({facet_base}) WHERE source != '' GROUP BY source ORDER BY source COLLATE NOCASE",facet_args)
+        groups={}
+        for row in raw_sources:
+            name,is_journal=source_group(row['value'])
+            group=groups.setdefault(name,{'name':name,'folder':is_journal,'members':[]})
+            group['members'].append(row)
+        for group in groups.values():
+            group['members'].sort(key=lambda r:issue_order(r['value'],r['added']),reverse=True)
+            if group['folder']:
+                journals.append({'name':group['name'],'issues':len(group['members']),'latest':group['members'][0]['value']})
+        fs=[{'value':name} for name in sorted(groups,key=str.casefold)]
+        fi=[]
+        if source != '全部':
+            group=groups.get(source)
+            if group and group['folder']:
+                grouped=True
+                members=[r['value'] for r in group['members']]
+                fi=[{'value':v} for v in members]
+                if issue == '最新': selected_issue=members[0]
+                elif issue != '全部': selected_issue=issue
+                if selected_issue:
+                    if selected_issue not in members: raise HTTPException(400,'此期號不屬於所選雜誌。')
+                    base+=' AND source = ?'; args=args+[selected_issue]
+                else:
+                    base+=' AND source IN ('+','.join('?' for _ in members)+')';args=args+members
+            else:
+                base+=' AND source = ?';args=args+[source]
+    else:
+        _,fs=await query(f'SELECT DISTINCT {ident(field)} AS value FROM ({base}) WHERE {ident(field)} != \'\' ORDER BY value COLLATE NOCASE',args)
+        if source!='全部': base+=f' AND {ident(field)} = ?'; args=args+[source]
+        _,fi=await query(f"SELECT DISTINCT issue AS value FROM ({base}) WHERE issue != '' ORDER BY value COLLATE NOCASE",args)
+        if issue!='全部': base+=' AND issue = ?'; args=args+[issue]
     _,counts=await query(f'SELECT COUNT(*) AS total FROM ({base})',args)
     total=int(counts[0]['total'])
     shelf_view = (module == 'bib' and (tab == '個人書庫' or (tab == '文獻探索' and sub != '期刊論文'))) or (module == 'media' and tab != '搜尋中心' and sub != '網路資源分享卡')
@@ -351,7 +420,8 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     _,items=await query('SELECT '+','.join(projected)+f' FROM ({base}) ORDER BY ({order}) IS NULL, {order} '+('ASC' if asc else 'DESC')+', id ASC LIMIT ? OFFSET ?',args+[size,(page-1)*size])
     return {'items':items,'total':total,'page':page,'page_size':size,
             'sources':[r['value'] for r in fs],'issues':[r['value'] for r in fi],
-            'checked_at':int(time.time()),'version':'pwa-v4'}
+            'journals':journals,'grouped_source':grouped,'selected_issue':selected_issue,
+            'checked_at':int(time.time()),'version':'editing-pwa-v6'}
 
 
 @app.get('/api/folders')
@@ -372,7 +442,12 @@ async def item_detail(request: Request, module: str, id: str):
     if not rows: raise HTTPException(404,'找不到此項目，請重新整理清單。')
     if len(json.dumps(rows[0],ensure_ascii=False).encode())>3500000:
         raise HTTPException(413,'這筆資料過大，請暫時使用原網站查看。')
-    return rows[0]
+    result=rows[0]
+    table,key,colname,raw=await raw_item(module,id)
+    result['_revision']=revision(raw)
+    result['_editable']=list(edit_mapping(table,await schema()).keys())
+    result['_writes']=writes_enabled()
+    return result
 
 
 @app.get('/api/stats')
@@ -389,6 +464,209 @@ async def stats(request: Request):
 def session_status(request: Request):
     require_login(request)
     return {'authenticated': True}
+
+# V5 deliberately has no DELETE endpoint or database migration.
+def writes_enabled():
+    return os.getenv('ENABLE_WRITES','').strip().lower() == 'true'
+
+
+def write_auth(request):
+    require_login(request)
+    # Browser mutations must have a verified Origin; don't accept absent/null origins.
+    if not request.headers.get('origin'):
+        raise HTTPException(403,'請從 App 頁面提交修改。')
+    check_origin(request)
+    if not writes_enabled():
+        raise HTTPException(403,'寫入尚未啟用。請設定 ENABLE_WRITES=true 後重新部署。')
+
+
+async def body_json(request):
+    body=await request.body()
+    if len(body)>250000: raise HTTPException(413,'一次輸入資料過長，請縮短內容。')
+    try:
+        data=json.loads(body)
+    except (ValueError,TypeError): raise HTTPException(400,'提交格式不正確。') from None
+    if not isinstance(data,dict): raise HTTPException(400,'提交格式不正確。')
+    return data
+
+
+WRITE_FIELDS={
+ 'articles':{'title':['title'],'source':['source'],'url':['link'],'image':['image'],'summary':['summary'],'notes':['comment','notes'],'saved':['is_bookmarked']},
+ 'academic_pubs':{'title':['title'],'author':['author'],'source':['publisher_journal'],'category':['category'],'notes':['comment','notes'],'summary':['abstract'],'url':['link'],'image':['image'],'identifier':['identifier'],'published':['publish_date'],'issue':['issue_volume'],'shelf':['book_status']},
+ 'bibliography_notes':{'title':['title'],'author':['author'],'source':['publisher_journal'],'notes':['notes'],'url':['link'],'identifier':['identifier'],'published':['publish_date'],'issue':['issue_volume'],'rating':['importance'],'pubtype':['type']},
+ 'media_vault':{'title':['title'],'author':['creator'],'notes':['comment','notes'],'summary':['summary'],'url':['source_url'],'image':['cover_image'],'published':['release_date'],'stage':['is_bookmarked']},
+ 'omni_vault':{'title':['title'],'category':['category'],'notes':['comment','notes'],'url':['url'],'image':['image_url']},
+ 'custom_resources':{'title':['title'],'notes':['comment','notes'],'url':['url']},
+}
+
+
+def edit_mapping(table, schemas):
+    cols=schemas.get(table,{})
+    # Keys used to locate rows must stay stable if the table has no numeric id.
+    mapping={field:next((cols[k] for k in choices if k in cols),None) for field,choices in WRITE_FIELDS[table].items()}
+    if 'id' not in cols:
+        mapping.pop('url',None);mapping.pop('identifier',None)
+    return {k:v for k,v in mapping.items() if v}
+
+
+def revision(raw):
+    return signature('row:'+json.dumps(raw,ensure_ascii=False,sort_keys=True,separators=(',',':')))
+
+
+async def raw_item(module,id):
+    if not isinstance(id,str) or len(id)>5000 or ':' not in id:
+        raise HTTPException(400,'項目識別碼不正確。')
+    table,key=id.split(':',1)
+    if not isinstance(module,str) or table not in MODULE_TABLES.get(module,[]): raise HTTPException(400,'項目不屬於此模組。')
+    schemas=await schema();cols=schemas.get(table,{})
+    colname=next((cols[k] for k in ('id','link','identifier','url','source_url') if k in cols),None)
+    if not colname: raise HTTPException(404,'找不到資料表或識別欄位。')
+    _,rows=await query(f'SELECT * FROM {ident(table)} WHERE {ident(colname)} = ? LIMIT 1',[key])
+    if not rows: raise HTTPException(404,'項目已不存在，請更新清單。')
+    raw=rows[0]
+    if table=='custom_resources':
+        allowed={'mono':['monoreader'],'bib':['biblioapp','biblioapp_lecture','biblioapp_conference'],'media':['media_vault']}
+        if raw.get(cols.get('module','module')) not in allowed.get(module,[]):
+            raise HTTPException(400,'資源不屬於此模組。')
+    return table,key,colname,raw
+
+
+def checked_value(field,value):
+    if field=='saved':
+        if not isinstance(value,bool): raise HTTPException(400,'收藏狀態格式不正確。')
+        return int(value)
+    choices={'shelf':{'未入書庫':0,'待讀書架':1,'已讀書籍':2,'實體書庫':3,'電子書架':4},
+             'stage':{'待播':1,'典藏':0},'rating':{v:v for v in ['S','A','A-','B','B-','C','C-','待讀']},
+             'pubtype':{'專書':'Book','期刊論文':'Journal'}}
+    if field in choices:
+        if not isinstance(value,str) or value not in choices[field]: raise HTTPException(400,'不支援的分類或狀態。')
+        return choices[field][value]
+    if not isinstance(value,str): raise HTTPException(400,'文字欄位格式不正確。')
+    limit=50000 if field in ('notes','summary') else 4000 if field in ('url','image') else 1000
+    if len(value)>limit: raise HTTPException(400,f'{field} 文字超過 {limit} 字元。')
+    if field in ('title','category') and not value.strip(): raise HTTPException(400,'名稱與分類不能留空。')
+    if field in ('url','image') and value:
+        u=urlsplit(value)
+        if u.scheme not in ('http','https') or not u.hostname or u.username or u.password:
+            raise HTTPException(400,'網址必須是有效的 http:// 或 https:// 網址。')
+    return value if field in ('notes','summary') else value.strip()
+
+
+async def write_query(sql,args):
+    if not (sql.startswith('UPDATE "') or sql.startswith('INSERT INTO "')) or ';' in sql:
+        raise RuntimeError('Unsupported write statement')
+    return await execute_sql(sql,args)
+
+
+@app.post('/api/update')
+async def update_item(request: Request):
+    write_auth(request);data=await body_json(request)
+    module=data.get('module');table,key,keycol,raw=await raw_item(module,data.get('id'))
+    ver=data.get('revision')
+    if not isinstance(ver,str) or not hmac.compare_digest(ver,revision(raw)):
+        raise HTTPException(409,'這筆資料已在其他裝置或程式更新。請保留你的文字，關閉後重新開啟最新內容再修改。')
+    changes=data.get('changes')
+    if not isinstance(changes,dict) or not changes: raise HTTPException(400,'沒有提交修改。')
+    mapping=edit_mapping(table,await schema())
+    if any(k not in mapping for k in changes):
+        raise HTTPException(400,'原資料表沒有這個可編輯欄位。本版不會自動新增欄位。')
+    values={mapping[k]:checked_value(k,v) for k,v in changes.items()}
+    # Atomic comparison prevents a concurrent writer overwriting any edited field
+    # between the read above and this UPDATE, without needing a schema migration.
+    guards=[f'{ident(keycol)} = ?'];args=list(values.values())+[key]
+    for col in values:
+        guards.append(f'{ident(col)} IS ?');args.append(raw[col])
+    sql=f'UPDATE {ident(table)} SET '+','.join(f'{ident(k)} = ?' for k in values)+' WHERE '+' AND '.join(guards)+f' RETURNING {ident(keycol)}'
+    _,rows=await write_query(sql,args)
+    if not rows: raise HTTPException(409,'資料剛被修改，這次未儲存。請重新開啟最新內容後再試。')
+    return {'ok':True,'message':'已儲存至 Turso'}
+
+
+CREATE_TYPES={'article':('mono','articles'),'monoResource':('mono','custom_resources'),
+ 'book':('bib','academic_pubs'),'journal':('bib','academic_pubs'),'bibLink':('bib','academic_pubs'),
+ 'reference':('bib','bibliography_notes'),'bibResource':('bib','custom_resources'),
+ 'media':('media','media_vault'),'mediaResource':('media','custom_resources'),'omni':('omni','omni_vault')}
+
+
+@app.post('/api/create')
+async def create_item(request: Request):
+    write_auth(request);data=await body_json(request);kind=data.get('type')
+    if not isinstance(kind,str) or kind not in CREATE_TYPES: raise HTTPException(400,'不支援的項目類型。')
+    module,table=CREATE_TYPES[kind]
+    if data.get('module')!=module: raise HTTPException(400,'模組與類型不符。')
+    fields=data.get('fields')
+    if not isinstance(fields,dict) or not isinstance(fields.get('title'),str) or not fields['title'].strip(): raise HTTPException(400,'請填寫名稱。')
+    schemas=await schema();cols=schemas.get(table)
+    if not cols: raise HTTPException(400,'原資料庫沒有此資料表，請先確認資料庫結構。')
+    mapping={k:next((cols[c] for c in names if c in cols),None) for k,names in WRITE_FIELDS[table].items()}
+    if any(k not in WRITE_FIELDS[table] for k in fields): raise HTTPException(400,'包含不支援的欄位。')
+    values={}
+    for k,v in fields.items():
+        if not mapping.get(k):
+            if v not in ('',None): raise HTTPException(400,f'原資料表沒有 {k} 欄位，未建立項目；請先移除該欄內容。')
+            continue
+        values[mapping[k]]=checked_value(k,v)
+    now=datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    manual='manual:'+uuid.uuid4().hex
+    def put(name,value,default=False):
+        if name in cols and (not default or cols[name] not in values): values[cols[name]]=value
+    put('added_date',now);put('sortdate',now);put('sort_date',now)
+    if table=='articles':
+        if not fields.get('url'): raise HTTPException(400,'新增文章必須填寫原文網址。')
+        put('source','外部手動匯入',True);put('published','手動收藏',True);put('is_bookmarked',1,True)
+    if table=='academic_pubs':
+        put('type',{'book':'Book','journal':'Journal','bibLink':'Web Link'}[kind]);put('is_manual',1)
+        if not fields.get('identifier'):put('identifier',manual)
+        put('book_status',1,True);put('category','未分類',True);put('publish_date',now[:10],True)
+    if table=='bibliography_notes':
+        put('type','Book',True);put('importance','待讀',True)
+        if not fields.get('identifier'):put('identifier',manual)
+    if table=='media_vault':
+        category=data.get('category','電影與影集')
+        if category not in ('電影與影集','音樂與專輯'): raise HTTPException(400,'影音類型不正確。')
+        put('media_type','電影' if category=='電影與影集' else '音樂專輯');put('is_bookmarked',1,True)
+        if not fields.get('url'):put('source_url',manual)
+    if table=='omni_vault': put('category','未分類',True)
+    if table=='custom_resources':
+        resource_module={'monoResource':'monoreader','mediaResource':'media_vault'}.get(kind)
+        if kind=='bibResource':
+            resource_module={'網路資源':'biblioapp','講座記錄':'biblioapp_lecture','學術會議':'biblioapp_conference'}.get(data.get('category','網路資源'))
+        if not resource_module: raise HTTPException(400,'資源分類不正確。')
+        put('module',resource_module)
+        if not fields.get('url'):put('url',manual)
+    keycol=next((cols[k] for k in ('id','link','identifier','url','source_url') if k in cols),None)
+    if not keycol: raise HTTPException(400,'缺少項目識別欄位。')
+    sql=f'INSERT INTO {ident(table)} ('+','.join(ident(k) for k in values)+') VALUES ('+','.join('?' for _ in values)+f') RETURNING {ident(keycol)}'
+    _,rows=await write_query(sql,list(values.values()))
+    return {'ok':True,'id':table+':'+str(rows[0][keycol]),'message':'已新增至 Turso'}
+
+@app.get('/api/capabilities')
+async def capabilities(request: Request):
+    require_login(request);schemas=await schema()
+    return {'writes':writes_enabled(),'types':{kind:[field for field,names in WRITE_FIELDS[table].items() if any(n in schemas.get(table,{}) for n in names)] for kind,(module,table) in CREATE_TYPES.items() if table in schemas}}
+
+@app.post('/api/bookmark')
+async def bookmark(request: Request):
+    write_auth(request)
+    data=await body_json(request)
+    if not isinstance(data.get('saved'),bool): raise HTTPException(400,'收藏狀態格式不正確。')
+    table,key,keycol,raw=await raw_item('mono',data.get('id'))
+    if table != 'articles': raise HTTPException(400,'此按鈕只用於文章收藏。')
+    column=edit_mapping(table,await schema()).get('saved')
+    if not column: raise HTTPException(400,'資料表沒有收藏欄位。')
+    # Explicit desired state is idempotent; only this column is updated, not notes.
+    _,rows=await write_query(f'UPDATE {ident(table)} SET {ident(column)} = ? WHERE {ident(keycol)} = ? RETURNING {ident(keycol)}',[int(data['saved']),key])
+    if not rows: raise HTTPException(404,'此文章已不存在。')
+    return {'ok':True,'saved':data['saved']}
+
+
+@app.post('/api/lookup')
+async def metadata_lookup(request: Request):
+    write_auth(request)
+    data=await body_json(request)
+    from metadata import lookup_metadata
+    # Lookup only returns a draft. Saving is a separate, explicit /api/create call.
+    return await lookup_metadata(data.get('kind'),data.get('value'))
 
 
 # Public PWA assets only. No arbitrary file access or authenticated-page cache.

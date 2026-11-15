@@ -1,5 +1,5 @@
 // Bump this version whenever these public assets change.
-const CACHE = 'monoreader-public-pwa-1';
+const CACHE = 'monoreader-public-pwa-2';
 const PUBLIC = ['/offline.html','/icon-192.png','/icon-512.png','/maskable-512.png','/apple-touch-icon.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PUBLIC)));
