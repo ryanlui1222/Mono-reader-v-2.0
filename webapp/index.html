@@ -44,6 +44,12 @@ body.can-write #importButton:not([hidden]){display:inline-flex!important}
 .folder-art{height:180px}.folder-art img{object-fit:contain;filter:none}
 .delete-zone{border-top:1px solid var(--line);margin-top:22px;padding-top:12px}
 .delete-zone input[type=checkbox]{display:inline-block;width:20px;vertical-align:middle}
+</style><style>
+.publisher-folders{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:28px}
+.explore-directory h2{font-size:17px;font-weight:600;margin:22px 0 12px}
+.explore-directory .journal-folder{min-width:0;overflow-wrap:anywhere}
+.explore-directory details{margin-top:24px}.explore-directory summary{cursor:pointer;padding:12px 0}
+@media(max-width:800px){.publisher-folders{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
 <aside><div class="brand">mono<b>reader</b></div><div class="subtitle">COLLECT YOUR CURIOSITY</div><nav id="desktopNav" aria-label="主模組"></nav><div class="aside-foot"><p>一個人的閱讀、研究與收藏。</p><p>真實資料 · 個人收藏</p><button data-action="refresh">更新目前頁面</button><form method="post" action="/logout"><button>登出</button></form></div></aside>
 <main><div id="connection" role="status" style="padding:14px;border:1px solid #b5c7ae;border-radius:8px;margin-bottom:16px">準備讀取目前頁面…</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button data-action="refresh">↻ 更新目前頁面</button><button data-action="stats">資料表總數</button><button data-action="clearCache">清除裝置快取</button></div><div class="topline"><span>MONOREADER / 你的私人知識與收藏空間</span><span><button data-action="theme" aria-label="切換深淺色">◐ 配色</button> <form method="post" action="/logout" style="display:inline"><button>登出</button></form></span></div><header class="hero"><div><div class="eyebrow" id="eyebrow"></div><h1 id="heading"></h1><p class="description" id="description"></p></div><div class="hero-actions"><button id="importButton" data-action="import">↙ 解析匯入</button><button class="primary" id="addButton" data-action="add">＋ 新增</button></div></header>
@@ -99,8 +105,8 @@ function openEditor(id){
 }
 
 const BOOT=window.MONOREADER_BOOT||{expires:0,cacheKey:'unavailable'};
-const PREFIX='monoreader-pages-', CACHE=PREFIX+'v8-'+BOOT.cacheKey, DAY=86400000;
-let state={module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
+const PREFIX='monoreader-pages-', CACHE=PREFIX+'v9-'+BOOT.cacheKey, DAY=86400000;
+let state={bsource:'',bkind:'',bissue:'',blabel:'',module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
 let db={items:[],folders:[],theme:'light'}, result={items:[],total:0,page:1,page_size:30,sources:[],issues:[]}, timer, editing=null;
 let generation=0, controller, searchTimer, busy=false, checked=0, entries={}, detailGeneration=0;
 try{entries=JSON.parse(localStorage.getItem(CACHE)||'{}');if(!entries||typeof entries!=='object'||Array.isArray(entries))entries={}}catch(e){entries={}}
@@ -143,6 +149,14 @@ function render(){
  if(state.module==='bib')sorts.push(['published','出版日期'],['author','作者']);if(state.module==='media')sorts.push(['author','創作者']);if(state.module==='omni')sorts.push(['category','分類']);if(state.tab==='參考書目')sorts.push(['rating','評級']);
  if(!sorts.some(x=>x[0]===state.sort))state.sort='added';opts($('sort'),sorts,state.sort);$('sort').hidden=isFolderHome();$('reverse').hidden=isFolderHome();$('reverse').textContent=state.asc?'↑ 升冪':'↓ 降冪';
  $('addButton').textContent='＋ 手動新增';$('addButton').title='新增到資料庫';$('layout').textContent=state.layout==='grid'?'清單顯示':'網格顯示';$('layout').hidden=isFolderHome()||isEntryView();$('scope').textContent=state.tab==='搜尋中心'?'範圍：完整模組':'範圍：完整版塊';$('batch').innerHTML='';$('pages').innerHTML='';
+ if(isExplore()){
+  $('subtabs').innerHTML='';$('source').hidden=true;$('issue').hidden=true;
+  $('search').placeholder=isExploreDirectory()?'搜尋資料夾名稱…':'搜尋此資料夾的全部資料…';
+  $('sort').hidden=isExploreDirectory();$('reverse').hidden=isExploreDirectory();$('layout').hidden=isExploreDirectory()||isEntryView();
+  $('crumb').innerHTML='<button data-action="bibHome">文獻探索</button>'+(state.bsource?' ／ <button data-action="bibBack">'+E(state.bsource)+'</button>':'')+(state.bissue?' ／ '+E(state.blabel):'');
+  if(isExploreDirectory()){renderExplore();return}
+  $('viewInfo').textContent='文獻探索 / '+state.bsource+(state.bissue?' / '+state.blabel:'');
+ }
  if(isFolderHome()){
   const fs=result.folders||[];$('count').textContent=fs.length+' 個自訂資料夾';$('content').className='foldergrid';$('content').style.gridTemplateColumns='';
   $('content').innerHTML=fs.map((f,i)=>`<button class="folder" data-action="folder" data-value="${E(f.name)}"><div class="folder-art" style="background:${COLORS[i%6]}">${img(f.image)}<span>▧</span></div><div class="folder-label"><strong>${E(f.name)}</strong><small>${f.total} 個項目 ↗</small></div></button>`).join('')||`<div class="empty">${busy?'正在讀取資料夾…':'沒有符合的資料夾。'}</div>`;return;
@@ -160,7 +174,23 @@ function cacheWrite(key,data){
 }
 function clearCaches(broadcast=false){entries={};try{for(const k of Object.keys(localStorage))if(k.startsWith(PREFIX))localStorage.removeItem(k);if(broadcast)localStorage.setItem('monoreader-logout',String(Date.now()))}catch(e){}}
 function expire(){generation++;detailGeneration++;controller?.abort();clearCaches();db.items=[];result={};$('content').replaceChildren();if($('editor').open)$('editor').close();if($('writer').open)$('writer').close();location.replace('/login')}
-function endpoint(){if(isFolderHome())return '/api/folders?'+new URLSearchParams({q:state.query.trim()});return '/api/browse?'+new URLSearchParams({module:state.module,tab:state.tab,sub:state.sub,folder:state.folder,q:state.query.trim(),source:state.source,issue:state.issue,sort:state.sort,asc:String(state.asc),page:String(state.page)})}
+
+function isExplore(){return state.module==='bib'&&state.tab==='文獻探索'}
+function isExploreDirectory(){return isExplore()&&(!state.bsource||(state.bkind==='journal'&&!state.bissue))}
+function renderExplore(){
+ $('content').className='explore-directory';$('content').style.gridTemplateColumns='';$('count').textContent='資料夾總覽';$('scope').textContent='範圍：完整資料庫';
+ const card=(x,kind)=>`<button class="journal-folder" data-action="bibSource" data-kind="${kind}" data-value="${E(x.name)}"><strong>▣ ${E(x.name)}</strong><small>${x.total} ${kind==='book'?'本書籍':'篇論文'}</small></button>`;
+ if(!state.bsource){
+ const pubs=result.publishers||[],other=result.other_publishers||[],journals=result.journal_folders||[];
+ $('content').innerHTML='<h2>關注出版社 · 出版專書</h2><div class="publisher-folders">'+pubs.map(x=>card(x,'book')).join('')+'</div><h2>學術期刊 · 期刊論文</h2><div class="journal-grid">'+journals.map(x=>card(x,'journal')).join('')+'</div>'+(other.length?'<details><summary>其他出版社（'+other.length+'）</summary><div class="journal-grid">'+other.map(x=>card(x,'book')).join('')+'</div></details>':'');
+ if(busy)$('count').textContent='正在讀取資料夾…';
+ }else{
+ const issues=result.issue_folders||[];
+ $('content').innerHTML='<h2>'+E(state.bsource)+' · 期號</h2><p class="small">依出版日期由新至舊；缺少期號時以出版年月／年份暫分組。</p><div class="journal-grid">'+issues.map(x=>`<button class="journal-folder" data-action="bibIssue" data-value="${E(x.key)}" data-label="${E(x.label)}"><strong>▣ ${E(x.label)}</strong><small>${x.total} 篇論文</small></button>`).join('')+'</div>'+(issues.length?'':'<p class="empty">'+(busy?'正在讀取…':'沒有符合的期號資料夾。')+'</p>');
+ }
+}
+
+function endpoint(){if(isExploreDirectory())return '/api/explore?'+new URLSearchParams({source:state.bsource,q:state.query.trim()});if(isFolderHome())return '/api/folders?'+new URLSearchParams({q:state.query.trim()});return '/api/browse?'+new URLSearchParams({bsource:state.bsource,bissue:state.bissue,module:state.module,tab:state.tab,sub:state.sub,folder:state.folder,q:state.query.trim(),source:state.source,issue:state.issue,sort:state.sort,asc:String(state.asc),page:String(state.page)})}
 function apply(data){result=data;db.items=(data.items||[]).map(normalize);if(data.page)state.page=data.page;render()}
 async function load(force=false){
  if(Date.now()/1000>=BOOT.expires){expire();return}
@@ -168,7 +198,7 @@ async function load(force=false){
  busy=true;checked=Date.now();
  if(cached&&cached.data&&Date.now()-cached.at<DAY){apply(cached.data);status('顯示此裝置快取（'+new Date(cached.at).toLocaleString()+'）· 正在核對更新…');if(!force&&Date.now()-cached.at<60000){busy=false;render();status('此裝置快取 · '+new Date(cached.at).toLocaleTimeString()+' 已核對；按「更新目前頁面」即時重查。');return}}
  else{result={items:[],total:0,sources:[],issues:[]};db.items=[];render();status('正在讀取目前頁面（書架與影音每頁18筆，其他每頁30筆）…')}
- try{const r=await fetch(key,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(seq!==generation)return;if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'讀取失敗（'+r.status+'）');if(seq!==generation)return;busy=false;cacheWrite(key,body);apply(body);status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 編輯與安裝版 v8')}
+ try{const r=await fetch(key,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(seq!==generation)return;if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'讀取失敗（'+r.status+'）');if(seq!==generation)return;busy=false;cacheWrite(key,body);apply(body);status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 編輯與安裝版 v9')}
  catch(e){if(e.name==='AbortError'||seq!==generation)return;busy=false;render();status((cached?'更新失敗，目前顯示快取，可能不是最新資料。':'讀取失敗。')+' '+e.message+' 可按「更新目前頁面」重試。')}
 }
 function resetFilters(){state.page=1;state.query='';state.source='全部';state.issue='全部';state.sort='added';state.asc=false;$('search').value=''}
@@ -184,8 +214,12 @@ document.addEventListener('click',e=>{
  if(a==='clearCache'){clearCaches();load(true);return}
  if(a==='stats'){showStats();return}
  detailGeneration++;clearTimeout(searchTimer);
- if(a==='module'){state.module=v;state.tab=MODS[v].tabs[0];state.sub=v==='bib'?'出版專書':v==='media'?'電影與影集':'';state.folder='';resetFilters()}
- else if(a==='tab'){state.tab=v;state.sub=v==='文獻探索'?'出版專書':v==='個人書庫'?SHELVES[0]:v==='可用資源'?'網路資源':state.module==='media'?'電影與影集':'';state.folder='';resetFilters()}
+ if(a==='module'){state.bsource='';state.bissue='';state.bkind='';state.module=v;state.tab=MODS[v].tabs[0];state.sub=v==='bib'?'出版專書':v==='media'?'電影與影集':'';state.folder='';resetFilters()}
+ else if(a==='tab'){state.bsource='';state.bissue='';state.bkind='';state.tab=v;state.sub=v==='文獻探索'?'出版專書':v==='個人書庫'?SHELVES[0]:v==='可用資源'?'網路資源':state.module==='media'?'電影與影集':'';state.folder='';resetFilters()}
+ else if(a==='bibSource'){resetFilters();state.bsource=v;state.bkind=b.dataset.kind;state.bissue='';state.sub=state.bkind==='book'?'出版專書':'期刊論文';state.sort='published'}
+ else if(a==='bibIssue'){resetFilters();state.bissue=v;state.blabel=b.dataset.label;state.sort='published'}
+ else if(a==='bibHome'){resetFilters();state.bsource='';state.bissue='';state.bkind=''}
+ else if(a==='bibBack'){resetFilters();state.bissue='';state.sort='published'}
  else if(a==='sub'){state.sub=v;resetFilters()}
  else if(a==='folder'){state.folder=v;resetFilters()}
  else if(a==='journalFolder'){resetFilters();state.source=v;state.issue='最新'}

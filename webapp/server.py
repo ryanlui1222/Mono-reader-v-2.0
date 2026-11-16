@@ -61,7 +61,7 @@ def require_login(request):
 async def headers(request, call_next):
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Monoreader-Version'] = 'editing-pwa-v8'
+    response.headers['X-Monoreader-Version'] = 'editing-pwa-v9'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     # Native HTML form POSTs can send Origin: null under no-referrer.
@@ -76,7 +76,7 @@ LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name=
 
 @app.get('/health')
 def health():
-    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v8'}
+    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v9'}
 
 
 @app.get('/login', response_class=HTMLResponse)
@@ -352,17 +352,75 @@ def issue_order(source, added=''):
     return (1 if match else 0, int(match.group(1)) if match else 0, added or '', source)
 
 
+
+PUBLISHERS = {
+ '青土社':['青土社','Seidosha'],
+ '東京大學出版會':['東京大學出版會','東京大学出版会','University of Tokyo Press'],
+ 'Duke University Press':['Duke University Press','Duke','Duke University Press (DUP)'],
+ 'Verso':['Verso','Verso Books'],
+ 'MIT Press':['MIT Press','The MIT Press'],
+}
+
+def source_expr():
+    cases=[]
+    for name,aliases in PUBLISHERS.items():
+        quoted=','.join("'"+v.lower().replace("'","''")+"'" for v in aliases)
+        cases.append("WHEN lower(trim(source)) IN ("+quoted+") THEN '"+name+"'")
+    return "CASE "+" ".join(cases)+" ELSE COALESCE(NULLIF(trim(source),''),'未標明來源') END"
+
+def date_expr(field):
+    value='trim('+ident(field)+')'
+    return f"""julianday(CASE
+      WHEN {value} GLOB '[0-9][0-9][0-9][0-9]' THEN {value} || '-01-01'
+      WHEN {value} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' THEN {value} || '-01'
+      WHEN length({value}) >= 10 THEN {value}
+      ELSE NULL END)"""
+
+def issue_expr():
+    return """CASE WHEN trim(issue) != '' THEN 'issue:' || trim(issue)
+     WHEN substr(published,1,7) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' THEN 'month:' || substr(published,1,7)
+     WHEN trim(published) GLOB '[0-9][0-9][0-9][0-9]' THEN 'year:' || trim(published)
+     ELSE 'unknown:' END"""
+
+@app.get('/api/explore')
+async def explore(request: Request, source: str='', q: str=''):
+    require_login(request)
+    if len(source)>500 or len(q)>500:raise HTTPException(400,'查詢過長。')
+    sql=await module_sql('bib')
+    src=source_expr()
+    if not source:
+        _,rows=await query(f"SELECT type,{src} AS name,count(*) AS total FROM ({sql}) WHERE type IN ('book','journal') AND instr(lower({src}),lower(?))>0 GROUP BY type,{src} ORDER BY name COLLATE NOCASE",[q.strip()])
+        publishers=[{'name':name,'total':sum(int(r['total']) for r in rows if r['type']=='book' and r['name']==name)} for name in PUBLISHERS if not q.strip() or q.strip().lower() in name.lower() or any(q.strip().lower() in a.lower() for a in PUBLISHERS[name])]
+        other=[r for r in rows if r['type']=='book' and r['name'] not in PUBLISHERS]
+        journals=[r for r in rows if r['type']=='journal']
+        return {'publishers':publishers,'other_publishers':other,'journal_folders':journals,'items':[]}
+    key=issue_expr()
+    _,rows=await query(f"SELECT {key} AS key,count(*) AS total,MAX({date_expr('published')}) AS newest FROM ({sql}) WHERE type='journal' AND {src}=? GROUP BY {key}",[source])
+    for row in rows:
+        prefix,value=row['key'].split(':',1)
+        row['label']={'issue':value,'month':'出版年月 '+value,'year':'出版年份 '+value,'unknown':'未標明期號／日期'}[prefix]
+    def ordering(row):
+        nums=tuple(int(n) for n in re.findall(r'\d+',row['key']))
+        return (row['newest'] is not None,row['newest'] or 0,nums,row['label'])
+    rows.sort(key=ordering,reverse=True)
+    if q.strip():rows=[r for r in rows if q.strip().lower() in r['label'].lower()]
+    return {'issue_folders':rows,'items':[]}
+
 @app.get('/api/browse')
 async def browse(request: Request, module: str='mono', tab: str='全部來源總覽',
                  sub: str='', folder: str='', q: str='', source: str='全部',
-                 issue: str='全部', sort: str='added', asc: bool=False, page: int=1):
+                 issue: str='全部', sort: str='added', asc: bool=False, page: int=1, bsource: str='', bissue: str=''):
     require_login(request)
-    if page < 1 or page > 1000000 or any(len(v)>500 for v in (q,source,issue,folder,tab,sub)):
+    if page < 1 or page > 1000000 or any(len(v)>500 for v in (q,source,issue,folder,tab,sub,bsource,bissue)):
         raise HTTPException(400,'查詢參數超出範圍。')
     if sort not in ('added','title','published','author','category','rating'):
         raise HTTPException(400,'不支援的排序。')
     sql=await module_sql(module)
     where,args=conditions(module,tab,sub,folder,q)
+    if module=='bib' and tab=='文獻探索' and bsource:
+        where.append(source_expr()+' = ?');args.append(bsource)
+        if bissue:
+            where.append(issue_expr()+' = ?');args.append(bissue)
     base=f'SELECT * FROM ({sql}) WHERE '+(' AND '.join(where) or '1')
     field='source' if module=='mono' or (module=='bib' and tab=='文獻探索') else 'category'
     journals=[]; selected_issue=''; grouped=False
@@ -409,7 +467,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     size = 18 if shelf_view else 30
     page=min(page,max(1,(total+size-1)//size))
     order=f'{ident(sort)} COLLATE NOCASE'
-    if sort in ('added','published'): order=f'julianday({ident(sort)})'
+    if sort in ('added','published'): order=date_expr(sort)
     if sort=='rating':
         order="CASE rating "+' '.join(f"WHEN '{v}' THEN {i}" for i,v in enumerate(['S','A','A-','B','B-','C','C-','待讀']))+' ELSE 99 END'
     # Trim only display payloads, after filtering/searching full text in SQL.
@@ -425,7 +483,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     return {'items':items,'total':total,'page':page,'page_size':size,
             'sources':[r['value'] for r in fs],'issues':[r['value'] for r in fi],
             'journals':journals,'grouped_source':grouped,'selected_issue':selected_issue,
-            'checked_at':int(time.time()),'version':'editing-pwa-v8'}
+            'checked_at':int(time.time()),'version':'editing-pwa-v9'}
 
 
 @app.get('/api/folders')

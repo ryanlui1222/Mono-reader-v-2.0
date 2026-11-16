@@ -89,6 +89,15 @@ vm.createContext(context);const run=s=>vm.runInContext(s,context),flush=()=>new 
  assert.equal(JSON.parse(deletionCalls[0][1].body).revision,'revision-1');
  assert.equal(el('removeConfirm').checked,false);assert.equal(el('removeItem').disabled,true);
  assert(el('writeStatus').textContent.includes('Changed elsewhere'));
+ run("state.module='bib';state.tab='文獻探索';state.bsource='';state.bkind='';state.bissue='';result={publishers:[{name:'MIT Press',total:2}],journal_folders:[{name:'Test Journal',total:3}]};render()");
+ assert(el('content').innerHTML.includes('關注出版社'));assert(el('content').innerHTML.includes('Test Journal'));
+ assert(run('endpoint()').startsWith('/api/explore?'));
+ run("state.bsource='Test Journal';state.bkind='journal';result={issue_folders:[{key:'issue:Vol 2',label:'Vol 2',total:3}]};render()");
+ assert(el('content').innerHTML.includes('Vol 2'));assert(run('endpoint()').includes('source=Test'));
+ run("state.bissue='issue:Vol 2';state.blabel='Vol 2';state.sub='期刊論文';render()");
+ assert(run('endpoint()').includes('bissue=issue%3AVol+2'));
+ assert(el('source').hidden);assert(el('crumb').innerHTML.includes('Vol 2'));
+ console.log('PASS V9: directory entry, publisher and journal sections, issue navigation and query scope');
  console.log('PASS V8: deletion checkbox and disabled state; confirmation payload; conflict reset');
  console.log('PASS: v6 folders, latest issue, bookmark mutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
 })().catch(e=>{console.error(e);process.exitCode=1});
