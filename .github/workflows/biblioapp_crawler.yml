@@ -30,8 +30,8 @@ jobs:
       - name: 🚀 執行 Biblioapp 學術文獻爬蟲
         env:
           # 將 GitHub Secrets 注入為環境變數，讓爬蟲腳本讀取
-          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_DEV }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_DEV }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           # 🌟 修正：將 Google Books API 金鑰注入虛擬機
           GOOGLE_BOOKS_API_KEY: ${{ secrets.GOOGLE_BOOKS_API_KEY }}
         run: |
