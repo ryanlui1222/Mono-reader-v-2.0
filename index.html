@@ -1,0 +1,318 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f3ed"><title>Monoreader · 閱讀與收藏</title><style>
+:root{--paper:#f6f4ee;--ink:#243c37;--muted:#737b73;--line:#dce0d5;--accent:#356c53;--soft:#e8eee3}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}button,input,textarea,select{font:inherit}button,a,input,textarea,select{-webkit-tap-highlight-color:transparent}button{cursor:pointer;color:inherit}button:focus-visible,a:focus-visible{outline:3px solid #b58a46;outline-offset:3px}button{border:1px solid var(--line);background:transparent;border-radius:9px;padding:9px 14px;min-height:44px}button:hover{background:var(--soft)}button.primary{background:var(--ink);color:white;border-color:var(--ink)}aside{position:fixed;inset:0 auto 0 0;width:230px;border-right:1px solid var(--line);padding:34px 22px;background:#efeee6;display:flex;flex-direction:column}.brand{font:28px Georgia,serif;letter-spacing:-1px}.brand b{color:var(--accent)}.subtitle{font-size:11px;letter-spacing:2px;color:var(--muted);margin:8px 0 42px}nav{display:grid;gap:8px}nav button{text-align:left;border:0;display:flex;align-items:center;gap:13px;padding:14px}.nav-icon{font-size:21px;width:26px;text-align:center}nav button.active{background:#dfe7d9;color:#25523f;font-weight:650}.aside-foot{margin-top:auto;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:18px}main{margin-left:230px;padding:28px 5vw 60px;max-width:1600px}.topline{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding-bottom:22px;border-bottom:1px solid var(--line)}.badge{border:1px solid #d5ddcb;border-radius:30px;padding:3px 10px;white-space:nowrap}.hero{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:32px 0 26px}.eyebrow{font-size:11px;letter-spacing:2px;color:var(--accent);font-weight:650}h1{font:38px/1.3 Georgia,"Noto Serif TC",serif;margin:7px 0}p{margin:8px 0}.description{color:var(--muted);font-size:14px}.tools{display:flex;gap:12px;margin-bottom:18px}.search{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;background:#fffdf8;padding:11px 14px;color:var(--ink)}.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}.filters button{font-size:13px;border-radius:24px;padding:7px 15px;min-height:40px}.filters button.active{background:var(--ink);color:white;border-color:var(--ink)}.sectionline{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin:4px 0 20px;font-size:12px;color:var(--muted)}.feed{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:#fffdf8;border:1px solid var(--line);border-radius:13px;overflow:hidden}.card .body{padding:22px}.card h2{font-size:20px;line-height:1.6;margin:10px 0;font-weight:600}.card p{font-size:14px;color:var(--muted)}.meta{font-size:11px;letter-spacing:1px;color:var(--accent)}.card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:20px;gap:8px}.card-foot button{font-size:13px}.save{padding:8px 12px;min-width:44px}.save.saved{color:var(--accent);background:var(--soft)}.shelves{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:26px 22px}.shelf{min-width:0}.cover{width:100%;aspect-ratio:2/3;border:0;border-radius:3px 9px 9px 3px;box-shadow:3px 7px 14px #243c3714;padding:22px 16px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;text-align:left;color:#fff;position:relative;overflow:hidden;transition:transform .15s}.cover:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,#0003,transparent 5%,#fff1 7%,transparent 9%)}.cover:hover{transform:translateY(-3px);filter:brightness(1.06)}.cover small{font-size:10px;letter-spacing:2px;opacity:.8}.cover strong{font:22px/1.4 Georgia,serif;overflow-wrap:anywhere}.cover span{font-size:11px;opacity:.85}.music .cover{aspect-ratio:1}.shelf h2{font-size:14px;line-height:1.5;margin:12px 0 4px}.shelf p{font-size:12px;color:var(--muted);margin:0}.shelf-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px}.status{font-size:11px;color:var(--accent);background:var(--soft);border-radius:4px;padding:3px 7px}.shelf .save{border:0;font-size:18px}.list .shelf{display:grid;grid-template-columns:70px 1fr;column-gap:18px;background:#fffdf8;padding:14px;border:1px solid var(--line);border-radius:10px}.list .cover{grid-row:span 4;height:100px;min-height:0;padding:7px}.list .cover strong{font-size:11px}.list .cover small,.list .cover span{display:none}.list{display:grid;gap:12px}.empty{padding:60px 20px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted)}.bottom{display:none}dialog{border:1px solid var(--line);border-radius:16px;width:min(560px,calc(100% - 28px));max-height:90dvh;padding:28px;color:var(--ink);background:var(--paper)}dialog::backdrop{background:#14292380;backdrop-filter:blur(3px)}.dialogtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.dialogtop h2{margin:0;font-size:22px}label{display:block;font-size:13px;margin:15px 0 5px}dialog input,dialog textarea,dialog select{display:block;width:100%;padding:10px;border:1px solid #bfc9bd;border-radius:7px;background:#fffdf8;color:var(--ink)}textarea{min-height:100px;resize:vertical}.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}.notice{font-size:12px;color:var(--muted);margin-top:22px}.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);padding:12px 22px;background:var(--ink);color:white;border-radius:10px;z-index:10;max-width:90%;text-align:center}.small{font-size:12px;color:var(--muted)}a{color:var(--accent)}
+@media(max-width:950px){aside{width:190px;padding:28px 14px}main{margin-left:190px;padding:24px}.feed{grid-template-columns:1fr}}
+@media(max-width:640px){aside{display:none}main{margin:0;padding:18px 18px 112px}.topline{font-size:11px;padding-bottom:14px}.hero{margin:24px 0 22px;align-items:flex-start}h1{font-size:31px}.hero>button{padding:8px 12px;font-size:13px;white-space:nowrap;margin-top:20px}.description{font-size:12px}.tools{gap:8px}.tools button{padding:8px 12px;font-size:12px}.filters{gap:7px}.filters button{padding:6px 12px;font-size:12px}.shelves{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 16px}.cover strong{font-size:21px}.card .body{padding:20px}.card h2{font-size:19px}.bottom{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;inset:auto 0 0;background:#f6f4eef5;border-top:1px solid var(--line);padding:7px 8px calc(7px + env(safe-area-inset-bottom));backdrop-filter:blur(12px);z-index:5}.bottom button{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;padding:5px 2px;min-height:52px}.bottom .nav-icon{font-size:20px}.toast{bottom:95px;width:max-content;max-width:90%}dialog{padding:22px}.eyebrow{font-size:10px}.sectionline{margin-top:0}}
+
+:root{--paper:#f5f3ed;--ink:#233e38}aside{width:220px}main{margin-left:220px;max-width:1700px;padding:25px 4vw 80px}.subtitle{margin-bottom:30px}.hero{margin:24px 0 20px}h1{font-size:34px}.hero-actions{display:flex;gap:8px}.tabs{display:flex;gap:20px;overflow:auto;border-bottom:1px solid var(--line);margin-bottom:22px;scrollbar-width:thin}.tabs button{border:0;border-radius:0;padding:13px 1px;white-space:nowrap;font-size:14px;color:var(--muted)}.tabs button.active{color:var(--ink);border-bottom:3px solid var(--accent);font-weight:700;background:transparent}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:20px}.controls select{max-width:220px;min-height:43px;padding:8px 30px 8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}.controls .search{flex:1;min-width:180px}.subtabs{display:flex;gap:8px;overflow:auto;margin-bottom:18px}.subtabs button{white-space:nowrap;font-size:13px;border-radius:22px;min-height:38px;padding:7px 16px}.subtabs button.active{background:var(--ink);color:var(--paper)}.summarybar{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:13px 16px;background:#e8ede3;border-radius:9px;margin-bottom:20px;font-size:12px}.toolbar-end{display:flex;gap:8px;flex-wrap:wrap}.statusline{display:flex;gap:8px;align-items:center}.statusline span{white-space:nowrap}.feed{grid-template-columns:repeat(2,minmax(0,1fr))}.article{display:grid;grid-template-columns:1fr 110px;gap:18px}.art{border-radius:7px;min-height:120px;background:#c4d4c2;display:flex;align-items:center;justify-content:center;overflow:hidden;font:45px Georgia;color:#ffffffa0}.art img{width:100%;height:100%;object-fit:cover}.card h2{font-size:18px}.card-foot{margin-top:14px}.card .body{padding:20px}.item-notes{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.shelves{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}.cover{min-height:0}.cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.cover .covertext{position:relative}.foldergrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}.folder{padding:0;text-align:left;overflow:hidden;border-radius:12px;background:#fffdf8}.folder-art{height:135px;position:relative;display:flex;align-items:center;justify-content:center;background:#dde3d5;font-size:36px;overflow:hidden}.folder-art img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;filter:brightness(.7)}.folder-art span{position:relative;color:white}.folder-label{padding:15px 18px;display:flex;justify-content:space-between;align-items:center}.folder-label small{color:var(--muted)}.crumb{display:flex;align-items:center;gap:10px;margin-bottom:18px}.crumb button{border:0;padding:0;min-height:35px;color:var(--accent)}.pagination{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:26px}.pagination span{font-size:13px}.pagination button:disabled{opacity:.35;cursor:default}.empty{grid-column:1/-1}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fffdf8}table{border-collapse:collapse;font-size:12px;width:100%;min-width:850px}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#e7ecdf;white-space:nowrap}td input:not([type=checkbox]),td select,td textarea{font:inherit;border:1px solid var(--line);border-radius:4px;padding:7px;background:transparent;color:var(--ink);width:150px}td textarea{min-height:60px}td input[type=checkbox]{width:20px;height:20px}td .wide{width:230px}.batchbar{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:13px}.batchbar div{display:flex;gap:8px}.danger{color:#a7413c}dialog{width:min(740px,calc(100% - 28px))}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.full{grid-column:1/-1}.formhelp{background:#e8ede3;padding:15px;border-radius:9px;font-size:13px}.formhelp strong{display:block;margin-bottom:5px}.inline-link{display:inline-block;padding:8px 0}.display-off{display:none!important}.titlebutton{padding:0;border:0;text-align:left;min-height:0;font-weight:600;font-size:18px;line-height:1.6;background:none}.titlebutton:hover{background:none;text-decoration:underline}.shelf .titlebutton{font-size:14px}.list .shelf{grid-template-columns:70px 1fr}.list .shelf-info{min-width:0}.list .shelf-bottom{grid-column:2}.list .cover{grid-row:span 2}.list .cover strong{font-size:11px}.list .cover span{display:block}.list .cover span small{display:none}.list .cover .author{display:none}.resetmobile{display:none}.topline button{font-size:12px;padding:5px 10px;min-height:32px}.sourcepill{font-size:11px;color:var(--muted)}.linkrow{font-size:12px}.notice{font-size:11px}.viewinfo{font-size:12px;color:var(--muted)}body.dark{--paper:#172521;--ink:#e0e8dc;--line:#3a4b41;--muted:#a4b1a2;--soft:#31483a;--accent:#9bbf9e}body.dark aside,body.dark .bottom{background:#1c2b25}body.dark .card,body.dark .folder,body.dark .tablewrap,body.dark .list .shelf,body.dark input,body.dark textarea,body.dark select{background:#21352b;color:var(--ink)}body.dark .summarybar,body.dark .formhelp,body.dark th{background:#2b4134}body.dark nav button.active{background:#345040;color:#e0e8dc}body.dark .primary{color:#172521}body.dark .search{background:#21352b}
+@media(min-width:1400px){.shelves{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(max-width:1000px){aside{width:180px;padding:28px 14px}main{margin-left:180px;padding:24px}.brand{font-size:24px}.feed{grid-template-columns:1fr}.hero-actions{flex-direction:column}}
+@media(max-width:640px){aside{display:none}main{margin:0;padding:16px 16px 110px}.brand{font-size:21px}.topline{font-size:10px}.hero{margin:23px 0 17px}h1{font-size:29px}.hero-actions{flex-direction:row;gap:5px}.hero-actions button{padding:7px 10px;font-size:12px;min-height:40px}.hero .description{max-width:230px}.tabs{gap:20px;margin:0 -16px 17px;padding:0 16px;position:sticky;top:0;background:var(--paper);z-index:3}.tabs button{font-size:13px}.controls{gap:8px}.controls .search{flex-basis:100%;width:100%}.controls select{font-size:12px;max-width:calc(50% - 5px);flex:1}.toolbar-end{width:100%}.toolbar-end button{font-size:12px;flex:1;padding:6px}.summarybar{padding:10px 12px;gap:8px;font-size:11px}.summarybar .optional{display:none}.shelves{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 15px}.foldergrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.folder-art{height:110px}.folder-label{padding:11px;display:block}.folder-label strong{font-size:13px;display:block;overflow-wrap:anywhere}.folder-label small{font-size:11px}.article{grid-template-columns:1fr 75px;gap:12px}.art{min-height:95px;font-size:30px}.card .body{padding:16px}.titlebutton{font-size:17px}.card p{font-size:13px}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}dialog{max-height:94dvh;padding:20px}.batchbar{align-items:flex-start;gap:8px}.batchbar div{flex-wrap:wrap}.batchbar button{font-size:11px;padding:6px}.resetmobile{display:inline-block}.toast{bottom:90px}.viewinfo{font-size:11px}.bottom button.active{color:var(--accent);background:var(--soft)}}
+.omni-image{height:220px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:42px;color:#fff8}.omni-image img{width:100%;height:100%;object-fit:cover}.brand{white-space:nowrap;font-size:26px}@media(max-width:1000px){.brand{font-size:23px}}@media(max-width:640px){.omni-image{height:180px}} .crumb:empty,.subtabs:empty{display:none;margin:0}.tabs{scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}@media(max-width:640px){.hero{display:block;margin:19px 0 12px}.hero h1{font-size:27px}.hero .description{max-width:none}.hero-actions{margin-top:13px;justify-content:flex-end}.hero-actions button{white-space:nowrap}.tabs{margin-bottom:14px}.controls select{min-height:38px}.summarybar{margin-bottom:12px}.controls .search{padding:9px 12px}.sectionline{padding-bottom:8px;margin-bottom:14px}.card-foot button{font-size:12px}} #addButton,#importButton,#manage,#batch,#deleteButton,#editForm button[type=submit],#helpDialog,[data-action=export],[data-action=reset],.resetmobile{display:none!important} </style><style>.pagination{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}.pagination input{width:72px;padding:8px}.summarybar{flex-wrap:wrap}#connection{overflow-wrap:anywhere}button:disabled{opacity:.5;cursor:default}</style><style>/* V4: bounded desktop shelves, document-style entries, wide reading view. */
+.shelves{grid-template-columns:repeat(6,minmax(0,1fr));gap:30px 20px;align-items:start}
+.shelf h2,.shelf p{overflow-wrap:anywhere}.shelf .titlebutton{font-size:14px}
+.titlelink{font:inherit;color:var(--ink);text-decoration:none;text-underline-offset:4px}
+.titlelink:hover{text-decoration:underline;color:var(--accent)}
+.entrylist{display:block}.entry{padding:25px 0 29px;border-bottom:1px solid var(--line);min-width:0}
+.entry:first-child{padding-top:8px}.entry-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.entry-head>div{min-width:0;flex:1}.entry h2{font-size:21px;line-height:1.55;margin:6px 0 8px;overflow-wrap:anywhere}
+.entry-details{flex-shrink:0;margin-top:8px}.entry-meta{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.entry-rating{font-size:13px;margin:12px 0}.entry-summary{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.9;margin:14px 0}
+.entry-notes{background:var(--soft);border-left:3px solid var(--accent);padding:18px 22px;border-radius:3px;margin-top:16px}
+.entry-notes h3{font-size:12px;color:var(--accent);margin:0 0 10px}.entry-notes button{margin-top:12px}
+.longtext{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.95;font-size:16px;user-select:text;word-break:normal}
+#editor{box-sizing:border-box;width:min(1120px,calc(100vw - 64px));max-width:none;max-height:92dvh;padding:30px 40px;overflow-y:auto}
+#editor .dialogtop{position:sticky;top:-30px;background:var(--paper);padding:12px 0;z-index:2;gap:18px;border-bottom:1px solid var(--line)}
+#editor #fields{display:block}.detail-title h2{font:26px/1.55 Georgia,serif;margin:12px 0;overflow-wrap:anywhere}
+.detail-notes,.detail-summary{margin:26px 0;padding:24px;background:var(--soft);border-radius:8px}
+.detail-notes h3,.detail-summary h3{margin:0 0 18px;font-size:15px}.detail-notes .longtext{min-height:180px}
+.detail-summary{background:transparent;border:1px solid var(--line)}.muted{color:var(--muted)}
+.detail-metadata{border-top:1px solid var(--line);padding-top:20px}.detail-metadata summary{cursor:pointer;min-height:44px}
+.detail-metadata dl{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px}.detail-metadata dl>div{min-width:0}
+.detail-metadata dt{font-size:12px;color:var(--muted)}.detail-metadata dd{margin:5px 0;overflow-wrap:anywhere}
+.detail-url{overflow-wrap:anywhere}.detail-image{max-width:220px;max-height:300px;object-fit:contain}
+@media(max-width:1279px){.shelves{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:900px){.shelves{grid-template-columns:repeat(3,minmax(0,1fr))}.entry-head{gap:12px}}
+@media(max-width:640px){.shelves{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 14px}.entry-head{display:block}.entry h2{font-size:19px}.entry-details{font-size:12px;margin-top:6px}.entry-notes{padding:16px}.longtext{font-size:16px;line-height:1.9}#editor{width:calc(100vw - 16px);max-height:96dvh;padding:16px}#editor .dialogtop{top:-16px}#editor .dialogtop h2{font-size:17px}.detail-title h2{font-size:22px}.detail-notes,.detail-summary{padding:16px;margin:20px 0}.detail-metadata dl{grid-template-columns:1fr}.detail-notes .longtext{min-height:240px}}
+</style><style>body.can-write #addButton{display:inline-flex!important}#writer{width:min(1120px,calc(100vw - 24px));max-height:94dvh;max-width:none}#writeFields{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px}#writeFields .full{grid-column:1/-1}.writing-text{min-height:34vh!important;resize:vertical;line-height:1.9;font-size:16px}.writer-actions{position:sticky;bottom:-28px;background:var(--paper);padding:16px 0;border-top:1px solid var(--line)}#writeStatus{white-space:pre-wrap;color:var(--accent)}@media(max-width:640px){#writer{padding:18px;width:calc(100vw - 12px)}#writeFields{grid-template-columns:1fr}.writing-text{min-height:40vh!important}}</style><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Monoreader"><style>
+body.can-write #importButton:not([hidden]){display:inline-flex!important}
+.item-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.card-foot{justify-content:flex-start;gap:10px;flex-wrap:wrap}.bookmark{white-space:nowrap;min-height:44px}.bookmark[aria-pressed="true"]{background:var(--soft);border-color:var(--accent);color:var(--accent)}.bookmark:disabled{opacity:.55;cursor:wait}
+#journalFolders{margin-bottom:18px}.journal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:12px}.journal-folder{text-align:left;background:var(--soft);padding:16px;border:1px solid var(--line);border-radius:10px}.journal-folder strong{display:block;font-size:16px}.journal-folder small{display:block;color:var(--muted);margin-top:6px;overflow-wrap:anywhere}.journal-current{padding:16px;border-left:3px solid var(--accent);background:var(--soft)}.journal-current p{overflow-wrap:anywhere}.lookup-panel{border:1px solid var(--line);padding:18px;margin:18px 0;border-radius:10px;background:var(--soft)}.lookup-panel h3{margin:0}.lookup-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.lookup-controls input{flex:1;min-width:180px}.lookup-controls select{width:auto}#lookupStatus{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:640px){.journal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.journal-folder{padding:12px}.journal-folder strong{font-size:14px}.lookup-controls input{width:100%;flex-basis:100%}.lookup-controls button{width:100%}.item-actions{margin-top:12px}.entry-head .item-actions{flex:none}}
+</style><style>
+.omni-image{width:min(100%,280px);height:auto;aspect-ratio:1;margin:14px auto 0;background:var(--soft)!important}
+.omni-image img{width:100%;height:100%;object-fit:contain}
+.folder-art{height:180px}.folder-art img{object-fit:contain;filter:none}
+.delete-zone{border-top:1px solid var(--line);margin-top:22px;padding-top:12px}
+.delete-zone input[type=checkbox]{display:inline-block;width:20px;vertical-align:middle}
+</style></head><body>
+<aside><div class="brand">mono<b>reader</b></div><div class="subtitle">COLLECT YOUR CURIOSITY</div><nav id="desktopNav" aria-label="主模組"></nav><div class="aside-foot"><p>一個人的閱讀、研究與收藏。</p><p>真實資料 · 個人收藏</p><button data-action="refresh">更新目前頁面</button><form method="post" action="/logout"><button>登出</button></form></div></aside>
+<main><div id="connection" role="status" style="padding:14px;border:1px solid #b5c7ae;border-radius:8px;margin-bottom:16px">準備讀取目前頁面…</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button data-action="refresh">↻ 更新目前頁面</button><button data-action="stats">資料表總數</button><button data-action="clearCache">清除裝置快取</button></div><div class="topline"><span>MONOREADER / 你的私人知識與收藏空間</span><span><button data-action="theme" aria-label="切換深淺色">◐ 配色</button> <form method="post" action="/logout" style="display:inline"><button>登出</button></form></span></div><header class="hero"><div><div class="eyebrow" id="eyebrow"></div><h1 id="heading"></h1><p class="description" id="description"></p></div><div class="hero-actions"><button id="importButton" data-action="import">↙ 解析匯入</button><button class="primary" id="addButton" data-action="add">＋ 新增</button></div></header>
+<nav class="tabs" id="tabs" aria-label="功能分頁"></nav><div id="crumb" class="crumb"></div><div class="subtabs" id="subtabs" aria-label="子分類"></div><div class="summarybar"><span id="viewInfo"></span><span class="optional">真實資料 · 個人收藏</span></div>
+<section id="journalFolders" aria-label="期刊資料夾"></section><div class="controls"><input class="search" id="search" type="search" aria-label="搜尋" placeholder="搜尋目前分頁…"><select id="source" aria-label="篩選來源或分類"></select><select id="issue" aria-label="篩選期號"></select><select id="sort" aria-label="排序方式"></select><div class="toolbar-end"><button id="reverse" data-action="reverse">↓ 新到舊</button><button id="layout" data-action="layout">清單顯示</button><button id="manage" data-action="manage">表格管理</button></div></div>
+<div class="sectionline"><span id="count"></span><span id="scope"></span></div><div id="batch" class="batchbar"></div><section id="content" aria-live="polite"></section><div id="pages" class="pagination"></div><p class="notice">完整資料庫分頁與搜尋 · 書架與影音每頁18筆，其他清單每頁30筆 · 啟用寫入後可手動新增與編輯。首次進入只載入目前版塊；已瀏覽頁面可使用此裝置快取，再於背景核對更新。</p></main>
+<nav class="bottom" id="mobileNav" aria-label="主模組"></nav>
+<dialog id="editor"><div class="dialogtop"><h2 id="editorHeading"></h2><button data-action="closeEditor" aria-label="關閉詳情">✕</button></div><form id="editForm"><div class="formgrid" id="fields"></div><div class="actions"><button type="button" class="danger" id="deleteButton" data-action="delete">刪除項目</button><button class="primary" type="submit">儲存至本機</button></div></form></dialog>
+<div class="toast" id="toast" hidden role="status"></div>
+<dialog id="writer"><div class="dialogtop"><h2 id="writerHeading">編輯資料</h2><button data-action="closeWriter" aria-label="關閉編輯">✕</button></div><form id="writeForm"><div id="writerTypeWrap"><label for="writerType">新增項目類型</label><select id="writerType"></select></div><div id="writerCategoryWrap"><label for="writerCategory">所屬分類</label><select id="writerCategory"></select></div><section id="lookupPanel" class="lookup-panel" hidden><h3>自動檢索書目／影音資料</h3><p class="small">先查詢並預填，再由你核對及按「新增至資料庫」；查詢本身不會儲存。</p><div class="lookup-controls"><select id="lookupKind" aria-label="檢索方式"></select><input id="lookupValue" aria-label="ISBN、DOI 或作品網址" maxlength="1000"><button type="button" id="lookupButton" data-action="lookup">檢索並預填</button></div><p id="lookupStatus" role="status"></p><p class="small">書目來源：Google Books／Open Library／openBD／Crossref。影音來源：TMDB／Apple iTunes。This product uses the TMDB API but is not endorsed or certified by TMDB.</p></section><div id="writeFields"></div><p id="writeStatus" role="status"></p><div class="actions writer-actions"><button type="button" data-action="closeWriter">取消</button><button id="writeSave" type="submit" class="primary">儲存修改</button></div></form></dialog><!--APP_BOOT--><script>
+'use strict';
+const $=id=>document.getElementById(id), E=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MODS={mono:{name:'Monoreader',short:'閱讀',icon:'▤',title:'閱讀，從這裏開始',desc:'即時評論、歷史文章與值得留存的線索。',tabs:['全部來源總覽','最新評論','文化快訊','分類存檔','我的收藏庫','未來典藏','搜尋中心']},bib:{name:'Biblioapp',short:'書庫',icon:'▥',title:'自己的知識書架',desc:'從出版探索，到文獻、書籍與研究資源。',tabs:['文獻探索','個人書庫','參考書目','網址備存','可用資源','搜尋中心']},media:{name:'Mediavault',short:'影音',icon:'◉',title:'聲音與影像的收藏',desc:'留待下一次播放，也留住已經喜歡的作品。',tabs:['待播／待看','典藏／已完成','搜尋中心']},omni:{name:'萬物收藏庫',short:'收藏',icon:'▧',title:'好奇心的陳列室',desc:'分類由你定義，讓每一種喜愛各得其所。',tabs:['分類資料夾','搜尋中心']}};
+const SHELVES=['待讀書架','已讀書籍','實體書庫','電子書架'], REFS=['S','A','A-','B','B-','C','C-','待讀'], COLORS=['#44665c','#a56b4d','#405d75','#8f804d','#786173','#5e7a78'];
+
+function isShelfView(){return state.module==='bib'&&(state.tab==='個人書庫'||state.tab==='文獻探索'&&state.sub!=='期刊論文')||state.module==='media'&&state.tab!=='搜尋中心'&&state.sub!=='網路資源分享卡'}
+function isEntryView(){return state.module==='bib'&&['參考書目','網址備存','可用資源'].includes(state.tab)||state.module==='mono'&&state.tab==='未來典藏'||state.module==='media'&&state.sub==='網路資源分享卡'||state.module==='bib'&&state.tab==='文獻探索'&&state.sub==='期刊論文'}
+function externalUrl(value){try{const u=new URL(String(value||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch(e){return ''}}
+function itemTitle(x,external=false){const url=externalUrl(x.url);if(external)return url?`<a class="titlelink" href="${E(url)}" target="_blank" rel="noopener noreferrer">${E(x.title)}</a>`:`<span>${E(x.title)}</span>`;return `<button class="titlebutton" data-action="edit" data-id="${E(x.id)}">${E(x.title)}</button>`}
+const bookmarkPending=new Set();
+function bookmarkButton(x){return x.type==='article'?`<button class="bookmark" data-action="bookmark" data-id="${E(x.id)}" aria-pressed="${!!x.saved}" ${!BOOT.writes||bookmarkPending.has(x.id)?'disabled':''} title="${BOOT.writes?'收藏狀態會儲存至資料庫':'尚未啟用寫入'}">${bookmarkPending.has(x.id)?'儲存中…':x.saved?'★ 已收藏':'☆ 加入收藏'}</button>`:''}
+async function setBookmark(id){
+ const x=db.items.find(item=>item.id===id);if(!x||!BOOT.writes||bookmarkPending.has(id))return;
+ const saved=!x.saved;bookmarkPending.add(id);render();
+ try{const r=await fetch('/api/bookmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,saved})});if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'收藏未能儲存');clearCaches();try{localStorage.setItem('monoreader-data-updated',String(Date.now()))}catch(e){}await load(true);toast(saved?'已加入「我的收藏庫」。':'已取消收藏，文章仍保留在分類存檔。')}
+ catch(e){toast(e.message+' 請更新頁面確認狀態後重試。')}
+ finally{bookmarkPending.delete(id);render()}
+}
+function renderJournals(){
+ const area=$('journalFolders');area.innerHTML='';
+ if(state.module!=='mono'||state.tab!=='分類存檔')return;
+ const journals=result.journals||[];
+ if(state.source==='全部')area.innerHTML=`<div class="journal-grid">${journals.map(j=>`<button class="journal-folder" data-action="journalFolder" data-value="${E(j.name)}"><strong>▣ ${E(j.name)}</strong><small>${j.issues} 個期號／版本 · 開啟最新一期</small><small>${E(j.latest)}</small></button>`).join('')}</div>`;
+ else if(result.grouped_source)area.innerHTML=`<div class="journal-current"><button data-action="journalBack">← 返回全部來源</button><p><strong>${E(state.source)}</strong> ／ ${state.issue==='全部'?'全部期號':E(result.selected_issue||'最新一期')}</p><p class="small">以下期號選單可切換歷史期數；最新一期按資料庫中的期號判定。</p></div>`;
+}
+function renderEntry(x){const info=[x.author,x.source,x.published||String(x.added||'').slice(0,10),x.issue,x.identifier].filter(Boolean);return `<article class="entry"><div class="entry-head"><div><div class="meta">${E(TYPE_LABEL[x.type]||x.category)}</div><h2>${itemTitle(x,true)}</h2><p class="entry-meta">${info.map(E).join(' · ')}</p></div><div class="item-actions"><button class="entry-details" data-action="edit" data-id="${E(x.id)}">詳情與筆記</button>${bookmarkButton(x)}</div></div>${x.type==='reference'?`<p class="entry-rating">重要性評級：${E(x.rating||'待讀')}</p>`:''}${x.summary?`<div class="entry-summary">${E(x.summary)}${x.summary.length>=1200?'…':''}</div>`:''}${x.notes?`<section class="entry-notes"><h3>我的筆記／閱讀心得</h3><div class="longtext">${E(x.notes)}</div>${x.notes.length>=1200?`<button data-action="edit" data-id="${E(x.id)}">清單為節錄，閱讀完整筆記 ↗</button>`:''}</section>`:''}</article>`}
+function renderCard(x,i){
+ const color=COLORS[(db.items.indexOf(x)+6)%COLORS.length];
+ if(isEntryView()||state.layout==='list')return renderEntry(x);
+ if(isShelfView()&&state.layout==='grid')return `<article class="shelf ${x.category==='音樂與專輯'?'music':''}"><button class="cover" data-action="edit" data-id="${E(x.id)}" style="background:${color}" aria-label="開啟 ${E(x.title)}"><small>MONO / ${x.type==='media'?'MEDIA':'BOOKS'}</small><span class="covertext"><strong>${E(x.title)}</strong></span><span class="author">${E(x.author)}</span>${img(x.image)}</button><div class="shelf-info"><h2>${itemTitle(x)}</h2><p>${E(x.author||'未填創作者')}</p></div><div class="shelf-bottom"><span class="status">${E(tag(x))}</span></div></article>`;
+ return `<article class="card">${x.type==='omni'?`<div class="omni-image" style="background:${color}">${img(x.image)||'<span>▧</span>'}</div>`:''}<div class="body"><div class="${x.type==='article'?'article':''}"><div><div class="meta">${E(x.source||x.category||'收藏')} ${x.issue?' / '+E(x.issue):''}</div><h2>${itemTitle(x,x.type==='article')}</h2><p class="item-notes">${E(x.summary||x.notes||x.author||'')}</p><div class="sourcepill">${E(x.author)} · ${E((x.added||'').slice(0,10))} · ${E(tag(x))}</div></div>${x.type==='article'?`<div class="art" style="background:${color}">${img(x.image)||'◌'}</div>`:''}</div><div class="card-foot"><button data-action="edit" data-id="${E(x.id)}">詳情與筆記 ↗</button>${bookmarkButton(x)}${x.type==='article'&&!externalUrl(x.url)?'<span class="small">暫無外部連結</span>':''}</div></div></article>`;
+}
+
+const TYPE_LABEL={article:'文章',monoResource:'未來典藏網址',book:'專書',journal:'期刊論文',reference:'參考書目',bibLink:'網址備存',bibResource:'可用資源',media:'影音',mediaResource:'網路資源分享卡',omni:'自訂收藏'};
+function openEditor(id){
+ const x=db.items.find(x=>x.id===id);if(!x)return;editing=id;
+ $('editorHeading').textContent=(TYPE_LABEL[x.type]||'項目')+' · 詳情與筆記';
+ $('deleteButton').hidden=true;
+ const url=externalUrl(x.url),fields=[['作者／創作者',x.author],['來源／出版社',x.source],['分類',x.category],['書架',x.shelf&&['book','journal'].includes(x.type)?x.shelf:''],['待播／典藏',x.type==='media'?x.stage:''],['ISBN／DOI',x.identifier],['出版日期',x.published],['期號',x.issue],['重要性評級',x.type==='reference'?x.rating:''],['加入／擷取時間',x.added?String(x.added).replace('T',' ').replace(/Z$/,' UTC'):'']].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
+ $('fields').innerHTML=`<div class="detail-title"><h2>${E(x.title)}</h2>${url?`<a class="inline-link" href="${E(url)}" target="_blank" rel="noopener noreferrer">開啟原文／相關網站 ↗</a>`:''}</div><section class="detail-notes"><h3>我的筆記／閱讀心得</h3><div class="longtext ${x.notes?'':'muted'}">${E(x.notes||'尚未填寫筆記。')}</div></section>${x.summary?`<section class="detail-summary"><h3>摘要／簡介</h3><div class="longtext">${E(x.summary)}</div></section>`:''}<details class="detail-metadata"><summary>書目與其他資料</summary><dl>${fields.map(([k,v])=>`<div><dt>${E(k)}</dt><dd>${E(v)}</dd></div>`).join('')}</dl>${url?`<p class="detail-url"><a href="${E(url)}" target="_blank" rel="noopener noreferrer">${E(url)}</a></p>`:''}${img(x.image,'detail-image')}</details><p class="small">${BOOT.writes?'可按「編輯資料」修改，儲存後會同步至資料庫。':'目前為唯讀，尚未啟用寫入。'}</p>`;
+ $('fields').innerHTML+=`<div class="actions"><button type="button" data-action="backupItem" data-id="${E(x.id)}">下載本筆備份</button>${BOOT.writes&&x._editable?.length?`<button type="button" class="primary" data-action="startEdit" data-id="${E(x.id)}">編輯資料</button>`:''}</div>`;
+ $('editor').showModal();$('editor').scrollTop=0;
+}
+
+const BOOT=window.MONOREADER_BOOT||{expires:0,cacheKey:'unavailable'};
+const PREFIX='monoreader-pages-', CACHE=PREFIX+'v8-'+BOOT.cacheKey, DAY=86400000;
+let state={module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
+let db={items:[],folders:[],theme:'light'}, result={items:[],total:0,page:1,page_size:30,sources:[],issues:[]}, timer, editing=null;
+let generation=0, controller, searchTimer, busy=false, checked=0, entries={}, detailGeneration=0;
+try{entries=JSON.parse(localStorage.getItem(CACHE)||'{}');if(!entries||typeof entries!=='object'||Array.isArray(entries))entries={}}catch(e){entries={}}
+function toast(s){$('toast').textContent=s;$('toast').hidden=false;clearTimeout(timer);timer=setTimeout(()=>$('toast').hidden=true,3500)}
+function canLeave(){return true}
+function typeNow(){return 'article'}
+function showImage(url){if(String(url||'').startsWith('/api/image?'))return true;return /^(https?:\/\/|data:image\/(?:jpeg|png|webp|gif);base64,)/i.test(url||'')}
+function img(url,cls=''){return showImage(url)?`<img class="${cls}" src="${E(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`:''}
+function tag(x){return x.type==='media'?x.stage:['book','journal'].includes(x.type)?x.shelf:x.type==='reference'?'評級 '+x.rating:x.type==='article'?(x.news?'文化快訊':'評論文章'):x.category}
+function quick(){return ''}
+function utc(value){if(!value)return '';let s=String(value).trim().replace(' ','T');if(/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?$/.test(s))s+='Z';return s}
+function normalize(x){return {...x,added:utc(x.added),saved:!!x.saved,news:!!x.news}}
+function isFolderHome(){return state.module==='omni'&&state.tab==='分類資料夾'&&!state.folder}
+function subOptions(){if(state.module==='bib')return state.tab==='文獻探索'?['出版專書','期刊論文']:state.tab==='個人書庫'?SHELVES:state.tab==='可用資源'?['網路資源','講座記錄','學術會議']:[];if(state.module==='media'&&state.tab!=='搜尋中心')return['電影與影集','音樂與專輯','網路資源分享卡'];return[]}
+function opts(el,arr,value){el.innerHTML=arr.map(([v,label])=>`<option value="${E(v)}">${E(label)}</option>`).join('');el.value=value}
+function status(text){$('connection').textContent=text}
+function render(){
+ document.body.classList.toggle('dark',db.theme==='dark');const m=MODS[state.module];
+ for(const id of ['desktopNav','mobileNav'])$(id).innerHTML=Object.entries(MODS).map(([k,v])=>`<button data-action="module" data-value="${k}" class="${k===state.module?'active':''}" ${k===state.module?'aria-current="page"':''}><span class="nav-icon">${v.icon}</span><span>${E(id==='mobileNav'?v.short:v.name)}</span></button>`).join('');
+ $('eyebrow').textContent='YOUR COLLECTION / '+state.module.toUpperCase();$('heading').textContent=m.title;$('description').textContent=m.desc;
+ $('tabs').innerHTML=m.tabs.map(t=>`<button data-action="tab" data-value="${E(t)}" class="${t===state.tab?'active':''}">${E(t)}</button>`).join('');
+ $('subtabs').innerHTML=subOptions().map(t=>`<button data-action="sub" data-value="${E(t)}" class="${t===state.sub?'active':''}">${E(t)}</button>`).join('');
+ $('crumb').innerHTML=state.folder?`<button data-action="folderBack">分類資料夾</button>／ ${E(state.folder)}`:'';
+ const recent=state.module==='mono'&&['全部來源總覽','最新評論','文化快訊'].includes(state.tab);
+ $('viewInfo').textContent=(recent?'最近24小時擷取 · ':state.tab==='分類存檔'?'完整歷史 · ':'')+state.tab+(state.sub?' / '+state.sub:'');
+ $('search').placeholder=isFolderHome()?'搜尋所有資料夾名稱…':state.tab==='搜尋中心'?'搜尋整個模組的資料…':'搜尋目前版塊的全部資料…';
+ const sources=result.sources||[], issues=result.issues||[];
+ const journalNames=new Set((result.journals||[]).map(j=>j.name));
+ opts($('source'),[...new Set(['全部',...sources,...(state.source==='全部'?[]:[state.source])])].map(v=>[v,v==='全部'?'全部來源／分類':(journalNames.has(v)?'▣ '+v:v)]),state.source);
+ opts($('issue'),[...new Set([...(result.grouped_source?['最新']:[]),'全部',...issues,...(['全部','最新'].includes(state.issue)?[]:[state.issue])])].map(v=>[v,v==='全部'?'全部期號':v==='最新'?'最新一期':v]),state.issue);
+ $('source').hidden=isFolderHome()||sources.length===0&&state.source==='全部';$('issue').hidden=isFolderHome()||issues.length===0&&['全部','最新'].includes(state.issue);
+ renderJournals();
+ let cats=$('categoryChips');if(!cats){cats=document.createElement('div');cats.id='categoryChips';cats.className='subtabs';$('subtabs').after(cats)}
+ cats.hidden=!(state.module==='bib'&&state.tab==='個人書庫');
+ cats.innerHTML=cats.hidden?'':['全部',...sources].map(v=>`<button type="button" data-category="${E(v)}" class="${state.source===v?'active':''}">${E(v==='全部'?'總覽':v)}</button>`).join('');
+ cats.onclick=e=>{const b=e.target.closest('[data-category]');if(b){state.source=b.dataset.category;state.page=1;load(true)}};
+
+ $('importButton').hidden=!['bib','media'].includes(state.module);$('importButton').textContent=state.module==='bib'?'ISBN／DOI 檢索':'IMDb／音樂檢索';
+ let sorts=[['added',state.module==='mono'?'擷取／加入時間':'加入日期（缺漏時依出版日）'],['title','標題']];
+ if(state.module==='bib')sorts.push(['published','出版日期'],['author','作者']);if(state.module==='media')sorts.push(['author','創作者']);if(state.module==='omni')sorts.push(['category','分類']);if(state.tab==='參考書目')sorts.push(['rating','評級']);
+ if(!sorts.some(x=>x[0]===state.sort))state.sort='added';opts($('sort'),sorts,state.sort);$('sort').hidden=isFolderHome();$('reverse').hidden=isFolderHome();$('reverse').textContent=state.asc?'↑ 升冪':'↓ 降冪';
+ $('addButton').textContent='＋ 手動新增';$('addButton').title='新增到資料庫';$('layout').textContent=state.layout==='grid'?'清單顯示':'網格顯示';$('layout').hidden=isFolderHome()||isEntryView();$('scope').textContent=state.tab==='搜尋中心'?'範圍：完整模組':'範圍：完整版塊';$('batch').innerHTML='';$('pages').innerHTML='';
+ if(isFolderHome()){
+  const fs=result.folders||[];$('count').textContent=fs.length+' 個自訂資料夾';$('content').className='foldergrid';$('content').style.gridTemplateColumns='';
+  $('content').innerHTML=fs.map((f,i)=>`<button class="folder" data-action="folder" data-value="${E(f.name)}"><div class="folder-art" style="background:${COLORS[i%6]}">${img(f.image)}<span>▧</span></div><div class="folder-label"><strong>${E(f.name)}</strong><small>${f.total} 個項目 ↗</small></div></button>`).join('')||`<div class="empty">${busy?'正在讀取資料夾…':'沒有符合的資料夾。'}</div>`;return;
+ }
+ const rows=db.items,total=result.total||0,size=result.page_size||30,pages=Math.max(1,Math.ceil(total/size));
+ $('count').textContent=total?`共 ${total} 筆 · 第 ${(state.page-1)*size+1}–${(state.page-1)*size+rows.length} 筆`:'0 個項目';
+ const shelf=isShelfView()&&state.layout==='grid', entries=isEntryView();
+ $('content').className=shelf?'shelves':entries||state.layout==='list'?'entrylist':'feed';$('content').style.gridTemplateColumns='';
+ $('content').innerHTML=rows.map(renderCard).join('')||`<div class="empty">${busy?'正在讀取此頁…':state.tab==='搜尋中心'&&!state.query.trim()?'輸入關鍵字，搜尋此模組的完整資料。':recent?'最近24小時沒有符合的文章；可到「分類存檔」瀏覽所有歷史文章。':'沒有符合的資料。'}</div>`;
+ if(total>size)$('pages').innerHTML=`<button data-action="prev" ${state.page<=1?'disabled':''}>← 上一頁</button><span>${state.page} / ${pages}</span><button data-action="next" ${state.page>=pages?'disabled':''}>下一頁 →</button><form id="jumpForm"><label style="display:inline" for="jumpPage">跳至</label> <input id="jumpPage" type="number" min="1" max="${pages}" value="${state.page}" aria-label="頁碼"><button>前往</button></form>`;
+}
+function cacheWrite(key,data){
+ entries[key]={at:Date.now(),data};const keep=Object.entries(entries).filter(([,v])=>v&&Date.now()-v.at<DAY).sort((a,b)=>b[1].at-a[1].at).slice(0,12);entries=Object.fromEntries(keep);
+ try{let raw=JSON.stringify(entries);while(raw.length>1400000&&Object.keys(entries).length>1){delete entries[Object.keys(entries).pop()];raw=JSON.stringify(entries)}localStorage.setItem(CACHE,raw)}catch(e){/* Storage disabled/full: continue with in-memory cache. */}
+}
+function clearCaches(broadcast=false){entries={};try{for(const k of Object.keys(localStorage))if(k.startsWith(PREFIX))localStorage.removeItem(k);if(broadcast)localStorage.setItem('monoreader-logout',String(Date.now()))}catch(e){}}
+function expire(){generation++;detailGeneration++;controller?.abort();clearCaches();db.items=[];result={};$('content').replaceChildren();if($('editor').open)$('editor').close();if($('writer').open)$('writer').close();location.replace('/login')}
+function endpoint(){if(isFolderHome())return '/api/folders?'+new URLSearchParams({q:state.query.trim()});return '/api/browse?'+new URLSearchParams({module:state.module,tab:state.tab,sub:state.sub,folder:state.folder,q:state.query.trim(),source:state.source,issue:state.issue,sort:state.sort,asc:String(state.asc),page:String(state.page)})}
+function apply(data){result=data;db.items=(data.items||[]).map(normalize);if(data.page)state.page=data.page;render()}
+async function load(force=false){
+ if(Date.now()/1000>=BOOT.expires){expire();return}
+ const key=endpoint(),seq=++generation;controller?.abort();controller=new AbortController();const cached=entries[key];
+ busy=true;checked=Date.now();
+ if(cached&&cached.data&&Date.now()-cached.at<DAY){apply(cached.data);status('顯示此裝置快取（'+new Date(cached.at).toLocaleString()+'）· 正在核對更新…');if(!force&&Date.now()-cached.at<60000){busy=false;render();status('此裝置快取 · '+new Date(cached.at).toLocaleTimeString()+' 已核對；按「更新目前頁面」即時重查。');return}}
+ else{result={items:[],total:0,sources:[],issues:[]};db.items=[];render();status('正在讀取目前頁面（書架與影音每頁18筆，其他每頁30筆）…')}
+ try{const r=await fetch(key,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(seq!==generation)return;if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'讀取失敗（'+r.status+'）');if(seq!==generation)return;busy=false;cacheWrite(key,body);apply(body);status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 編輯與安裝版 v8')}
+ catch(e){if(e.name==='AbortError'||seq!==generation)return;busy=false;render();status((cached?'更新失敗，目前顯示快取，可能不是最新資料。':'讀取失敗。')+' '+e.message+' 可按「更新目前頁面」重試。')}
+}
+function resetFilters(){state.page=1;state.query='';state.source='全部';state.issue='全部';state.sort='added';state.asc=false;$('search').value=''}
+async function details(id){const seq=++detailGeneration;toast('讀取完整詳情…');try{const r=await fetch('/api/item?'+new URLSearchParams({module:state.module,id}),{cache:'no-store'});if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'無法讀取詳情');if(seq!==detailGeneration)return;const x=normalize(body),i=db.items.findIndex(v=>v.id===id);if(i<0)return;db.items[i]=x;openEditor(id);$('toast').hidden=true}catch(e){toast(e.message)}}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,v=b.dataset.value;
+ if(a==='theme'){db.theme=db.theme==='dark'?'light':'dark';render();return}
+ if(a==='layout'){state.layout=state.layout==='grid'?'list':'grid';render();return}
+ if(a==='closeEditor'){detailGeneration++;$('editor').close();return}
+ if(a==='edit'){details(b.dataset.id);return}
+ if(a==='bookmark'){setBookmark(b.dataset.id);return}
+ if(a==='refresh'){load(true);return}
+ if(a==='clearCache'){clearCaches();load(true);return}
+ if(a==='stats'){showStats();return}
+ detailGeneration++;clearTimeout(searchTimer);
+ if(a==='module'){state.module=v;state.tab=MODS[v].tabs[0];state.sub=v==='bib'?'出版專書':v==='media'?'電影與影集':'';state.folder='';resetFilters()}
+ else if(a==='tab'){state.tab=v;state.sub=v==='文獻探索'?'出版專書':v==='個人書庫'?SHELVES[0]:v==='可用資源'?'網路資源':state.module==='media'?'電影與影集':'';state.folder='';resetFilters()}
+ else if(a==='sub'){state.sub=v;resetFilters()}
+ else if(a==='folder'){state.folder=v;resetFilters()}
+ else if(a==='journalFolder'){resetFilters();state.source=v;state.issue='最新'}
+ else if(a==='journalBack'){resetFilters()}
+ else if(a==='folderBack'){state.folder='';resetFilters()}
+ else if(a==='reverse'){state.asc=!state.asc;state.page=1}
+ else if(a==='prev'||a==='next'){state.page+=a==='prev'?-1:1;window.scrollTo({top:0,behavior:'smooth'})}
+ else return;
+ load();
+});
+$('search').oninput=()=>{state.query=$('search').value;state.page=1;generation++;controller?.abort();clearTimeout(searchTimer);searchTimer=setTimeout(()=>load(),300)};
+for(const k of ['source','issue','sort'])$(k).onchange=()=>{state[k]=$(k).value;state.page=1;if(k==='source')state.issue=state.module==='mono'&&state.tab==='分類存檔'?'最新':'全部';if(k==='sort')state.asc=!['added','published'].includes(state.sort);load()};
+document.addEventListener('submit',e=>{
+ if(e.target.matches('form[action="/logout"]')){generation++;controller?.abort();clearCaches(true);db.items=[];$('content').replaceChildren();return}
+ e.preventDefault();if(e.target.id==='jumpForm'){const n=Number($('jumpPage').value);if(Number.isInteger(n)&&n>=1){state.page=n;load()}}
+});
+async function showStats(){try{const r=await fetch('/api/stats',{cache:'no-store'});if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'無法取得總數');status('資料庫總數（不是已下載筆數）：'+Object.entries(body).map(([k,v])=>k+'：'+(v===null?'資料表不存在':v)).join('；'))}catch(e){toast(e.message)}}
+window.addEventListener('storage',e=>{if(e.key==='monoreader-logout')expire()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(Date.now()/1000>=BOOT.expires)expire();else if(Date.now()-checked>60000)load(true)}});
+window.addEventListener('pageshow',async e=>{if(e.persisted){$('content').replaceChildren();try{const r=await fetch('/api/session',{cache:'no-store'});if(!r.ok){expire();return}load(true)}catch(err){status('請重新連線以確認登入狀態。')}}});
+setTimeout(expire,Math.max(0,BOOT.expires*1000-Date.now()));
+let writeOriginal=null,writeKind=null,writeFields=[],writeBusy=false,capabilities=null;
+const LABELS={title:'標題／名稱',author:'作者／創作者',source:'來源／出版社／期刊',category:'分類／資料夾',notes:'我的筆記／閱讀心得',summary:'摘要／簡介',url:'相關網址',image:'圖片網址',identifier:'ISBN／DOI／識別碼',published:'出版日期',issue:'期號',shelf:'書架位置',stage:'待播／典藏',saved:'文章收藏',rating:'重要性評級',pubtype:'文獻類型'};
+let categoryChoices=['未分類'];
+const CHOICES={shelf:['未入書庫',...SHELVES],stage:['待播','典藏'],saved:['未收藏','已收藏'],rating:REFS,pubtype:['專書','期刊論文']};
+const TYPES={mono:['article','monoResource'],bib:['book','journal','reference','bibLink','bibResource'],media:['media','mediaResource'],omni:['omni']};
+function formValue(field,x){if(field==='saved')return x.saved?'已收藏':'未收藏';if(field==='url'||field==='image')return externalUrl(x[field])||'';return x[field]??''}
+function writerDirty(){return writeFields.some(k=>{const el=$('w_'+k);return el&&el.value!==formValue(k,writeOriginal||writeDefaults())})}
+function closeWriter(){if(writeBusy){toast('正在儲存，請稍候。');return}if(writerDirty()&&!confirm('放棄尚未儲存的修改？'))return;lookupGeneration++;lookupBusy=false;$('writer').close()}
+function writeDefaults(){return {title:'',source:state.module==='mono'?'外部手動匯入':'',category:state.folder||'未分類',shelf:state.tab==='個人書庫'?state.sub:'待讀書架',stage:state.tab==='典藏／已完成'?'典藏':'待播',saved:true,rating:'待讀',pubtype:'專書'}}
+function defaultKind(){if(state.module==='mono')return state.tab==='未來典藏'?'monoResource':'article';if(state.module==='bib')return state.tab==='參考書目'?'reference':state.tab==='網址備存'?'bibLink':state.tab==='可用資源'?'bibResource':state.sub==='期刊論文'?'journal':'book';if(state.module==='media')return state.sub==='網路資源分享卡'?'mediaResource':'media';return 'omni'}
+async function openWriter(id){
+ if(!BOOT.writes){toast('尚未啟用寫入。');return}
+ if(id){const x=db.items.find(x=>x.id===id);if(!x||!x._revision){toast('請先開啟完整詳情。');return}writeOriginal=JSON.parse(JSON.stringify(x));writeKind=x.type;writeFields=x._editable||[]}
+ else{try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.status===401){expire();return}capabilities=await r.json();if(!r.ok||!capabilities.writes)throw Error('目前部署未啟用寫入。');writeOriginal=null;writeKind=defaultKind();writeFields=capabilities.types[writeKind]||[]}catch(e){toast(e.message);return}}
+ try{const r=await fetch('/api/categories?module='+encodeURIComponent(state.module),{cache:'no-store'});if(!r.ok)throw Error();categoryChoices=(await r.json()).categories}catch(e){categoryChoices=['未分類'];toast('未能讀取分類清單，可保留原分類或新增分類。')}
+ renderWriter();$('writer').showModal();$('writer').scrollTop=0;
+}
+function renderWriter(){
+ lookupGeneration++;lookupBusy=false;
+ const x=writeOriginal||writeDefaults();$('writerHeading').textContent=writeOriginal?'編輯 · '+TYPE_LABEL[writeKind]:'手動新增 · '+TYPE_LABEL[writeKind];
+ $('writerTypeWrap').hidden=!!writeOriginal;
+ opts($('writerType'),TYPES[state.module].filter(k=>capabilities?.types[k]).map(k=>[k,TYPE_LABEL[k]]),writeKind);
+ const categoryOptions=writeKind==='media'?['電影與影集','音樂與專輯']:writeKind==='bibResource'?['網路資源','講座記錄','學術會議']:[];
+ $('writerCategoryWrap').hidden=!!writeOriginal||!categoryOptions.length;
+ opts($('writerCategory'),categoryOptions.map(k=>[k,k]),categoryOptions.includes(state.sub)?state.sub:categoryOptions[0]);
+ $('writeFields').innerHTML=writeFields.map(k=>{const value=formValue(k,x),long=['notes','summary'].includes(k),options=k==='category'?[...new Set([...categoryChoices,value].filter(Boolean))]:CHOICES[k];return `<div class="${long||['title','url','image'].includes(k)?'full':''}"><label for="w_${k}">${E(LABELS[k])}${k==='title'?' *':''}</label>${long?`<textarea id="w_${k}" maxlength="50000" class="writing-text">${E(value)}</textarea>`:options?`<select id="w_${k}">${options.map(v=>`<option ${v===value?'selected':''}>${E(v)}</option>`).join('')}</select>`:`<input id="w_${k}" type="${['url','image'].includes(k)?'url':'text'}" value="${E(value)}" ${k==='title'?'required':''} maxlength="${['url','image'].includes(k)?4000:1000}">`}</div>`}).join('');
+ if($('w_category')){
+ const add=document.createElement('button');add.type='button';add.textContent='＋ 新分類';add.onclick=()=>{const v=prompt('新分類名稱');if(v&&v.trim()){const value=v.trim();if(value.length>1000)return;categoryChoices.push(value);const o=new Option(value,value,true,true);$('w_category').add(o)}};$('w_category').after(add);
+ }
+ $('writeStatus').textContent=writeFields.includes('notes')?'按儲存後才會寫入 Turso；筆記保留換行。':'此資料表沒有獨立筆記欄位，因此本版不顯示筆記編輯，也不會自動新增欄位。';
+ $('writeSave').disabled=false;$('writeSave').textContent=writeOriginal?'儲存修改':'新增至資料庫';
+ renderLookup();
+ let zone=$('removeZone');if(!zone){zone=document.createElement('div');zone.id='removeZone';zone.className='delete-zone';$('writeStatus').after(zone)}
+ zone.hidden=!writeOriginal;
+ zone.innerHTML=writeOriginal?`<p class="danger">刪除「${E(writeOriginal.title)}」會同步從 Streamlit 消失，無法在此復原。</p><label><input type="checkbox" id="removeConfirm"> 我確認要刪除此條目</label><button type="button" id="removeItem" class="danger" disabled>刪除此條目</button>`:'';
+ if(writeOriginal){$('removeConfirm').onchange=()=>{$('removeItem').disabled=writeBusy||!$('removeConfirm').checked};$('removeItem').onclick=removeCurrent}
+}
+async function removeCurrent(){
+ if(!writeOriginal||writeBusy||lookupBusy||!$('removeConfirm').checked)return;
+ writeBusy=true;$('writeForm').inert=true;$('removeItem').disabled=true;
+ $('writeStatus').textContent='正在刪除…';
+ try{
+ const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:state.module,id:writeOriginal.id,revision:writeOriginal._revision,confirmed:true})});
+ const b=await r.json();if(!r.ok)throw Error(b.detail||'刪除未完成');
+ $('writer').close();$('editor').close();clearCaches();try{localStorage.setItem('monoreader-data-updated',String(Date.now()))}catch(e){}
+ state.page=1;await load(true);toast('已刪除條目。');
+ }catch(e){$('writeStatus').textContent=e.message+' 若連線中斷，請重新查看清單確認結果。';$('removeConfirm').checked=false}
+ finally{writeBusy=false;$('writeForm').inert=false;$('removeItem').disabled=true}
+}
+$('writerType').onchange=()=>{if(writerDirty()&&!confirm('切換類型會清除尚未儲存的輸入，繼續？')){$('writerType').value=writeKind;return}writeKind=$('writerType').value;writeFields=capabilities.types[writeKind]||[];renderWriter()};
+$('writer').addEventListener('cancel',e=>{if(writeBusy||writerDirty()&&!confirm('放棄尚未儲存的修改？'))e.preventDefault()});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;if(a==='add')openWriter(null);if(a==='import')openImportWriter();if(a==='lookup')runLookup();if(a==='startEdit')openWriter(b.dataset.id);if(a==='closeWriter')closeWriter();if(a==='backupItem'){const x=db.items.find(x=>x.id===b.dataset.id);if(!x)return;const safe={...x};delete safe._revision;delete safe._editable;const u=URL.createObjectURL(new Blob([JSON.stringify(safe,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=u;link.download='monoreader-item-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}});
+$('writeForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(writeBusy||lookupBusy)return;
+ const fields={};for(const k of writeFields){let v=$('w_'+k).value;if(writeOriginal&&v===formValue(k,writeOriginal))continue;if(k==='saved')v=v==='已收藏';if(!writeOriginal&&v===''&&['shelf','stage','rating','pubtype'].includes(k))continue;fields[k]=v}
+ if(writeOriginal&&!Object.keys(fields).length){$('writeStatus').textContent='沒有修改。';return}
+ writeBusy=true;$('writeForm').inert=true;$('writeSave').disabled=true;$('writeStatus').textContent='正在儲存至 Turso…';
+ const payload=writeOriginal?{module:state.module,id:writeOriginal.id,revision:writeOriginal._revision,changes:fields}:{module:state.module,type:writeKind,category:$('writerCategory').value,fields};
+ try{const r=await fetch(writeOriginal?'/api/update':'/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const body=await r.json();if(!r.ok)throw Error(body.detail||'儲存失敗');writeBusy=false;$('writer').close();if($('editor').open)$('editor').close();clearCaches();try{localStorage.setItem('monoreader-data-updated',String(Date.now()))}catch(e){}state.page=1;await load(true);toast(writeOriginal?'已儲存至 Turso。':'已新增至 Turso；若目前篩選不顯示，可到對應分類或搜尋中心查找。')}
+ catch(err){$('writeStatus').textContent=err.message+' 若為網絡中斷，請先檢查清單確認有否儲存，避免重複新增。輸入仍保留在此視窗。'}
+ finally{writeBusy=false;$('writeForm').inert=false;$('writeSave').disabled=false}
+});
+window.addEventListener('beforeunload',e=>{if($('writer').open&&writerDirty()){e.preventDefault();e.returnValue=''}});
+window.addEventListener('storage',e=>{if(e.key==='monoreader-data-updated'){entries={};if(!$('writer').open)load(true)}});
+let lookupGeneration=0,lookupBusy=false;
+function renderLookup(){
+ const choices=writeKind==='book'?[['isbn','ISBN 書籍']]:writeKind==='journal'?[['doi','DOI 文獻']]:writeKind==='reference'?[['isbn','ISBN 書籍'],['doi','DOI 文獻']]:writeKind==='media'?[['imdb','IMDb 電影／影集'],['apple','Apple Music 專輯']]:[];
+ $('lookupPanel').hidden=!!writeOriginal||!choices.length;
+ opts($('lookupKind'),choices,writeKind==='media'&&state.sub==='音樂與專輯'?'apple':choices[0]?.[0]);
+ $('lookupValue').value='';$('lookupStatus').textContent='';$('lookupButton').disabled=false;lookupPlaceholder();
+}
+function lookupPlaceholder(){const examples={isbn:'例如 9780674040212',doi:'例如 10.1215/17432197-2347000',imdb:'https://www.imdb.com/title/tt0137523/',apple:'https://music.apple.com/hk/album/…/123456789'};$('lookupValue').placeholder=examples[$('lookupKind').value]||''}
+$('lookupKind').onchange=()=>{lookupGeneration++;lookupBusy=false;$('lookupButton').disabled=false;$('writeSave').disabled=false;$('lookupStatus').textContent='';lookupPlaceholder()};
+$('lookupValue').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runLookup()}});
+async function openImportWriter(){
+ await openWriter(null);if(!$('writer').open)return;
+ if($('lookupPanel').hidden){writeKind=state.module==='bib'?(state.tab==='參考書目'?'reference':'book'):'media';writeFields=capabilities.types[writeKind]||[];renderWriter()}
+ $('lookupValue').focus();
+}
+async function runLookup(){
+ if(lookupBusy||writeBusy||writeOriginal)return;
+ const value=$('lookupValue').value.trim();if(!value){$('lookupStatus').textContent='請先輸入識別碼或網址。';return}
+ const targets=['title','author','source','published','identifier','summary','image','url','issue'];
+ if(targets.some(k=>$('w_'+k)&&writeFields.includes(k)&&$('w_'+k).value.trim())&&!confirm('查詢成功後會更新書目／影音欄位，個人筆記不變。繼續？'))return;
+ const seq=++lookupGeneration,snapshot=Object.fromEntries(writeFields.map(k=>[k,$('w_'+k).value]));
+ lookupBusy=true;$('lookupButton').disabled=true;$('writeSave').disabled=true;$('lookupStatus').textContent='正在查詢外部資料來源…';
+ try{
+  const r=await fetch('/api/lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:$('lookupKind').value,value})});
+  if(r.status===401){expire();return}const body=await r.json();if(seq!==lookupGeneration||!$('writer').open)return;if(!r.ok)throw Error(body.detail||'檢索失敗');
+  if(writeFields.some(k=>$('w_'+k).value!==snapshot[k]))throw Error('查詢期間你修改了表單，為保留輸入，未自動套用結果。請再次檢索。');
+  const skipped=[];for(const [k,v] of Object.entries(body.fields||{})){if(!v)continue;if(writeFields.includes(k))$('w_'+k).value=v;else skipped.push(LABELS[k]||k)}
+  if(writeKind==='reference'&&writeFields.includes('pubtype'))$('w_pubtype').value=$('lookupKind').value==='doi'?'期刊論文':'專書';
+  if(body.category)$('writerCategory').value=body.category;
+  $('lookupStatus').textContent='已取得資料（'+body.provider+'），請核對後按「新增至資料庫」。尚未儲存。'+(body.warnings?.length?'\n'+body.warnings.join('\n'):'')+(skipped.length?'\n原資料表沒有以下欄位，未套用：'+skipped.join('、'):'');
+ }catch(e){if(seq===lookupGeneration)$('lookupStatus').textContent=e.message+' 你也可以直接手動填寫。'}
+ finally{if(seq===lookupGeneration){lookupBusy=false;$('lookupButton').disabled=false;$('writeSave').disabled=false}}
+}
+document.body.classList.toggle('can-write',!!BOOT.writes);
+
+render();load(true);
+
+</script><script src="/pwa.js" defer></script><script>
+(async function(){
+ const box=document.createElement('details');box.style.cssText='margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:12px';
+ box.innerHTML='<summary>爬蟲狀態：讀取中…</summary><button type="button">更新狀態</button><div></div>';document.querySelector('.topline').after(box);
+ const refresh=async()=>{try{const r=await fetch('/api/crawler-health',{cache:'no-store'});if(!r.ok)throw Error();const b=await r.json();box.querySelector('summary').textContent=!b.available?'爬蟲狀態：未找到狀態表':b.alerts?'⚠ 爬蟲狀態：'+b.alerts+' 個來源超過警告門檻':b.items.some(x=>x.status!=='OK')?'爬蟲狀態：有來源待觀察':'爬蟲狀態：未回報異常';box.querySelector('summary').style.color=b.alerts?'#c87935':'';box.querySelector('div').innerHTML='<p>沿用原版門檻：EMPTY／ERROR 且距記錄時間超過 48 小時。此時間不是每次執行時間；OK 亦不保證近期仍有執行。</p>'+b.items.filter(x=>x.status!=='OK').map(x=>'<p><strong>'+E(x.source_name)+'</strong> · '+E(x.status)+(x.hours===null?'（時間無法判讀）':x.alert?'（超過 48 小時）':'（觀察中）')+' · '+E(x.last_check||'時間未知')+'<br>'+E(x.error_msg||'')+'</p>').join('')}catch(e){box.querySelector('summary').textContent='爬蟲狀態：暫時無法讀取，請重試'}};
+ box.querySelector('button').onclick=refresh;await refresh();setInterval(()=>{if(!document.hidden)refresh()},300000);
+})();
+</script></body></html>
