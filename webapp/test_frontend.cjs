@@ -78,5 +78,17 @@ vm.createContext(context);const run=s=>vm.runInContext(s,context),flush=()=>new 
  const lookupTask=run('runLookup()');el('w_title').value='User typed while fetching';releaseLookup();await lookupTask;
  assert.equal(el('w_title').value,'User typed while fetching');assert(el('lookupStatus').textContent.includes('未自動套用'));
  context.fetch=originalFetch;
+ // V8 delete confirmation must gate network writes and reset after failure.
+ run("writeOriginal={id:'omni_vault:1',title:'Delete fixture',_revision:'revision-1'};state.module='omni';writeBusy=false;lookupBusy=false;renderWriter()");
+ assert(el('removeZone').innerHTML.includes('disabled'));
+ let deletionCalls=[];
+ context.fetch=async(url,options)=>{deletionCalls.push([url,options]);return{ok:false,status:409,json:async()=>({detail:'Changed elsewhere'})}};
+ el('removeConfirm').checked=false;await run('removeCurrent()');assert.equal(deletionCalls.length,0);
+ el('removeConfirm').checked=true;el('removeConfirm').onchange();assert.equal(el('removeItem').disabled,false);
+ await run('removeCurrent()');assert.equal(deletionCalls.length,1);
+ assert.equal(JSON.parse(deletionCalls[0][1].body).revision,'revision-1');
+ assert.equal(el('removeConfirm').checked,false);assert.equal(el('removeItem').disabled,true);
+ assert(el('writeStatus').textContent.includes('Changed elsewhere'));
+ console.log('PASS V8: deletion checkbox and disabled state; confirmation payload; conflict reset');
  console.log('PASS: v6 folders, latest issue, bookmark mutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
 })().catch(e=>{console.error(e);process.exitCode=1});

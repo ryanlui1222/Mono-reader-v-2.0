@@ -2,8 +2,9 @@
 import os
 import re
 from html import unescape
-from urllib.parse import urlsplit, quote
+from urllib.parse import urlsplit, quote, urljoin
 import httpx
+from html.parser import HTMLParser
 from fastapi import HTTPException
 
 HOSTS = {'www.googleapis.com','openlibrary.org','api.openbd.jp','api.themoviedb.org','api.crossref.org','itunes.apple.com'}
@@ -14,7 +15,7 @@ async def provider_json(url, params=None):
         raise RuntimeError('Unsupported metadata host')
     try:
         async with httpx.AsyncClient(timeout=12, follow_redirects=False) as client:
-            async with client.stream('GET',url,params=params,headers={'User-Agent':'Monoreader/6 (personal metadata lookup)','Accept':'application/json'}) as response:
+            async with client.stream('GET',url,params=params,headers={'User-Agent':'Monoreader/8 (personal metadata lookup)','Accept':'application/json'}) as response:
                 if response.status_code in (401,403):
                     raise HTTPException(502,'資料來源拒絕查詢，請檢查 API Key 或其權限限制。')
                 if response.status_code == 429: raise HTTPException(503,'資料來源的查詢額度暫時用盡，請稍後重試。')
@@ -68,13 +69,21 @@ def draft(kind, fields, provider, category='', warnings=None):
 
 async def lookup_isbn(value):
     isbn=isbn_clean(value);canonical=isbn13(isbn);warnings=[];errors=[]
+    if canonical.startswith(('9787','978957','978986','978626','978988','978962')):
+        try:
+            found=await lookup_douban(canonical)
+            if found:return found
+        except HTTPException:
+            warnings.append('豆瓣未能提供可核對的書目，已改查其他來源。')
     # Japanese editions often have better local metadata in openBD.
     if canonical.startswith('9784'):
         try:
             data=await provider_json('https://api.openbd.jp/v1/get',{'isbn':isbn})
             info=data[0].get('summary',{}) if isinstance(data,list) and data and isinstance(data[0],dict) else {}
             if info.get('title'):
-                return draft('book',{'title':info['title'],'author':info.get('author'),'source':info.get('publisher'),'published':info.get('pubdate'),'identifier':isbn,'image':info.get('cover'),'url':f'https://openlibrary.org/isbn/{isbn}'},'openBD')
+                cover=info.get('cover') or await japanese_cover(canonical)
+                if not cover:warnings.append('找到日文書目，但未取得封面；可手動填寫圖片網址。')
+                return draft('book',{'title':info['title'],'author':info.get('author'),'source':info.get('publisher'),'published':info.get('pubdate'),'identifier':isbn,'image':cover,'url':f'https://www.hanmoto.com/bd/isbn/{canonical}'},'openBD',warnings=warnings)
         except HTTPException as exc:errors.append(exc)
     params={'q':'isbn:'+isbn,'maxResults':5,'printType':'books'}
     if os.getenv('GOOGLE_BOOKS_API_KEY'):params['key']=os.environ['GOOGLE_BOOKS_API_KEY'].strip()
@@ -95,6 +104,16 @@ async def lookup_isbn(value):
         info=data.get('ISBN:'+isbn,{})
         if info.get('title'):
             return draft('book',{'title':info.get('title'),'author':', '.join(a.get('name','') for a in info.get('authors',[])),'source':', '.join(a.get('name','') for a in info.get('publishers',[])),'published':info.get('publish_date'),'identifier':isbn,'url':info.get('url') or f'https://openlibrary.org/isbn/{isbn}','image':info.get('cover',{}).get('large') or info.get('cover',{}).get('medium')},'Open Library',warnings=warnings)
+    except HTTPException as exc:errors.append(exc)
+    try:
+        data=await provider_json('https://api.crossref.org/works',{'filter':'isbn:'+canonical,'rows':3})
+        for info in data.get('message',{}).get('items',[]):
+            ids=[]
+            for v in info.get('ISBN',[]):
+                try:ids.append(isbn13(isbn_clean(v)))
+                except HTTPException:pass
+            if canonical not in ids or not info.get('title'):continue
+            return draft('book',{'title':info['title'][0],'author':', '.join(' '.join(filter(None,[a.get('given'),a.get('family')])) for a in info.get('author',[])),'source':info.get('publisher'),'identifier':isbn,'url':info.get('URL'),'summary':info.get('abstract')},'Crossref',warnings=warnings+['此來源未提供封面。'])
     except HTTPException as exc:errors.append(exc)
     if errors:raise HTTPException(502,'未取得此 ISBN 的書目，且部分來源查詢失敗。'+errors[0].detail+' 亦可手動新增。')
     raise HTTPException(404,'未找到符合此 ISBN 的書目；可改用手動新增，不會自動套用其他版本。')
@@ -161,3 +180,85 @@ async def lookup_metadata(kind,value):
     except HTTPException:raise
     except (TypeError,ValueError,KeyError,AttributeError,IndexError):
         raise HTTPException(502,'外部資料格式不完整，請改用手動填寫。') from None
+
+
+async def japanese_cover(isbn):
+    # Only fixed, public publisher image hosts; never fetch a user-supplied URL.
+    url=f'https://www.hanmoto.com/bd/img/{isbn}.jpg'
+    try:
+        async with httpx.AsyncClient(timeout=5,follow_redirects=False) as client:
+            async with client.stream('GET',url) as r:
+                if r.status_code==200 and r.headers.get('content-type','').startswith('image/'):
+                    return url
+    except httpx.HTTPError:pass
+    return ''
+
+async def douban_html(isbn):
+    url='https://book.douban.com/isbn/'+isbn+'/'
+    try:
+        async with httpx.AsyncClient(timeout=6,follow_redirects=False) as client:
+            for _ in range(4):
+                u=urlsplit(url)
+                if u.scheme!='https' or u.hostname!='book.douban.com' or u.username or u.password or u.port not in (None,443):
+                    raise HTTPException(502,'豆瓣跳轉至不支援的位址。')
+                async with client.stream('GET',url,headers={'User-Agent':'Monoreader/8 personal book lookup'}) as r:
+                    if r.status_code in (301,302,303,307,308):
+                        url=urljoin(url,r.headers.get('location',''));continue
+                    if r.status_code!=200:raise HTTPException(502,'豆瓣暫時拒絕或無法回應查詢。')
+                    body=bytearray()
+                    async for chunk in r.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body)>2000000:raise HTTPException(502,'豆瓣回應過大。')
+                    return body.decode('utf-8',errors='replace'),url
+    except httpx.HTTPError:
+        raise HTTPException(502,'豆瓣連線未成功。') from None
+    raise HTTPException(502,'豆瓣跳轉次數過多。')
+
+async def lookup_douban(isbn):
+    html,url=await douban_html(isbn)
+    soup=BookHTML();soup.feed(html)
+    title=soup.find(property='v:itemreviewed')
+    info=soup.find(id='info')
+    if not title or not info:raise HTTPException(502,'豆瓣頁面需要驗證或格式不同。')
+    raw=info.text()
+    match=re.search(r'ISBN\s*[:：]\s*([0-9Xx -]{10,25})',raw)
+    if not match or isbn13(isbn_clean(match[1].strip()))!=isbn:
+        raise HTTPException(502,'豆瓣書目 ISBN 不符，未套用。')
+    def field(label):
+        match=re.search(label+r'\s*[:：]\s*(.*?)(?=\s+[\w\u4e00-\u9fff]+\s*[:：]|$)',raw)
+        return match[1].strip() if match else ''
+    mainpic=soup.find(id='mainpic');cover=mainpic.find(tag='img') if mainpic else None;intro=soup.find_class('intro')
+    return draft('book',{'title':title.text(),'author':field('作者'),'source':field('出版社'),'published':field('出版年'),'identifier':isbn,'image':cover.attrs.get('src','') if cover else '', 'url':url,'summary':intro.text() if intro else ''},'豆瓣')
+
+
+class BookNode:
+    def __init__(self,tag='',attrs=None):
+        self.tag=tag;self.attrs=dict(attrs or []);self.children=[]
+    def text(self):
+        return ' '.join(x.text() if isinstance(x,BookNode) else x for x in self.children).strip()
+    def find(self,tag=None,**attrs):
+        if (tag is None or self.tag==tag) and all(self.attrs.get(k)==v for k,v in attrs.items()):return self
+        for child in self.children:
+            if isinstance(child,BookNode):
+                found=child.find(tag,**attrs)
+                if found is not None:return found
+        return None
+    def find_class(self,name):
+        if name in self.attrs.get('class','').split():return self
+        for child in self.children:
+            if isinstance(child,BookNode):
+                found=child.find_class(name)
+                if found is not None:return found
+        return None
+
+class BookHTML(HTMLParser,BookNode):
+    def __init__(self):
+        HTMLParser.__init__(self,convert_charrefs=True);BookNode.__init__(self);self.stack=[self]
+    def handle_starttag(self,tag,attrs):
+        node=BookNode(tag,attrs);self.stack[-1].children.append(node)
+        if tag not in ('img','br','meta','link','input','hr','source','area','base','embed','param','wbr'):self.stack.append(node)
+    def handle_endtag(self,tag):
+        for i in range(len(self.stack)-1,0,-1):
+            if self.stack[i].tag==tag:self.stack=self.stack[:i];break
+    def handle_data(self,data):
+        self.stack[-1].children.append(data)

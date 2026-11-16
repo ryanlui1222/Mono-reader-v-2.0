@@ -61,7 +61,7 @@ def require_login(request):
 async def headers(request, call_next):
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Monoreader-Version'] = 'editing-pwa-v7'
+    response.headers['X-Monoreader-Version'] = 'editing-pwa-v8'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     # Native HTML form POSTs can send Origin: null under no-referrer.
@@ -76,7 +76,7 @@ LOGIN = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name=
 
 @app.get('/health')
 def health():
-    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v7'}
+    return {'status': 'running', 'mode': 'write-enabled' if writes_enabled() else 'read-only', 'version': 'editing-pwa-v8'}
 
 
 @app.get('/login', response_class=HTMLResponse)
@@ -250,9 +250,9 @@ def normalized_select(table, cols, module):
                   author=text('author'), source=text('source'), category=text('category',default="'未分類'"),
                   notes=text('comment','notes'), summary=text('summary','abstract'),
                   url=text('url','link','source_url'), image=text('image','image_url','cover_image'),
-                  identifier=text('identifier'), published=text('publish_date','release_date'),
+                  identifier=text('identifier'), published=text('publish_date','release_date','published'),
                   issue=text('issue_volume'), rating=text('importance',default="'待讀'"),
-                  added=text('added_date','sortdate','sort_date','publish_date'),
+                  added=text('added_date','created_at','sortdate','sort_date','publish_date'),
                   saved=f"CASE WHEN CAST({col('is_bookmarked',default='0')} AS INTEGER) = 1 THEN 1 ELSE 0 END", news='0')
     status=col('book_status',default='0')
     values['shelf']=f"CASE CAST({status} AS INTEGER) WHEN 1 THEN '待讀書架' WHEN 2 THEN '已讀書籍' WHEN 3 THEN '實體書庫' WHEN 4 THEN '電子書架' ELSE '未入書庫' END"
@@ -425,7 +425,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
     return {'items':items,'total':total,'page':page,'page_size':size,
             'sources':[r['value'] for r in fs],'issues':[r['value'] for r in fi],
             'journals':journals,'grouped_source':grouped,'selected_issue':selected_issue,
-            'checked_at':int(time.time()),'version':'editing-pwa-v7'}
+            'checked_at':int(time.time()),'version':'editing-pwa-v8'}
 
 
 @app.get('/api/folders')
@@ -557,7 +557,7 @@ def checked_value(field,value):
 
 
 async def write_query(sql,args):
-    if not (sql.startswith('UPDATE "') or sql.startswith('INSERT INTO "')) or ';' in sql:
+    if not (sql.startswith('UPDATE "') or sql.startswith('INSERT INTO "') or sql.startswith('DELETE FROM "')) or ';' in sql:
         raise RuntimeError('Unsupported write statement')
     return await execute_sql(sql,args)
 
@@ -614,7 +614,7 @@ async def create_item(request: Request):
     manual='manual:'+uuid.uuid4().hex
     def put(name,value,default=False):
         if name in cols and (not default or cols[name] not in values): values[cols[name]]=value
-    put('added_date',now);put('sortdate',now);put('sort_date',now)
+    put('created_at',now);put('added_date',now);put('sortdate',now);put('sort_date',now)
     if table=='articles':
         if not fields.get('url'): raise HTTPException(400,'新增文章必須填寫原文網址。')
         put('source','外部手動匯入',True);put('published','手動收藏',True);put('is_bookmarked',1,True)
@@ -719,3 +719,20 @@ async def crawler_health(request: Request):
         row['alert']=row.get('status') in ('EMPTY','ERROR') and hours is not None and hours>48
         alerts+=int(row['alert'])
     return {'available':True,'items':rows,'alerts':alerts,'checked_at':int(time.time())}
+
+
+@app.post('/api/delete')
+async def delete_item(request: Request):
+    write_auth(request)
+    data=await body_json(request)
+    if data.get('confirmed') is not True:
+        raise HTTPException(400,'請先勾選確認刪除。')
+    table,key,keycol,raw=await raw_item(data.get('module'),data.get('id'))
+    ver=data.get('revision')
+    if not isinstance(ver,str) or not hmac.compare_digest(ver,revision(raw)):
+        raise HTTPException(409,'資料已變更，未刪除。請重新開啟最新資料再確認。')
+    # Compare the entire row atomically, including fields edited by Streamlit.
+    guards=[ident(col)+' IS ?' for col in raw]
+    _,rows=await write_query('DELETE FROM '+ident(table)+' WHERE '+' AND '.join(guards)+' RETURNING '+ident(keycol),list(raw.values()))
+    if not rows: raise HTTPException(409,'資料剛被修改，未刪除。請重新讀取。')
+    return {'ok':True,'message':'已刪除條目'}
