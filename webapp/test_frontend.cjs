@@ -97,6 +97,19 @@ vm.createContext(context);const run=s=>vm.runInContext(s,context),flush=()=>new 
  run("state.bissue='issue:Vol 2';state.blabel='Vol 2';state.sub='期刊論文';render()");
  assert(run('endpoint()').includes('bissue=issue%3AVol+2'));
  assert(el('source').hidden);assert(el('crumb').innerHTML.includes('Vol 2'));
+ context.fetch=originalFetch;
+ // V10: adjacent prefetch is reusable, and old requests cannot repopulate cleared caches.
+ run("state.module='mono';state.tab='分類存檔';state.bsource='';state.bissue='';state.page=100;clearCaches()");
+ await run('load()');
+ let timer;context.setTimeout=fn=>{timer=fn;return 1};
+ run('scheduleNext(endpoint(),result)');assert(timer);timer();await flush();
+ const fetched=requests.length;run('state.page=101');await run('load()');assert.equal(requests.length,fetched);
+ assert(el('content').innerHTML.includes('Page 101'));
+ run('entries[endpoint()].at=Date.now()-5*60*1000');await run('load()');assert.equal(requests.length,fetched);
+ context.setTimeout=()=>1;delayed=true;const old=run('state.page=102;load()');
+ run('clearCaches()');pending.shift()();await old;delayed=false;
+ assert.equal(run('Object.keys(entries).length'),0);
+ console.log('PASS V10: next-page prefetch, five-minute cache hit, invalidation blocks old responses');
  console.log('PASS V9: directory entry, publisher and journal sections, issue navigation and query scope');
  console.log('PASS V8: deletion checkbox and disabled state; confirmation payload; conflict reset');
  console.log('PASS: v6 folders, latest issue, bookmark mutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');

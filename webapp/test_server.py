@@ -12,7 +12,7 @@ server=importlib.util.module_from_spec(spec);spec.loader.exec_module(server)
 class PaginationTests(unittest.TestCase):
     def setUp(self):
         self.env=patch.dict(os.environ,{'APP_PASSWORD':'test-password-12345','SESSION_SECRET':'test-secret-never-use-in-production-12345','TURSO_DATABASE_URL':'libsql://test.invalid'})
-        self.env.start();server._schema_cache.clear();server.failures.clear()
+        self.env.start();server._schema_cache.clear();server._metadata_cache.clear();server.failures.clear()
         self.db=sqlite3.connect(':memory:',check_same_thread=False)
         self.db.executescript('''
         CREATE TABLE articles (Link TEXT PRIMARY KEY,Title TEXT,Source TEXT,Summary TEXT,Image TEXT,SortDate TEXT,is_bookmarked INTEGER,comment TEXT);

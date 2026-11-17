@@ -1,5 +1,7 @@
 """Monoreader connection milestone. Authenticated reading, editing and metadata lookup service."""
 import json
+from contextvars import ContextVar
+from collections import OrderedDict
 import base64
 import re
 import uuid
@@ -17,6 +19,52 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+# One HTTP connection pool per incoming request, shared by its SQL calls.
+_request_client = ContextVar('request_client', default=None)
+_refresh_metadata = ContextVar('refresh_metadata', default=False)
+_metadata_cache = OrderedDict()
+_metadata_epoch = 0
+
+@app.middleware('http')
+async def database_connection_scope(request, call_next):
+    global _metadata_epoch
+    writing = request.method in ('POST','PUT','PATCH','DELETE')
+    if writing:
+        _metadata_epoch += 1
+        _metadata_cache.clear()
+    started = time.perf_counter()
+    async with httpx.AsyncClient(timeout=35, follow_redirects=False) as client:
+        token = _request_client.set(client)
+        refresh = _refresh_metadata.set(request.query_params.get('refresh') == '1')
+        try:
+            response = await call_next(request)
+            response.headers['Server-Timing'] = f'app;dur={(time.perf_counter()-started)*1000:.1f}'
+            return response
+        finally:
+            if writing:
+                _metadata_epoch += 1
+                _metadata_cache.clear()
+            _request_client.reset(token)
+            _refresh_metadata.reset(refresh)
+
+async def cached_metadata(sql, args=None):
+    # Never cache private data outside this process; auth is checked by routes.
+    key = (os.getenv('TURSO_DATABASE_URL',''), os.getenv('TURSO_AUTH_TOKEN',''),
+           sql, tuple(args or []))
+    now = time.monotonic()
+    item = _metadata_cache.get(key)
+    if item and now-item[0] < 60 and not _refresh_metadata.get():
+        _metadata_cache.move_to_end(key)
+        return item[1]
+    epoch = _metadata_epoch
+    result = await query(sql, args)
+    if epoch == _metadata_epoch:
+        _metadata_cache[key] = (time.monotonic(), result)
+        _metadata_cache.move_to_end(key)
+        while len(_metadata_cache)>256:
+            _metadata_cache.popitem(last=False)
+    return result
+
 ROOT = Path(__file__).parent
 COOKIE = '__Host-monoreader'
 TABLES = {
@@ -182,10 +230,25 @@ async def query(sql, args=None):
 
 
 async def execute_sql(sql, args=None):
+    global _metadata_epoch
+    mutation = not sql.lstrip().upper().startswith('SELECT ')
+    if mutation:
+        _metadata_epoch += 1
+        _metadata_cache.clear()
     url, token = endpoint()
     try:
-        async with httpx.AsyncClient(timeout=35, follow_redirects=False) as client:
+        client = _request_client.get()
+        owned = client is None
+        if owned:
+            client = httpx.AsyncClient(timeout=35, follow_redirects=False)
+        try:
             res = await client.post(url, headers={'Authorization': 'Bearer ' + token}, json={'requests': [{'type': 'execute', 'stmt': {'sql': sql, 'args': [{'type':'null'} if v is None else {'type': 'integer', 'value': str(v)} if isinstance(v, int) else {'type':'float','value':v} if isinstance(v,float) else {'type': 'text', 'value': str(v)} for v in (args or [])], 'want_rows': True}}, {'type': 'close'}]})
+        finally:
+            if owned:
+                await client.aclose()
+            if mutation:
+                _metadata_epoch += 1
+                _metadata_cache.clear()
         if res.status_code in (401, 403):
             raise HTTPException(502, 'Turso 拒絕連線，請核對 URL 與 Token 是否屬於同一個資料庫。')
         if res.status_code != 200:
@@ -429,7 +492,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
         facet_where,facet_args=conditions(module,tab,sub,folder,'')
         if tab == '搜尋中心': facet_where=[]
         facet_base=f'SELECT * FROM ({sql}) WHERE '+(' AND '.join(facet_where) or '1')
-        _,raw_sources=await query(f"SELECT source AS value, MAX(added) AS added FROM ({facet_base}) WHERE source != '' GROUP BY source ORDER BY source COLLATE NOCASE",facet_args)
+        _,raw_sources=await cached_metadata(f"SELECT source AS value, MAX(added) AS added FROM ({facet_base}) WHERE source != '' GROUP BY source ORDER BY source COLLATE NOCASE",facet_args)
         groups={}
         for row in raw_sources:
             name,is_journal=source_group(row['value'])
@@ -457,11 +520,11 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
             else:
                 base+=' AND source = ?';args=args+[source]
     else:
-        _,fs=await query(f'SELECT DISTINCT {ident(field)} AS value FROM ({base}) WHERE {ident(field)} != \'\' ORDER BY value COLLATE NOCASE',args)
+        _,fs=await cached_metadata(f'SELECT DISTINCT {ident(field)} AS value FROM ({base}) WHERE {ident(field)} != \'\' ORDER BY value COLLATE NOCASE',args)
         if source!='全部': base+=f' AND {ident(field)} = ?'; args=args+[source]
-        _,fi=await query(f"SELECT DISTINCT issue AS value FROM ({base}) WHERE issue != '' ORDER BY value COLLATE NOCASE",args)
+        _,fi=await cached_metadata(f"SELECT DISTINCT issue AS value FROM ({base}) WHERE issue != '' ORDER BY value COLLATE NOCASE",args)
         if issue!='全部': base+=' AND issue = ?'; args=args+[issue]
-    _,counts=await query(f'SELECT COUNT(*) AS total FROM ({base})',args)
+    _,counts=await cached_metadata(f'SELECT COUNT(*) AS total FROM ({base})',args)
     total=int(counts[0]['total'])
     shelf_view = (module == 'bib' and (tab == '個人書庫' or (tab == '文獻探索' and sub != '期刊論文'))) or (module == 'media' and tab != '搜尋中心' and sub != '網路資源分享卡')
     size = 18 if shelf_view else 30
