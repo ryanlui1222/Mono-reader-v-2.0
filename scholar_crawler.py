@@ -1,3 +1,5 @@
+import traceback
+import aiohttp
 import os
 import re
 import requests
@@ -184,49 +186,50 @@ def fetch_from_crossref(member_id, publisher_name):
         print(f"❌ [{publisher_name}] 擷取失敗: {e}")
         return []
 
+def parse_urbanomic_forthcoming(html, base_url="https://www.urbanomic.com/book/"):
+    soup = BeautifulSoup(html, 'html.parser')
+    cards = soup.select('li.card, a.pubs-feature, article')
+    recognized, books = 0, {}
+    for card in cards:
+        title_tag = card.select_one('.card-title, .pubs-feature-title, h2, h3')
+        link_tag = card if card.name == 'a' else card.find('a', href=True)
+        if not title_tag or not link_tag:
+            continue
+        link = urllib.parse.urljoin(base_url, link_tag.get('href', ''))
+        parsed = urllib.parse.urlparse(link)
+        if parsed.hostname not in {'urbanomic.com', 'www.urbanomic.com'} or not re.match(r'^/book/[^/]+/?$', parsed.path):
+            continue
+        title = title_tag.get_text(' ', strip=True)
+        if not title:
+            continue
+        recognized += 1
+        text = card.get_text(' ', strip=True)
+        if not re.search(r'\bFORTHCOMING\b', text, re.I):
+            continue
+        date = card.select_one('.card-date, .pubs-feature-date')
+        author = card.select_one('.card-by, .pubs-feature-by')
+        img = card.find('img')
+        image_url = (img.get('src') or img.get('data-src') or '') if img else ''
+        books[link] = {
+            'type': 'Book', 'title': title,
+            'author': author.get_text(' ', strip=True) if author else 'Urbanomic',
+            'publisher_journal': 'Urbanomic', 'identifier': link, 'link': link,
+            'publish_date': date.get_text(' ', strip=True) if date else '即將出版',
+            'abstract': '（即將出版之前瞻書目）',
+            'image': urllib.parse.urljoin(base_url, image_url) if image_url else '',
+            'is_manual': 0, 'category': '學術專著',
+        }
+    if not recognized:
+        raise RuntimeError('Urbanomic: no recognizable book cards; page layout changed or access blocked')
+    return list(books.values())
+
+
 def crawl_urbanomic_forthcoming():
-    print("🔍 [Urbanomic] 準備擷取 Forthcoming 書目...")
-    url = "https://www.urbanomic.com/book/"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    books = []
-    
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        book_cards = soup.find_all('article') 
-        
-        for card in book_cards:
-            text_content = card.get_text(separator=' ', strip=True).upper()
-            if "FORTHCOMING" in text_content:
-                title_tag = card.find(['h2', 'h3'])
-                title = title_tag.get_text(strip=True) if title_tag else "未命名書籍"
-                
-                link_tag = card.find('a', href=True)
-                link = link_tag['href'] if link_tag else url
-                
-                date_match = re.search(r'FORTHCOMING\s+([A-Z]{3}\s+\d{4})', text_content)
-                pub_date = date_match.group(1) if date_match else "即將出版"
-                
-                img_tag = card.find('img')
-                image_url = img_tag.get('src', '') if img_tag else ""
-                
-                books.append({
-                    "type": "Book",
-                    "title": title,
-                    "author": "Urbanomic", 
-                    "publisher_journal": "Urbanomic",
-                    "identifier": link, 
-                    "link": link,
-                    "publish_date": pub_date,
-                    "abstract": "（即將出版之前瞻書目）",
-                    "image": image_url, 
-                    "is_manual": 0,
-                    "category": "學術專著"
-                })
-    except Exception as e:
-        print(f"❌ Urbanomic 爬取失敗: {e}")
-        
-    return books
+    print("🔍 [Urbanomic] 準備擷取 Forthcoming 書目...", flush=True)
+    response = HTTP.get('https://www.urbanomic.com/book/', timeout=(10, 60))
+    response.raise_for_status()
+    return parse_urbanomic_forthcoming(response.text, response.url)
+
 
 def crawl_utp():
     print("🔍 [東京大学出版会] 準備擷取新刊清單...")
@@ -607,6 +610,54 @@ def fetch_flsc_current(issues=3):
     return list(records.values())
 
 
+def safe_error(text):
+    for secret in (TURSO_DATABASE_URL, TURSO_TOKEN, GOOGLE_BOOKS_API_KEY):
+        if secret:
+            text = text.replace(secret, '[REDACTED]')
+    return text
+
+
+class RetryingDatabase:
+    """Retry only transport failures; callers must use idempotent SQL.
+
+    Three retries after the initial attempt. Never retry SQL/schema/auth errors.
+    A new client is created after each failed transport, including lost replies.
+    """
+    def __init__(self):
+        self.client = None
+        self.retries = 0
+
+    def close(self):
+        client, self.client = self.client, None
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass  # Cleanup must not hide the original failure or lose report.
+
+    def _call(self, method, *args):
+        for attempt in range(4):
+            try:
+                if self.client is None:
+                    self.client = libsql_client.create_client_sync(
+                        url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+                return getattr(self.client, method)(*args)
+            except (aiohttp.ClientConnectionError, TimeoutError, ConnectionError):
+                self.close()
+                if attempt == 3:
+                    raise
+                self.retries += 1
+                delay = 2 ** (attempt + 1)
+                print(f'Database transport failure: reconnecting, retry {attempt + 1}/3 in {delay}s', flush=True)
+                time.sleep(delay)
+
+    def execute(self, *args):
+        return self._call('execute', *args)
+
+    def batch(self, statements):
+        return self._call('batch', statements)
+
+
 def check_schema(client):
     columns = {row[1] for row in client.execute('PRAGMA table_info(academic_pubs)').rows}
     required = {'type','title','author','publisher_journal','issue_volume','identifier',
@@ -620,7 +671,7 @@ def check_schema(client):
 def save_to_db(items, client=None, columns=None):
     owned = client is None
     if owned:
-        client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+        client = RetryingDatabase()
     try:
         columns = columns or check_schema(client)[0]
         manual_guard = ' WHERE COALESCE(academic_pubs.is_manual, 0) = 0' if 'is_manual' in columns else ''
@@ -683,7 +734,7 @@ def main(argv=None):
     if not args.dry_run:
         if not TURSO_DATABASE_URL or (not TURSO_DATABASE_URL.startswith('file:') and not TURSO_TOKEN):
             parser.error('Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or TURSO_TOKEN)')
-        client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+        client = RetryingDatabase()
         try:
             columns, health = check_schema(client)
         except Exception:
@@ -709,23 +760,38 @@ def main(argv=None):
                 issn, name, args.since, args.issues, args.max_pages, not args.no_online_first)))
     try:
         for name, fetch in sources:
-            entry = {'source': name, 'status': 'OK', 'count': 0}
+            entry = {'source': name, 'status': 'OK', 'count': 0, 'fetched_count': 0,
+                     'write_status': 'not_attempted', 'stage': 'fetch_parse'}
+            retries_before = client.retries if client else 0
             try:
                 records = fetch()
-                if not records:
+                entry['fetched_count'] = len(records)
+                if not records and name != 'Urbanomic':
                     raise RuntimeError('Source returned no records; inspect source/API availability')
-                if client:
+                if not records:
+                    entry['message'] = 'No forthcoming books; book page structure validated'
+                if client and records:
+                    entry.update(stage='database_write', write_status='pending')
                     save_to_db(records, client, columns)
+                    entry['write_status'] = 'success'
+                elif args.dry_run:
+                    entry['write_status'] = 'dry_run'
+                entry['stage'] = 'complete'
                 entry.update(count=len(records), issues=sorted({r.get('issue_volume','') for r in records}),
                              newest_publication=max((r.get('publish_date','') for r in records), default=''))
             except Exception as exc:
-                entry.update(status='ERROR', error=f'{type(exc).__name__}: {exc}')
+                entry.update(status='ERROR', error=safe_error(f'{type(exc).__name__}: {exc}'))
+                if entry['write_status'] == 'pending':
+                    entry['write_status'] = 'unconfirmed'
+                print(safe_error(traceback.format_exc()), file=sys.stderr)
                 print(f'::error title=Scholar crawler::{name}: {type(exc).__name__}', file=sys.stderr)
             if client and health:
                 try:
                     update_health(client, name, entry['status'], entry.get('error', ''))
                 except Exception as exc:
-                    entry.update(status='ERROR', error=f'Health write failed: {type(exc).__name__}')
+                    entry.update(status='ERROR', health_error=safe_error(f'{type(exc).__name__}: {exc}'))
+                    print(safe_error(traceback.format_exc()), file=sys.stderr)
+            entry['database_retries'] = (client.retries if client else 0) - retries_before
             report['sources'].append(entry)
             print(json.dumps(entry, ensure_ascii=False), flush=True)
     finally:
