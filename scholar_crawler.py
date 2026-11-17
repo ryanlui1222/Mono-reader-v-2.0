@@ -381,95 +381,360 @@ def crawl_seidosha():
         print(f"❌ [青土社] 錯誤: {e}")
         return []        
 
-def fetch_journal_from_crossref(issn, journal_name):
-    print(f"🔍 [Crossref] 正在擷取期刊 {journal_name} 最新一期...")
-    url = f"https://api.crossref.org/journals/{issn}/works"
-    params = {"sort": "published", "order": "desc", "rows": 100}
-    headers = {"User-Agent": "BiblioappCloud/1.0"}
-    
-    try:
-        res = requests.get(url, params=params, headers=headers, timeout=15)
-        items = res.json().get("message", {}).get("items", [])
-        if not items: return []
-        
-        latest_item = items[0]
-        target_issue = latest_item.get("issue", "")
-        target_volume = latest_item.get("volume", "")
-        
-        date_obj = latest_item.get("issued") or latest_item.get("published-print") or latest_item.get("published-online") or {}
-        date_parts = date_obj.get("date-parts", [[]])[0]
-        target_ym = f"{date_parts[0]}-{date_parts[1]:02d}" if len(date_parts) >= 2 else str(date_parts[0]) if date_parts else ""
+# Journal watchlist: 30 requested journals plus 3 existing subscriptions.
+# Electronic ISSNs are intentional: some print endpoints only contain archives.
+JOURNALS = [
+    ('1520-9857', 'MCLC (Modern Chinese Literature and Culture)'),
+    ('2578-3491', 'PRISM: Theory and Modern Chinese Literature'),
+    ('1673-7318', 'Frontiers of Literary Studies in China'),
+    ('2768-3532', 'Chinese literature and thought today'),
+    ('2687-8194', 'Literature and Modern China'),
+    ('1750-8061', 'Journal of Chinese Cinemas'),
+    ('2329-0048', 'Journal of Chinese Literature and Culture'),
+    ('1067-9847', 'positions: asia critique'),
+    ('1464-9373', 'Inter-Asia Cultural Studies'),
+    ('2070-3449', 'China Perspectives'),
+    ('1076-0962', 'ISLE: Interdisciplinary Studies in Literature and Environment'),
+    ('1080-6520', 'Configurations'),
+    ('0091-7729', 'Science Fiction Studies'),
+    ('1468-8417', 'Green Letters: Studies in Ecocriticism'),
+    ('0014-5483', 'Extrapolation'),
+    ('1080-661X', 'New Literary History'),
+    ('0093-1896', 'Critical Inquiry'),
+    ('1460-2458', 'Cultural Critique'),
+    ('0950-2386', 'Cultural Studies'),
+    ('0010-4124', 'Comparative Literature'),
+    ('2201-1919', 'Environmental Humanities'),
+    ('2640-9747', 'Media+Environment'),
+    ('1474-4740', 'cultural geographies'),
+    ('0263-7758', 'Environment and Planning D: Society and Space'),
+    ('2514-8486', 'Environment and Planning E: Nature and Space'),
+    ('0309-1325', 'Progress in Human Geography'),
+    ('0263-2764', 'Theory, Culture & Society'),
+    ('0306-3127', 'Social Studies of Science'),
+    ('0162-2439', 'Science, Technology, & Human Values'),
+    ('0016-7185', 'Geoforum'),
+    ('0190-3659', 'boundary 2'),
+    ('2405-6472', 'Journal of World Literature (JWL)'),
+    ('0010-4132', 'Comparative Literature Studies (CLS)'),
+]
 
-        records = []
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+from datetime import timezone
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+HTTP = requests.Session()
+HTTP.headers['User-Agent'] = 'MonoreaderScholar/2.0 (journal metadata tracking)'
+HTTP.mount('https://', HTTPAdapter(max_retries=Retry(
+    total=4, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=['GET'], respect_retry_after_header=True)))
+
+
+def get_json(url, params=None):
+    params = dict(params or {})
+    email = os.getenv('CROSSREF_MAILTO', '').strip()
+    if email:
+        params['mailto'] = email
+    time.sleep(1)
+    response = HTTP.get(url, params=params, timeout=(10, 60))
+    response.raise_for_status()
+    return response.json()['message']
+
+
+def plain(value):
+    return BeautifulSoup(str(value or ''), 'html.parser').get_text(' ', strip=True)
+
+
+def date_parts(item):
+    issue_date = (item.get('journal-issue') or {}).get('published-print', {})
+    for value in [issue_date] + [item.get(k, {}) for k in
+                                 ('published-print', 'issued', 'published', 'published-online')]:
+        parts = (value or {}).get('date-parts', [[]])[0]
+        if parts and parts[0]:
+            return tuple(int(v) for v in parts[:3])
+    return ()
+
+
+def date_string(parts):
+    return '-'.join(str(v) if i == 0 else f'{v:02d}' for i, v in enumerate(parts))
+
+
+def issue_key(item):
+    volume = str(item.get('volume') or '').strip()
+    issue = str(item.get('issue') or (item.get('journal-issue') or {}).get('issue') or '').strip()
+    if issue:
+        year = str(date_parts(item)[0]) if date_parts(item) else '未知年份'
+        return (volume or year, issue, 'issue' if volume else 'year_issue')
+    if volume:
+        return (volume, '', 'volume')
+    return None
+
+
+def natural(value):
+    return tuple((1, int(v)) if v.isdigit() else (0, v.casefold())
+                 for v in re.findall(r'\d+|\D+', value))
+
+
+def issue_label(key):
+    volume, issue, kind = key
+    if kind == 'year_issue':
+        return f'{volume}, Issue {issue}'
+    if issue:
+        return f'Vol. {volume}, Issue {issue}'
+    return f'Vol. {volume}（未提供期號）'
+
+
+def collect_crossref(issn, since, max_pages=30):
+    """Exhaust the date window; never silently accept truncated pagination."""
+    cursor, records = '*', {}
+    for _ in range(max_pages):
+        message = get_json(f'https://api.crossref.org/journals/{issn}/works', {
+            'filter': f'type:journal-article,from-pub-date:{since}',
+            'rows': 500, 'cursor': cursor,
+        })
+        items = message.get('items', [])
         for item in items:
-            curr_issue = item.get("issue", "")
-            curr_vol = item.get("volume", "")
-            
-            c_date_obj = item.get("issued") or item.get("published-print") or item.get("published-online") or {}
-            c_date_parts = c_date_obj.get("date-parts", [[]])[0]
-            curr_ym = f"{c_date_parts[0]}-{c_date_parts[1]:02d}" if len(c_date_parts) >= 2 else str(c_date_parts[0]) if c_date_parts else ""
+            if item.get('DOI'):
+                records[item['DOI'].lower()] = item
+        if len(items) < 500:
+            return list(records.values())
+        cursor = message.get('next-cursor')
+        if not cursor:
+            raise RuntimeError('Crossref pagination missing next-cursor; scan incomplete')
+    raise RuntimeError(f'Crossref exceeded {max_pages} pages; narrow --since or raise --max-pages')
 
-            is_same_issue = False
-            if target_issue:
-                if curr_issue == target_issue and curr_vol == target_volume: is_same_issue = True
-            else:
-                if curr_ym == target_ym: is_same_issue = True
-            
-            if not is_same_issue: continue 
 
-            title = item.get("title", ["未命名論文"])[0]
-            authors_list = item.get("author", [])
-            author = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list]) or journal_name
-            
-            issue_display = f"Vol. {curr_vol}, Issue {curr_issue}" if curr_vol and curr_issue else (f"Issue {curr_issue}" if curr_issue else curr_ym)
-            link = item.get("URL", f"https://doi.org/{item.get('DOI', '')}")
-            
-            records.append({
-                "type": "Journal", "title": title, "author": author, "publisher_journal": journal_name, "issue_volume": issue_display,
-                "identifier": item.get("DOI", link), "publish_date": curr_ym, "abstract": "（API 期刊論文擷取）", "link": link, "image": ""
-            })
-        return records
-    except Exception as e:
-        print(f"❌ [{journal_name}] 擷取失敗: {e}")
-        return []
-        
-def save_to_db(items):
-    client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
-    for item in items:
-        cat = item.get("category", "未分類")
-        
-        sql = """INSERT INTO academic_pubs (type, title, author, publisher_journal, issue_volume, identifier, publish_date, abstract, link, image, category, book_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                 ON CONFLICT(identifier) DO UPDATE SET image=excluded.image, title=excluded.title;"""
-                 
-        client.execute(sql, [
-            item.get("type"), item.get("title"), item.get("author"), 
-            item.get("publisher_journal"), item.get("issue_volume", ""),
-            item.get("identifier"), item.get("publish_date"), 
-            item.get("abstract"), item.get("link"), item.get("image"), cat
+def journal_record(item, journal_name):
+    doi = str(item.get('DOI') or '').strip().lower()
+    title = plain((item.get('title') or [''])[0])
+    if not doi or not title:
+        raise ValueError('Crossref article has no DOI or title')
+    key = issue_key(item)
+    authors = [a.get('name') or ' '.join(filter(None, [a.get('given'), a.get('family')]))
+               for a in item.get('author', [])]
+    return {
+        'type': 'Journal', 'title': title, 'author': ', '.join(filter(None, authors)),
+        'publisher_journal': journal_name,
+        'issue_volume': issue_label(key) if key else '未編期／Online First',
+        'identifier': doi, 'publish_date': date_string(date_parts(item)),
+        'abstract': plain(item.get('abstract')), 'link': 'https://doi.org/' + doi,
+        'image': '',
+    }
+
+
+def select_journal_records(items, name, issues=3, include_online=True):
+    groups = {issue_key(i) for i in items if issue_key(i)}
+    ordered = sorted(groups, key=lambda k: (natural(k[0]), natural(k[1])), reverse=True)
+    chosen = set(ordered[:issues])
+    selected = [i for i in items if issue_key(i) in chosen or
+                (include_online and issue_key(i) is None)]
+    records = [journal_record(i, name) for i in selected]
+    records.sort(key=lambda r: (r['publish_date'], r['identifier']), reverse=True)
+    return records, [issue_label(k) for k in ordered[:issues]]
+
+
+def fetch_journal_from_crossref(issn, journal_name, since=None, issues=3,
+                                max_pages=30, include_online=True):
+    since = since or f'{datetime.now(timezone.utc).year - 3}-01-01'
+    items = collect_crossref(issn, since, max_pages)
+    if not items:
+        raise RuntimeError(f'Crossref has no articles since {since}; inspect publisher coverage')
+    records, labels = select_journal_records(items, journal_name, issues, include_online)
+    if not records:
+        raise RuntimeError('No numbered issues or online-first articles found')
+    print(f'  {journal_name}: {len(records)} articles; ' + ' / '.join(labels))
+    return records
+
+
+def parse_flsc_toc(html, base_url):
+    soup = BeautifulSoup(html, 'html.parser')
+    articles = []
+    for card in soup.select('.article-list .article-l'):
+        anchor, doi, citation = (card.select_one(c) for c in
+                                 ('.j-title a[href]', '.j-doi', '.j-volumn'))
+        if not anchor or not doi or not citation:
+            raise RuntimeError('FLSC TOC metadata missing; page layout may have changed')
+        match = re.search(r'(\d{4}),\s*(\d+)\(([^)]+)\)', citation.get_text(' ', strip=True))
+        if not match:
+            raise RuntimeError('FLSC volume/issue format unrecognised')
+        author = card.select_one('.j-author')
+        articles.append({
+            'type': 'Journal', 'title': plain(anchor.get_text()),
+            'author': plain(author.get_text()) if author else '',
+            'publisher_journal': 'Frontiers of Literary Studies in China',
+            'issue_volume': f'Vol. {match[2]}, Issue {match[3]}',
+            'identifier': doi['href'].split('doi.org/')[-1].lower(),
+            'publish_date': match[1], 'abstract': '',
+            'link': urllib.parse.urljoin(base_url, anchor['href']), 'image': '',
+        })
+    if not articles:
+        raise RuntimeError('FLSC current TOC empty or blocked')
+    previous = next((a.get('href') for a in soup.find_all('a', href=True)
+                     if a.get_text(strip=True) == 'Previous'), None)
+    return articles, urllib.parse.urljoin(base_url, previous) if previous else None
+
+
+def fetch_flsc_current(issues=3):
+    url, records = 'https://journal.hep.com.cn/flsc/EN/current', {}
+    for _ in range(issues):
+        response = HTTP.get(url, timeout=(10, 60))
+        response.raise_for_status()
+        articles, previous = parse_flsc_toc(response.text, response.url)
+        for item in articles:
+            time.sleep(0.5)
+            detail = HTTP.get(item['link'], timeout=(10, 60))
+            detail.raise_for_status()
+            soup = BeautifulSoup(detail.text, 'html.parser')
+            def value(name):
+                meta = soup.find('meta', attrs={'name':name})
+                return meta.get('content','') if meta else ''
+            if value('citation_doi').lower() != item['identifier']:
+                raise RuntimeError('FLSC article DOI does not match TOC')
+            # TOC had repeated unrelated abstracts: use individual article metadata.
+            item['abstract'] = plain(value('citation_abstract'))
+            item['publish_date'] = value('citation_publication_date').replace('/','-') or item['publish_date']
+            records[item['identifier']] = item
+        if not previous:
+            break
+        if urllib.parse.urlparse(previous).netloc != 'journal.hep.com.cn':
+            raise RuntimeError('FLSC previous-issue link points outside publisher')
+        url = previous
+    return list(records.values())
+
+
+def check_schema(client):
+    columns = {row[1] for row in client.execute('PRAGMA table_info(academic_pubs)').rows}
+    required = {'type','title','author','publisher_journal','issue_volume','identifier',
+                'publish_date','abstract','link','image','category','book_status'}
+    if required - columns:
+        raise RuntimeError('academic_pubs missing columns: ' + ', '.join(sorted(required - columns)))
+    health_cols = {row[1] for row in client.execute('PRAGMA table_info(crawler_health)').rows}
+    return columns, {'source_name','status','last_check','error_msg'} <= health_cols
+
+
+def save_to_db(items, client=None, columns=None):
+    owned = client is None
+    if owned:
+        client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+    try:
+        columns = columns or check_schema(client)[0]
+        manual_guard = ' WHERE COALESCE(academic_pubs.is_manual, 0) = 0' if 'is_manual' in columns else ''
+        sql = '''INSERT INTO academic_pubs
+            (type,title,author,publisher_journal,issue_volume,identifier,publish_date,abstract,link,image,category,book_status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,0)
+            ON CONFLICT(identifier) DO UPDATE SET
+              title=excluded.title,
+              author=COALESCE(NULLIF(excluded.author,''),academic_pubs.author),
+              issue_volume=CASE WHEN excluded.issue_volume IN ('','未編期／Online First')
+                 AND COALESCE(academic_pubs.issue_volume,'') NOT IN ('','未編期／Online First')
+                 THEN academic_pubs.issue_volume ELSE excluded.issue_volume END,
+              publish_date=COALESCE(NULLIF(excluded.publish_date,''),academic_pubs.publish_date),
+              abstract=COALESCE(NULLIF(excluded.abstract,''),academic_pubs.abstract),
+              link=COALESCE(NULLIF(excluded.link,''),academic_pubs.link),
+              image=COALESCE(NULLIF(excluded.image,''),academic_pubs.image)
+        ''' + manual_guard
+        statements = []
+        for item in items:
+            if not item.get('identifier') or not item.get('title'):
+                raise ValueError('Refusing record without identifier or title')
+            values = [item.get(k, '') or '' for k in ('type','title','author','publisher_journal',
+                      'issue_volume','identifier','publish_date','abstract','link','image')]
+            statements.append((sql, values + [item.get('category') or '未分類']))
+        if statements:
+            client.batch(statements)
+    finally:
+        if owned:
+            client.close()
+
+
+def update_health(client, name, status, message):
+    now = datetime.now(timezone.utc).isoformat()
+    client.execute('''INSERT INTO crawler_health(source_name,status,last_check,error_msg)
+        VALUES (?,?,?,?) ON CONFLICT(source_name) DO UPDATE SET
+        status=excluded.status,
+        last_check=CASE WHEN excluded.status='OK' THEN excluded.last_check
+            ELSE COALESCE(NULLIF(crawler_health.last_check,''),excluded.last_check) END,
+        error_msg=excluded.error_msg''', [name, status, now, message[:1500]])
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Monoreader books and journal issue tracker')
+    parser.add_argument('--dry-run', action='store_true', help='Fetch without connecting to Turso')
+    parser.add_argument('--journals-only', action='store_true')
+    parser.add_argument('--journal', action='append', default=[], help='ISSN or exact name; repeatable')
+    parser.add_argument('--since', default=f'{datetime.now(timezone.utc).year - 3}-01-01')
+    parser.add_argument('--issues', type=int, default=3)
+    parser.add_argument('--max-pages', type=int, default=30)
+    parser.add_argument('--no-online-first', action='store_true')
+    parser.add_argument('--report', default='scholar-crawl-report.json')
+    args = parser.parse_args(argv)
+    datetime.strptime(args.since, '%Y-%m-%d')
+    if args.issues < 1 or args.max_pages < 1:
+        parser.error('--issues and --max-pages must be positive')
+    known = {s for pair in JOURNALS for s in pair}
+    if set(args.journal) - known:
+        parser.error('Unknown --journal: ' + ', '.join(set(args.journal) - known))
+    client, columns, health = None, None, False
+    if not args.dry_run:
+        if not TURSO_DATABASE_URL or (not TURSO_DATABASE_URL.startswith('file:') and not TURSO_TOKEN):
+            parser.error('Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or TURSO_TOKEN)')
+        client = libsql_client.create_client_sync(url=TURSO_DATABASE_URL, auth_token=TURSO_TOKEN)
+        try:
+            columns, health = check_schema(client)
+        except Exception:
+            client.close()
+            raise
+    report = {'started_at': datetime.now(timezone.utc).isoformat(), 'dry_run': args.dry_run,
+              'since': args.since, 'sources': []}
+    sources = []
+    if not args.journals_only and not args.journal:
+        sources.extend([
+            ('MIT Press', lambda: fetch_from_crossref('281', 'MIT Press')),
+            ('Duke University Press', lambda: fetch_from_crossref('73', 'Duke University Press')),
+            ('東京大学出版会', crawl_utp), ('Verso Books', crawl_verso),
+            ('Urbanomic', crawl_urbanomic_forthcoming), ('青土社', crawl_seidosha),
         ])
-    client.close()
-    print("✅ 資料庫更新完成。")
+    for issn, name in JOURNALS:
+        if args.journal and issn not in args.journal and name not in args.journal:
+            continue
+        if name == 'Frontiers of Literary Studies in China':
+            sources.append((name, lambda: fetch_flsc_current(args.issues)))
+        else:
+            sources.append((name, lambda issn=issn, name=name: fetch_journal_from_crossref(
+                issn, name, args.since, args.issues, args.max_pages, not args.no_online_first)))
+    try:
+        for name, fetch in sources:
+            entry = {'source': name, 'status': 'OK', 'count': 0}
+            try:
+                records = fetch()
+                if not records:
+                    raise RuntimeError('Source returned no records; inspect source/API availability')
+                if client:
+                    save_to_db(records, client, columns)
+                entry.update(count=len(records), issues=sorted({r.get('issue_volume','') for r in records}),
+                             newest_publication=max((r.get('publish_date','') for r in records), default=''))
+            except Exception as exc:
+                entry.update(status='ERROR', error=f'{type(exc).__name__}: {exc}')
+                print(f'::error title=Scholar crawler::{name}: {type(exc).__name__}', file=sys.stderr)
+            if client and health:
+                try:
+                    update_health(client, name, entry['status'], entry.get('error', ''))
+                except Exception as exc:
+                    entry.update(status='ERROR', error=f'Health write failed: {type(exc).__name__}')
+            report['sources'].append(entry)
+            print(json.dumps(entry, ensure_ascii=False), flush=True)
+    finally:
+        if client:
+            client.close()
+        report['finished_at'] = datetime.now(timezone.utc).isoformat()
+        Path(args.report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    return int(any(e['status'] != 'OK' for e in report['sources']))
 
-if __name__ == "__main__":
-    all_books = []
-    
-    all_books.extend(fetch_from_crossref("281", "MIT Press"))
-    all_books.extend(fetch_from_crossref("73", "Duke University Press"))
-    all_books.extend(crawl_utp())
-    all_books.extend(crawl_verso())
-    all_books.extend(crawl_urbanomic_forthcoming())
-    all_books.extend(crawl_seidosha())
-    
-    all_books.extend(fetch_journal_from_crossref("2578-3491", "PRISM: Theory and Modern Chinese Literature"))
-    all_books.extend(fetch_journal_from_crossref("2201-1919", "Environmental Humanities"))
-    all_books.extend(fetch_journal_from_crossref("1067-9847", "positions: asia critique"))
-    all_books.extend(fetch_journal_from_crossref("0091-7729", "Science Fiction Studies"))
-    all_books.extend(fetch_journal_from_crossref("2768-3532", "Chinese literature and thought today"))
-    all_books.extend(fetch_journal_from_crossref("0190-3659", "boundary 2"))
-    all_books.extend(fetch_journal_from_crossref("1520-9857", "MCLC (Modern Chinese Literature and Culture)"))
-    all_books.extend(fetch_journal_from_crossref("1076-0962", "ISLE: Interdisciplinary Studies in Literature and Environment"))
-    all_books.extend(fetch_journal_from_crossref("2405-6472", "Journal of World Literature (JWL)"))
-    all_books.extend(fetch_journal_from_crossref("0010-4132", "Comparative Literature Studies (CLS)"))
-    
-    save_to_db(all_books)
+
+if __name__ == '__main__':
+    sys.exit(main())
