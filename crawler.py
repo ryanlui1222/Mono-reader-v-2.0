@@ -883,9 +883,52 @@ def fetch_metode():
     return cultural_enrich(items)
 
 
+def frieze_soup(path, page_type):
+    """Try official www/app endpoints, validating an index or issue before use."""
+    parsed = urllib.parse.urlparse(path)
+    if parsed.netloc and parsed.netloc not in ('www.frieze.com', 'app.frieze.com'):
+        raise ValueError('FRIEZE: 非官方入口')
+    path = parsed.path
+    if not path.startswith('/magazines/frieze-magazine'):
+        raise ValueError('FRIEZE: 非期刊路徑')
+    headers = dict(HEADERS, **{
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-GB,en;q=0.9',
+    })
+    errors = []
+    # A private session avoids sharing the legacy scraper across concurrent jobs.
+    with requests.Session() as ordinary, cloudscraper.create_scraper() as compatible:
+        for host in ('www.frieze.com', 'app.frieze.com'):
+            url = 'https://' + host + path
+            for label, client in (('requests', ordinary), ('cloudscraper', compatible)):
+                try:
+                    response = client.get(url, headers=headers, timeout=20)
+                    response.raise_for_status()
+                    final_host = urllib.parse.urlparse(response.url).hostname
+                    if final_host not in ('www.frieze.com', 'app.frieze.com'):
+                        raise ValueError('被重新導向至非期刊網站')
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    if page_type == 'index':
+                        valid = any(re.fullmatch(r'/magazines/frieze-magazine/issue-\d+/?',
+                                    urllib.parse.urlparse(a['href']).path)
+                                    for a in soup.select('a[href]'))
+                    else:
+                        valid = bool(soup.select('.search-result-container .teaser-title a[href*="/article/"]'))
+                    if not valid:
+                        raise ValueError('HTTP 200 但不是可辨識的期刊頁面（可能驗證頁或網站改版）')
+                    if host != 'www.frieze.com' or label != 'requests':
+                        print(f'🔄 FRIEZE: 使用官方備援入口 {host} ({label})')
+                    return soup
+                except (requests.RequestException, ValueError) as exc:
+                    detail = f'HTTP {exc.response.status_code}' if isinstance(exc, requests.HTTPError) and exc.response is not None else str(exc)[:90]
+                    errors.append(f'{host}/{label}: {detail}')
+                    print(f'⚠️ FRIEZE 連線失敗 {errors[-1]}')
+    raise RuntimeError('FRIEZE 官方入口均無法讀取；' + '; '.join(errors))
+
+
 def fetch_frieze():
     base = 'https://www.frieze.com'
-    soup = cultural_soup(base + '/magazines/frieze-magazine')
+    soup = frieze_soup('/magazines/frieze-magazine', 'index')
     issues = {}
     for a in soup.select('a[href]'):
         url = urllib.parse.urljoin(base, a['href'])
@@ -895,7 +938,7 @@ def fetch_frieze():
     if not issues:
         raise ValueError('FRIEZE: 找不到正式期號，停止抓取')
     issue = max(issues)
-    soup = cultural_soup(issues[issue])
+    soup = frieze_soup(issues[issue], 'issue')
     # Scope to issue search-result container, excluding recommendation/footer links.
     container = soup.select_one('.search-result-container')
     if not container:
@@ -905,7 +948,8 @@ def fetch_frieze():
         a = card.select_one('.teaser-title a[href]')
         if not a or '/article/' not in a['href']:
             continue
-        link = urllib.parse.urljoin(base, a['href'])
+        article_path = urllib.parse.urlparse(a['href']).path
+        link = base + article_path  # Canonical www URL, even when fetched via app.frieze.com.
         if link in seen:
             continue
         seen.add(link)
@@ -1131,4 +1175,12 @@ def main():
         print("❌ 未抓取到任何資料，且無任何需更新之監控紀錄。")
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if '--test-frieze' in sys.argv:
+        # Read-only smoke test: deliberately never constructs a Turso client.
+        rows = fetch_frieze()
+        print(f"✅ FRIEZE 測試成功：{len(rows)} 篇；{rows[0]['Source']}")
+        for row in rows[:3]:
+            print(row['Title'], row['Link'])
+    else:
+        main()
