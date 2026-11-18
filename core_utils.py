@@ -35,6 +35,10 @@ SOURCE_URLS = {
     "Caja Negra": "https://cajanegraeditora.com.ar/",
     "Split Infinities": "https://splitinfinities.substack.com/",
     "LARB": "https://lareviewofbooks.org/",
+    "Public Books": "https://www.publicbooks.org/",
+    "Noema": "https://www.noemamag.com/",
+    "Metode": "https://metode.rom.no/",
+    "In Media Res": "https://mediacommons.org/imr/",
     "FRIEZE": "https://www.frieze.com/"
 }
 FAST_NEWS_SOURCES = ["WIRED.jp", "CINRA", "VERSE", "界面文化", "Radii", "触乐", "FNMNL"]
