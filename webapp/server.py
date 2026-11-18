@@ -377,7 +377,8 @@ def conditions(module, tab, sub, folder, q):
         if tab == '我的收藏庫': eq('saved',1)
     elif module == 'bib':
         if tab == '個人書庫':
-            where.append("type IN ('book','journal')"); eq('shelf',sub)
+            eq('type','book'); eq('shelf',sub)
+        elif tab == '待讀期刊': eq('type','journal'); eq('saved',1)
         elif tab == '參考書目': eq('type','reference')
         elif tab == '網址備存': eq('type','bibLink')
         elif tab == '可用資源': eq('type','bibResource'); eq('category',sub)
@@ -396,7 +397,7 @@ def conditions(module, tab, sub, folder, q):
     return where,args
 
 
-JOURNAL_ROOTS = ('e-flux Journal', 'The Funambulist', 'The Point', '421 News', 'TripleAmpersand')
+JOURNAL_ROOTS = ('e-flux Journal', 'The Funambulist', 'The Point', '421 News', 'TripleAmpersand', 'Metode', 'FRIEZE')
 
 
 def source_group(source):
@@ -485,7 +486,7 @@ async def browse(request: Request, module: str='mono', tab: str='全部來源總
         if bissue:
             where.append(issue_expr()+' = ?');args.append(bissue)
     base=f'SELECT * FROM ({sql}) WHERE '+(' AND '.join(where) or '1')
-    field='source' if module=='mono' or (module=='bib' and tab=='文獻探索') else 'category'
+    field='source' if module=='mono' or (module=='bib' and tab in ('文獻探索','待讀期刊')) else 'category'
     journals=[]; selected_issue=''; grouped=False
     if module == 'mono' and tab != '未來典藏':
         # Keep the folder/issue directory stable while searching within an issue.
@@ -775,9 +776,18 @@ async def bookmark(request: Request):
     write_auth(request)
     data=await body_json(request)
     if not isinstance(data.get('saved'),bool): raise HTTPException(400,'收藏狀態格式不正確。')
-    table,key,keycol,raw=await raw_item('mono',data.get('id'))
-    if table != 'articles': raise HTTPException(400,'此按鈕只用於文章收藏。')
-    column=edit_mapping(table,await schema()).get('saved')
+    module=data.get('module','mono')
+    table,key,keycol,raw=await raw_item(module,data.get('id'))
+    schemas=await schema()
+    if module=='mono' and table=='articles':
+        column=edit_mapping(table,schemas).get('saved')
+    elif module=='bib' and table=='academic_pubs':
+        cols=schemas.get(table,{})
+        if raw.get(cols.get('type','type')) != 'Journal':
+            raise HTTPException(400,'此按鈕只用於期刊論文收藏。')
+        column=cols.get('is_bookmarked')
+    else:
+        raise HTTPException(400,'此按鈕只用於文章或期刊論文收藏。')
     if not column: raise HTTPException(400,'資料表沒有收藏欄位。')
     # Explicit desired state is idempotent; only this column is updated, not notes.
     _,rows=await write_query(f'UPDATE {ident(table)} SET {ident(column)} = ? WHERE {ident(keycol)} = ? RETURNING {ident(keycol)}',[int(data['saved']),key])

@@ -109,8 +109,24 @@ vm.createContext(context);const run=s=>vm.runInContext(s,context),flush=()=>new 
  context.setTimeout=()=>1;delayed=true;const old=run('state.page=102;load()');
  run('clearCaches()');pending.shift()();await old;delayed=false;
  assert.equal(run('Object.keys(entries).length'),0);
+ // Journal bookmarks: separate entry view, request scope, detail button, no shelf mixing.
+ run("state.module='bib';state.tab='待讀期刊';state.sub='';BOOT.writes=true");
+ assert(run('isEntryView()'));assert(!run('isShelfView()'));
+ assert(run("MODS.bib.tabs.includes('待讀期刊')"));
+ const journal={id:'academic_pubs:2',type:'journal',title:'Journal paper',saved:false,source:'J',issue:'Vol 2'};
+ run('db.items='+JSON.stringify([journal]));
+ assert(run('renderEntry(db.items[0])').includes('☆ 加入待讀'));
+ assert.equal(run("bookmarkButton({type:'book'})"),'');
+ run("openEditor('academic_pubs:2')");assert(el('fields').innerHTML.includes('☆ 加入待讀'));
+ let journalMutation;
+ context.fetch=async(url,opts)=>{if(url==='/api/bookmark'){journalMutation=JSON.parse(opts.body);return{ok:true,status:200,json:async()=>({ok:true,saved:true})}}return{ok:true,status:200,json:async()=>({items:[{...journal,saved:true}],total:1,page:1,page_size:30,sources:['J'],issues:['Vol 2']})}};
+ await run("setBookmark('academic_pubs:2')");
+ assert.equal(journalMutation.module,'bib');assert.equal(journalMutation.saved,true);
+ assert(el('content').innerHTML.includes('★ 已收藏'));assert(!el('editor').open);
+ assert(el('toast').textContent.includes('待讀期刊'));
+ console.log('PASS V11: journal pending tab, buttons, detail and journalMutation scope');
  console.log('PASS V10: next-page prefetch, five-minute cache hit, invalidation blocks old responses');
  console.log('PASS V9: directory entry, publisher and journal sections, issue navigation and query scope');
  console.log('PASS V8: deletion checkbox and disabled state; confirmation payload; conflict reset');
- console.log('PASS: v6 folders, latest issue, bookmark mutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
+ console.log('PASS: v6 folders, latest issue, bookmark journalMutation, lookup preview/no-save, failed lookup retention, in-flight edit preservation; inherited layout article link, safe URL, entry views, 18-item paging, complete long notes; initial lazy request; page20; cache reuse; background update; stale request isolation; offline stale label; folder counts; logout clearing');
 })().catch(e=>{console.error(e);process.exitCode=1});

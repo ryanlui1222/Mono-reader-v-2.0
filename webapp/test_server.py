@@ -76,7 +76,7 @@ class PaginationTests(unittest.TestCase):
     def test_books_and_full_facets(self):
         for status,shelf in enumerate(['待讀書架','已讀書籍','實體書庫','電子書架'],1):
             r=self.browse(module='bib',tab='個人書庫',sub=shelf)
-            self.assertEqual(r['total'],124)
+            self.assertEqual(r['total'],62) # Personal shelves contain books only.
             self.assertTrue(all(x['shelf']==shelf for x in r['items']))
         self.assertEqual(self.browse(module='bib',tab='網址備存')['total'],1)
         self.assertEqual(self.browse(module='bib',tab='文獻探索',sub='期刊論文')['total'],310)

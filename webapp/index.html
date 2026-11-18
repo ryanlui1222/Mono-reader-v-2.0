@@ -62,19 +62,19 @@ body.can-write #importButton:not([hidden]){display:inline-flex!important}
 <dialog id="writer"><div class="dialogtop"><h2 id="writerHeading">編輯資料</h2><button data-action="closeWriter" aria-label="關閉編輯">✕</button></div><form id="writeForm"><div id="writerTypeWrap"><label for="writerType">新增項目類型</label><select id="writerType"></select></div><div id="writerCategoryWrap"><label for="writerCategory">所屬分類</label><select id="writerCategory"></select></div><section id="lookupPanel" class="lookup-panel" hidden><h3>自動檢索書目／影音資料</h3><p class="small">先查詢並預填，再由你核對及按「新增至資料庫」；查詢本身不會儲存。</p><div class="lookup-controls"><select id="lookupKind" aria-label="檢索方式"></select><input id="lookupValue" aria-label="ISBN、DOI 或作品網址" maxlength="1000"><button type="button" id="lookupButton" data-action="lookup">檢索並預填</button></div><p id="lookupStatus" role="status"></p><p class="small">書目來源：Google Books／Open Library／openBD／Crossref。影音來源：TMDB／Apple iTunes。This product uses the TMDB API but is not endorsed or certified by TMDB.</p></section><div id="writeFields"></div><p id="writeStatus" role="status"></p><div class="actions writer-actions"><button type="button" data-action="closeWriter">取消</button><button id="writeSave" type="submit" class="primary">儲存修改</button></div></form></dialog><!--APP_BOOT--><script>
 'use strict';
 const $=id=>document.getElementById(id), E=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const MODS={mono:{name:'Monoreader',short:'閱讀',icon:'▤',title:'閱讀，從這裏開始',desc:'即時評論、歷史文章與值得留存的線索。',tabs:['全部來源總覽','最新評論','文化快訊','分類存檔','我的收藏庫','未來典藏','搜尋中心']},bib:{name:'Biblioapp',short:'書庫',icon:'▥',title:'自己的知識書架',desc:'從出版探索，到文獻、書籍與研究資源。',tabs:['文獻探索','個人書庫','參考書目','網址備存','可用資源','搜尋中心']},media:{name:'Mediavault',short:'影音',icon:'◉',title:'聲音與影像的收藏',desc:'留待下一次播放，也留住已經喜歡的作品。',tabs:['待播／待看','典藏／已完成','搜尋中心']},omni:{name:'萬物收藏庫',short:'收藏',icon:'▧',title:'好奇心的陳列室',desc:'分類由你定義，讓每一種喜愛各得其所。',tabs:['分類資料夾','搜尋中心']}};
+const MODS={mono:{name:'Monoreader',short:'閱讀',icon:'▤',title:'閱讀，從這裏開始',desc:'即時評論、歷史文章與值得留存的線索。',tabs:['全部來源總覽','最新評論','文化快訊','分類存檔','我的收藏庫','未來典藏','搜尋中心']},bib:{name:'Biblioapp',short:'書庫',icon:'▥',title:'自己的知識書架',desc:'從出版探索，到文獻、書籍與研究資源。',tabs:['文獻探索','待讀期刊','個人書庫','參考書目','網址備存','可用資源','搜尋中心']},media:{name:'Mediavault',short:'影音',icon:'◉',title:'聲音與影像的收藏',desc:'留待下一次播放，也留住已經喜歡的作品。',tabs:['待播／待看','典藏／已完成','搜尋中心']},omni:{name:'萬物收藏庫',short:'收藏',icon:'▧',title:'好奇心的陳列室',desc:'分類由你定義，讓每一種喜愛各得其所。',tabs:['分類資料夾','搜尋中心']}};
 const SHELVES=['待讀書架','已讀書籍','實體書庫','電子書架'], REFS=['S','A','A-','B','B-','C','C-','待讀'], COLORS=['#44665c','#a56b4d','#405d75','#8f804d','#786173','#5e7a78'];
 
 function isShelfView(){return state.module==='bib'&&(state.tab==='個人書庫'||state.tab==='文獻探索'&&state.sub!=='期刊論文')||state.module==='media'&&state.tab!=='搜尋中心'&&state.sub!=='網路資源分享卡'}
-function isEntryView(){return state.module==='bib'&&['參考書目','網址備存','可用資源'].includes(state.tab)||state.module==='mono'&&state.tab==='未來典藏'||state.module==='media'&&state.sub==='網路資源分享卡'||state.module==='bib'&&state.tab==='文獻探索'&&state.sub==='期刊論文'}
+function isEntryView(){return state.module==='bib'&&['待讀期刊','參考書目','網址備存','可用資源'].includes(state.tab)||state.module==='mono'&&state.tab==='未來典藏'||state.module==='media'&&state.sub==='網路資源分享卡'||state.module==='bib'&&state.tab==='文獻探索'&&state.sub==='期刊論文'}
 function externalUrl(value){try{const u=new URL(String(value||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch(e){return ''}}
 function itemTitle(x,external=false){const url=externalUrl(x.url);if(external)return url?`<a class="titlelink" href="${E(url)}" target="_blank" rel="noopener noreferrer">${E(x.title)}</a>`:`<span>${E(x.title)}</span>`;return `<button class="titlebutton" data-action="edit" data-id="${E(x.id)}">${E(x.title)}</button>`}
 const bookmarkPending=new Set();
-function bookmarkButton(x){return x.type==='article'?`<button class="bookmark" data-action="bookmark" data-id="${E(x.id)}" aria-pressed="${!!x.saved}" ${!BOOT.writes||bookmarkPending.has(x.id)?'disabled':''} title="${BOOT.writes?'收藏狀態會儲存至資料庫':'尚未啟用寫入'}">${bookmarkPending.has(x.id)?'儲存中…':x.saved?'★ 已收藏':'☆ 加入收藏'}</button>`:''}
+function bookmarkButton(x){return ['article','journal'].includes(x.type)?`<button class="bookmark" data-action="bookmark" data-id="${E(x.id)}" aria-pressed="${!!x.saved}" ${!BOOT.writes||bookmarkPending.has(x.id)?'disabled':''} title="${BOOT.writes?'收藏狀態會儲存至資料庫':'尚未啟用寫入'}">${bookmarkPending.has(x.id)?'儲存中…':x.saved?'★ 已收藏':x.type==='journal'?'☆ 加入待讀':'☆ 加入收藏'}</button>`:''}
 async function setBookmark(id){
  const x=db.items.find(item=>item.id===id);if(!x||!BOOT.writes||bookmarkPending.has(id))return;
  const saved=!x.saved;bookmarkPending.add(id);render();
- try{const r=await fetch('/api/bookmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,saved})});if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'收藏未能儲存');clearCaches();try{localStorage.setItem('monoreader-data-updated',String(Date.now()))}catch(e){}await load(true);toast(saved?'已加入「我的收藏庫」。':'已取消收藏，文章仍保留在分類存檔。')}
+ try{const r=await fetch('/api/bookmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,saved,module:x.type==='journal'?'bib':'mono'})});if(r.status===401){expire();return}const body=await r.json();if(!r.ok)throw Error(body.detail||'收藏未能儲存');clearCaches();try{localStorage.setItem('monoreader-data-updated',String(Date.now()))}catch(e){}await load(true);x.saved=saved;if($('editor').open&&editing===id){$('editor').close()}toast(saved?(x.type==='journal'?'已加入「待讀期刊」。':'已加入「我的收藏庫」。'):(x.type==='journal'?'已移出待讀期刊，文章仍保留在文獻探索。':'已取消收藏，文章仍保留在分類存檔。'))}
  catch(e){toast(e.message+' 請更新頁面確認狀態後重試。')}
  finally{bookmarkPending.delete(id);render()}
 }
@@ -98,14 +98,14 @@ function openEditor(id){
  const x=db.items.find(x=>x.id===id);if(!x)return;editing=id;
  $('editorHeading').textContent=(TYPE_LABEL[x.type]||'項目')+' · 詳情與筆記';
  $('deleteButton').hidden=true;
- const url=externalUrl(x.url),fields=[['作者／創作者',x.author],['來源／出版社',x.source],['分類',x.category],['書架',x.shelf&&['book','journal'].includes(x.type)?x.shelf:''],['待播／典藏',x.type==='media'?x.stage:''],['ISBN／DOI',x.identifier],['出版日期',x.published],['期號',x.issue],['重要性評級',x.type==='reference'?x.rating:''],['加入／擷取時間',x.added?String(x.added).replace('T',' ').replace(/Z$/,' UTC'):'']].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
+ const url=externalUrl(x.url),fields=[['作者／創作者',x.author],['來源／出版社',x.source],['分類',x.category],['書架',x.shelf&&x.type==='book'?x.shelf:''],['待播／典藏',x.type==='media'?x.stage:''],['ISBN／DOI',x.identifier],['出版日期',x.published],['期號',x.issue],['重要性評級',x.type==='reference'?x.rating:''],['加入／擷取時間',x.added?String(x.added).replace('T',' ').replace(/Z$/,' UTC'):'']].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
  $('fields').innerHTML=`<div class="detail-title"><h2>${E(x.title)}</h2>${url?`<a class="inline-link" href="${E(url)}" target="_blank" rel="noopener noreferrer">開啟原文／相關網站 ↗</a>`:''}</div><section class="detail-notes"><h3>我的筆記／閱讀心得</h3><div class="longtext ${x.notes?'':'muted'}">${E(x.notes||'尚未填寫筆記。')}</div></section>${x.summary?`<section class="detail-summary"><h3>摘要／簡介</h3><div class="longtext">${E(x.summary)}</div></section>`:''}<details class="detail-metadata"><summary>書目與其他資料</summary><dl>${fields.map(([k,v])=>`<div><dt>${E(k)}</dt><dd>${E(v)}</dd></div>`).join('')}</dl>${url?`<p class="detail-url"><a href="${E(url)}" target="_blank" rel="noopener noreferrer">${E(url)}</a></p>`:''}${img(x.image,'detail-image')}</details><p class="small">${BOOT.writes?'可按「編輯資料」修改，儲存後會同步至資料庫。':'目前為唯讀，尚未啟用寫入。'}</p>`;
- $('fields').innerHTML+=`<div class="actions"><button type="button" data-action="backupItem" data-id="${E(x.id)}">下載本筆備份</button>${BOOT.writes&&x._editable?.length?`<button type="button" class="primary" data-action="startEdit" data-id="${E(x.id)}">編輯資料</button>`:''}</div>`;
+ $('fields').innerHTML+=`<div class="actions">${bookmarkButton(x)}<button type="button" data-action="backupItem" data-id="${E(x.id)}">下載本筆備份</button>${BOOT.writes&&x._editable?.length?`<button type="button" class="primary" data-action="startEdit" data-id="${E(x.id)}">編輯資料</button>`:''}</div>`;
  $('editor').showModal();$('editor').scrollTop=0;
 }
 
 const BOOT=window.MONOREADER_BOOT||{expires:0,cacheKey:'unavailable'};
-const PREFIX='monoreader-pages-', CACHE=PREFIX+'v10-'+BOOT.cacheKey, DAY=86400000;
+const PREFIX='monoreader-pages-', CACHE=PREFIX+'v11-'+BOOT.cacheKey, DAY=86400000;
 let state={bsource:'',bkind:'',bissue:'',blabel:'',module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
 let db={items:[],folders:[],theme:'light'}, result={items:[],total:0,page:1,page_size:30,sources:[],issues:[]}, timer, editing=null;
 let generation=0, controller, searchTimer, busy=false, checked=0, entries={}, detailGeneration=0;
@@ -237,7 +237,7 @@ async function load(force=false){
   const body=await fetchPage(key,force);
   if(seq!==generation||epoch!==cacheEpoch)return;
   busy=false;apply(body);scheduleNext(key,body);
-  status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 翻頁加速版 v10');
+  status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 期刊待讀版 v11');
  }catch(e){
   if(e.name==='AbortError'||seq!==generation||epoch!==cacheEpoch)return;
   busy=false;render();status((usable?'更新失敗，目前顯示快取，可能不是最新資料。':'讀取失敗。')+' '+e.message+' 可按「更新目前頁面」重試。');
