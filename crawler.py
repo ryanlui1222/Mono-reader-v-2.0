@@ -734,6 +734,205 @@ def fetch_larb():
 # ==========================================
 # 主程式排程
 # ==========================================
+# Cultural sources: official feeds, latest issue only, homepage-only IMR.
+class SourceArticles(list):
+    """A successfully parsed, possibly empty source with optional warnings."""
+    def __init__(self, items=(), warning=''):
+        super().__init__(items)
+        self.warning = warning
+
+
+def cultural_get(url):
+    # Retry transient transport/server failures once; 403/404 remain explicit errors.
+    for attempt in range(2):
+        try:
+            response = requests.get(url, headers=HEADERS if attempt == 0 else None, timeout=30)
+            if response.status_code in (429, 500, 502, 503, 504) and attempt == 0:
+                continue
+            response.raise_for_status()
+            return response
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt:
+                raise
+
+
+def cultural_soup(url):
+    return BeautifulSoup(cultural_get(url).text, 'html.parser')
+
+
+def cultural_meta(soup, key):
+    tag = soup.find('meta', attrs={'property': key}) or soup.find('meta', attrs={'name': key})
+    return tag.get('content', '').strip() if tag else ''
+
+
+def cultural_card(card, link, source, title):
+    date = card.find('time')
+    published = date.get('datetime', date.get_text(' ', strip=True)) if date else ''
+    image = card.find('img')
+    image_url = ''
+    if image:
+        image_url = image.get('src') or image.get('data-src') or ''
+        if not image_url or image_url.startswith('data:'):
+            image_url = (image.get('data-srcset') or image.get('srcset') or '').split(',')[0].split(' ')[0]
+    desc = card.select_one('.teaser-deck') or card.find('p')
+    return {'Source': source, 'Title': title, 'Link': link, 'Published': published,
+            'Summary': format_summary(desc.get_text(' ', strip=True) if desc else ''),
+            'Image': urllib.parse.urljoin(link, image_url) if image_url else ''}
+
+
+def cultural_enrich(items):
+    # Detail failures retain valid index records and produce one source-level warning.
+    warnings = []
+    def enrich(item):
+        try:
+            soup = cultural_soup(item['Link'])
+            item['Published'] = cultural_meta(soup, 'article:published_time') or item['Published']
+            item['Image'] = cultural_meta(soup, 'og:image') or item['Image']
+            desc = cultural_meta(soup, 'og:description') or cultural_meta(soup, 'description')
+            if desc:
+                item['Summary'] = format_summary(desc, cultural_meta(soup, 'author'))
+        except Exception as exc:
+            warnings.append(f"{item['Link']}: {str(exc)[:100]}")
+        return item
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(enrich, items))
+    return SourceArticles(results, f'文章詳情補充失敗 {len(warnings)} 筆；已保留目錄資料。{warnings[0]}'[:200] if warnings else '')
+
+
+def cultural_feed(url, source, recent_days=None):
+    from datetime import timezone, timedelta
+    from email.utils import parsedate_to_datetime
+    response = cultural_get(url)
+    feed = feedparser.parse(response.content)
+    if not feed.entries:
+        raise ValueError(f'{source}: RSS 未包含可辨識文章')
+    items = []
+    now = datetime.now(timezone.utc)
+    seen = set()
+    for entry in feed.entries:
+        link = entry.get('link', '')
+        if not link or link in seen:
+            continue
+        raw_date = entry.get('published', '')
+        if recent_days is not None:
+            # Publication date, never modified date: a resurfaced old essay stays old.
+            try:
+                dt = parsedate_to_datetime(raw_date)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                raise ValueError(f'{source}: RSS 缺少可驗證發布日期')
+            if not now - timedelta(days=recent_days) <= dt <= now:
+                continue
+        seen.add(link)
+        summary = BeautifulSoup(entry.get('summary', ''), 'html.parser')
+        image = summary.find('img')
+        media = entry.get('media_content') or entry.get('media_thumbnail') or []
+        image_url = media[0].get('url', '') if media else image.get('src', '') if image else ''
+        items.append({'Source': source, 'Title': entry.get('title', '').strip(), 'Link': link,
+                      'Published': raw_date, 'Summary': format_summary(summary.get_text(' ', strip=True), entry.get('author', '')),
+                      'Image': image_url})
+    return SourceArticles(items)
+
+
+def fetch_publicbooks():
+    return cultural_feed('https://www.publicbooks.org/feed/', 'Public Books')
+
+
+def fetch_noema():
+    # No homepage fallback: MOST READ / Editors' Picks / archive are deliberately excluded.
+    return cultural_feed('https://www.noemamag.com/feed/', 'Noema', recent_days=30)
+
+
+def fetch_metode():
+    base = 'https://metode.rom.no/'
+    soup = cultural_soup(base)
+    volumes = [int(a['data-loader-param']) for a in soup.select('[data-loader-param-key="volume"]')
+               if a.get('data-loader-param', '').isdigit()]
+    if not volumes:
+        raise ValueError('Metode: 找不到卷號，停止抓取以免混入其他卷')
+    volume = max(volumes)
+    loader = soup.select_one('[data-loader][data-loader-id="articles"]')
+    if not loader:
+        raise ValueError('Metode: 找不到按卷篩選入口')
+    endpoint = urllib.parse.urljoin(base, loader['data-loader']).rstrip('/')
+    items, seen = [], set()
+    for page in range(30):
+        response = cultural_get(f'{endpoint}/{page}?filter=&volume={volume}')
+        cards = BeautifulSoup(response.text, 'html.parser').select('article')
+        if not cards:
+            if page == 0 and response.headers.get('jpt-dataloader') != 'starved':
+                raise ValueError('Metode: 最新卷目錄無法辨識')
+            break
+        fresh = 0
+        for card in cards:
+            a = card.select_one('h2 a[href]') or card.select_one('h3 a[href]')
+            if not a:
+                continue
+            link = urllib.parse.urljoin(base, a['href'])
+            if link in seen:
+                continue
+            seen.add(link); fresh += 1
+            items.append(cultural_card(card, link, f'Metode (Vol. {volume})', a.get_text(' ', strip=True)))
+        if not fresh:
+            raise ValueError('Metode: 分頁重覆或文章結構改變')
+        if response.headers.get('jpt-dataloader') == 'starved':
+            break
+    else:
+        raise ValueError('Metode: 最新卷超出安全分頁上限，請檢查網站結構')
+    return cultural_enrich(items)
+
+
+def fetch_frieze():
+    base = 'https://www.frieze.com'
+    soup = cultural_soup(base + '/magazines/frieze-magazine')
+    issues = {}
+    for a in soup.select('a[href]'):
+        url = urllib.parse.urljoin(base, a['href'])
+        match = re.fullmatch(r'/magazines/frieze-magazine/issue-(\d+)/?', urllib.parse.urlparse(url).path)
+        if match:
+            issues[int(match.group(1))] = url
+    if not issues:
+        raise ValueError('FRIEZE: 找不到正式期號，停止抓取')
+    issue = max(issues)
+    soup = cultural_soup(issues[issue])
+    # Scope to issue search-result container, excluding recommendation/footer links.
+    container = soup.select_one('.search-result-container')
+    if not container:
+        raise ValueError(f'FRIEZE Issue {issue}: 找不到當期文章目錄')
+    items, seen = [], set()
+    for card in container.select('.teaser-content'):
+        a = card.select_one('.teaser-title a[href]')
+        if not a or '/article/' not in a['href']:
+            continue
+        link = urllib.parse.urljoin(base, a['href'])
+        if link in seen:
+            continue
+        seen.add(link)
+        items.append(cultural_card(card, link, f'FRIEZE (Issue {issue})', a.get_text(' ', strip=True)))
+    if not items:
+        raise ValueError(f'FRIEZE Issue {issue}: 目錄沒有可辨識文章')
+    return SourceArticles(items)
+
+
+def fetch_imr():
+    base = 'https://mediacommons.org'
+    soup = cultural_soup(base + '/imr/')
+    items, seen = [], set()
+    # Include featured theme pages themselves, without recursively crawling their articles.
+    for a in soup.select('h1 a[href], h2 a[href], h3 a[href]'):
+        link = urllib.parse.urljoin(base, a['href'])
+        if not urllib.parse.urlparse(link).path.startswith('/imr/content/') or link in seen:
+            continue
+        seen.add(link)
+        card = a.find_parent('article') or a.parent.parent
+        items.append(cultural_card(card, link, 'In Media Res', a.get_text(' ', strip=True)))
+    if not items:
+        raise ValueError('In Media Res: 首頁未找到內容連結')
+    return cultural_enrich(items)
+
+
+
 def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
@@ -762,7 +961,7 @@ def main():
         ("https://cajanegraeditora.com.ar/feed/", "Caja Negra", 15, False),
         ("https://splitinfinities.substack.com/feed", "Split Infinities", 15, False),
         ("https://thereader.mitpress.mit.edu/feed/", "MIT Press Reader", 15, False), # 👈 MIT Press 成功還原至此
-        ("https://outputs.lighthouseapp.io/rss-feeds/ab81C4IONT.xml", "FRIEZE", 15, False)
+
     ]
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -771,6 +970,11 @@ def main():
             futures_map[future] = name
         
         custom_scrapers = [
+            (fetch_publicbooks, "Public Books"),
+            (fetch_noema, "Noema"),
+            (fetch_metode, "Metode"),
+            (fetch_frieze, "FRIEZE"),
+            (fetch_imr, "In Media Res"),
             (fetch_webgenron, "webゲンロン"),
             (fetch_eflux, "e-flux Journal"),
             (fetch_funambulist, "The Funambulist"),
@@ -798,9 +1002,9 @@ def main():
             base_source_name = futures_map[future]
             try:
                 res = future.result()
-                if res:
+                if res or isinstance(res, SourceArticles):
                     # 🟢 OK: 有抓到文章 (健康度紀錄使用 base_source_name)
-                    health_records[base_source_name] = {'status': 'OK', 'error_msg': ''}
+                    health_records[base_source_name] = {'status': 'ERROR' if getattr(res, 'warning', '') else 'OK', 'error_msg': getattr(res, 'warning', '')}
                     
                     all_articles.extend(res)
                     print(f"✅ {base_source_name}: 抓取 {len(res)} 篇")
@@ -864,6 +1068,9 @@ def main():
                 INSERT INTO articles (Source, Title, Link, Published, Summary, Image, SortDate, is_bookmarked)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(Link) DO UPDATE SET 
+                    Source=CASE WHEN excluded.Source LIKE 'FRIEZE (Issue %' AND articles.Source LIKE 'FRIEZE%'
+                                OR excluded.Source LIKE 'Metode (Vol. %' AND articles.Source LIKE 'Metode%'
+                           THEN excluded.Source ELSE articles.Source END,
                     Title=excluded.Title,
                     Published=excluded.Published,
                     Summary=excluded.Summary,
@@ -884,6 +1091,9 @@ def main():
                     except Exception as inner_e:
                         print(f"⚠️ 單筆寫入失敗 ({art['Title'][:10]}...): {inner_e}")
                         error_count += 1
+                        base_source = art['Source'].split(' (')[0]
+                        if base_source in health_records:
+                            health_records[base_source] = {'status': 'ERROR', 'error_msg': f'Turso 寫入失敗：{inner_e}'[:200]}
                         
                 print(f"✅ 成功同步 {success_count} 篇文章至 Turso 資料庫！(失敗: {error_count} 筆)")
             
