@@ -427,3 +427,23 @@ async def lookup_isbn(value):
         if image:result['warnings'].append('封面補全來源：'+provider+'；書目資料保持原來源。')
         else:result['warnings'].append('已取得書目，但各圖片來源仍未提供可用封面，可手動填寫圖片網址。')
     return result
+
+
+async def lookup_cover(kind,value):
+    """Image-only lookup; never replace title, summary or user notes."""
+    if kind=='isbn':
+        isbn=isbn13(isbn_clean(value))
+        image,provider=await complete_cover(isbn)
+        if not image:
+            try:
+                result=await lookup_isbn_record(value)
+                image=result['fields'].get('image','');provider=result['provider']
+            except HTTPException:pass
+    elif kind in ('imdb','apple'):
+        if kind=='apple' and re.fullmatch(r'\d+',value):value='https://music.apple.com/hk/album/'+value
+        result=await lookup_metadata(kind,value)
+        image=result['fields'].get('image','');provider=result['provider']
+    else:raise HTTPException(400,'圖片搜尋僅支援 ISBN、IMDb 或 Apple Music。')
+    image=safe_url(image)
+    if not image:raise HTTPException(404,'未找到圖片；原資料及圖片保持不變。')
+    return {'image':image,'provider':provider}

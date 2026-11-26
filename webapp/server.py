@@ -867,3 +867,31 @@ async def delete_item(request: Request):
     _,rows=await write_query('DELETE FROM '+ident(table)+' WHERE '+' AND '.join(guards)+' RETURNING '+ident(keycol),list(raw.values()))
     if not rows: raise HTTPException(409,'資料剛被修改，未刪除。請重新讀取。')
     return {'ok':True,'message':'已刪除條目'}
+
+
+@app.post('/api/refresh-image')
+async def refresh_image(request: Request):
+    write_auth(request)
+    data=await body_json(request)
+    module=data.get('module')
+    table,key,keycol,raw=await raw_item(module,data.get('id'))
+    schemas=await schema();cols=schemas.get(table,{})
+    if not ((module=='bib' and table=='academic_pubs' and raw.get(cols.get('type','type'))=='Book') or (module=='media' and table=='media_vault')):
+        raise HTTPException(400,'只支援書籍與影音條目。')
+    ver=data.get('revision')
+    if not isinstance(ver,str) or not hmac.compare_digest(ver,revision(raw)):
+        raise HTTPException(409,'資料已變動，請重新開啟編輯頁再搜尋圖片。')
+    column=edit_mapping(table,schemas).get('image')
+    if not column:raise HTTPException(400,'資料表沒有圖片欄位。')
+    kind=data.get('kind');value=data.get('value')
+    if kind not in (('isbn',) if module=='bib' else ('imdb','apple')) or not isinstance(value,str) or not 0<len(value.strip())<=1000:
+        raise HTTPException(400,'請輸入對應 ISBN、IMDb 編號或 Apple Music 專輯網址。')
+    from metadata import lookup_cover
+    found=await lookup_cover(kind,value.strip())
+    # Compare the complete snapshot atomically after the slow external lookup.
+    guards=[f'{ident(k)} IS ?' for k in raw]
+    sql=f'UPDATE {ident(table)} SET {ident(column)} = ? WHERE '+ ' AND '.join(guards)+f' RETURNING {ident(keycol)}'
+    _,rows=await write_query(sql,[found['image'],*raw.values()])
+    if not rows:raise HTTPException(409,'搜尋期間資料已變動；未覆蓋圖片，請重新開啟後再試。')
+    updated={**raw,column:found['image']}
+    return {'ok':True,'image':found['image'],'provider':found['provider'],'revision':revision(updated)}
