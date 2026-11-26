@@ -977,6 +977,63 @@ def fetch_imr():
 
 
 
+def fetch_macc():
+    return cultural_feed('https://macc.bunka.go.jp/feed/', 'MACC')
+
+
+def fetch_solrad():
+    return cultural_feed('https://solrad.co/feed/', 'SOLRAD')
+
+
+def parse_hbh_latest(soup):
+    # Current and back-number blocks carry numeric IDs; never hardcode an issue.
+    blocks=[(int(x['id'][6:]),x) for x in soup.select('[id]') if re.fullmatch(r'number\d+',x.get('id',''))]
+    if not blocks:raise ValueError('生環境構築史: 無法辨識期號目錄')
+    number,block=max(blocks,key=lambda x:x[0])
+    items=[];seen=set()
+    for a in block.select('a.a_top[href],a.a_article[href],a.a_topseries[href],a.a_other[href]'):
+        link=urllib.parse.urljoin('https://hbh.center/',a['href'])
+        u=urllib.parse.urlsplit(link)
+        if u.hostname!='hbh.center' or u.scheme!='https' or '/backnumber' in u.path:continue
+        path_issue=re.match(r'/0*(\d+)-(?:issue|serial)',u.path)
+        if path_issue and int(path_issue[1])!=number:continue
+        heading=a.select_one('h3:not(.sub),h2:not(.sub),h1')
+        title=(heading or a).get_text(' ',strip=True)
+        if not title or link in seen:continue
+        seen.add(link);items.append(cultural_card(a,link,f'生環境構築史 (Issue {number})',title))
+    if not items:raise ValueError('生環境構築史: 最新期號沒有可辨識文章，未退回舊期')
+    return items
+
+
+def fetch_hbh():
+    return cultural_enrich(parse_hbh_latest(cultural_soup('https://hbh.center/')))
+
+
+def parse_heterotopias_studies(soup):
+    items=[];seen=set()
+    for card in soup.select('article'):
+        a=card.select_one('h2 a[href],h3 a[href],.entry-title a[href]')
+        if not a:continue
+        link=urllib.parse.urljoin('https://heterotopiaszine.com/',a['href'])
+        u=urllib.parse.urlsplit(link)
+        if u.hostname not in ('heterotopiaszine.com','www.heterotopiaszine.com') or u.scheme not in ('http','https') or '/category/' in u.path or link in seen:continue
+        # Only cards within the Studies archive; never follow pagination or magazine links.
+        seen.add(link);items.append(cultural_card(card,link,'Heterotopias',a.get_text(' ',strip=True)))
+    if not items:raise ValueError('Heterotopias: Studies 頁面沒有可辨識文章')
+    return items
+
+
+def fetch_heterotopias():
+    try:
+        return cultural_feed('https://heterotopiaszine.com/category/studies/feed/', 'Heterotopias')
+    except Exception as feed_error:
+        try:
+            items=parse_heterotopias_studies(cultural_soup('https://heterotopiaszine.com/category/studies/'))
+        except Exception as page_error:
+            raise RuntimeError(f'Heterotopias Studies RSS 與頁面均無法讀取: {feed_error}; {page_error}') from page_error
+        return cultural_enrich(items)
+
+
 def main():
     print("🚀 開始執行資料抓取與同步...")
     all_articles = []
@@ -1014,6 +1071,10 @@ def main():
             futures_map[future] = name
         
         custom_scrapers = [
+            (fetch_macc, "MACC"),
+            (fetch_solrad, "SOLRAD"),
+            (fetch_hbh, "生環境構築史"),
+            (fetch_heterotopias, "Heterotopias"),
             (fetch_publicbooks, "Public Books"),
             (fetch_noema, "Noema"),
             (fetch_metode, "Metode"),
