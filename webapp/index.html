@@ -59,7 +59,7 @@ body.can-write #importButton:not([hidden]){display:inline-flex!important}
 <nav class="bottom" id="mobileNav" aria-label="主模組"></nav>
 <dialog id="editor"><div class="dialogtop"><h2 id="editorHeading"></h2><button data-action="closeEditor" aria-label="關閉詳情">✕</button></div><form id="editForm"><div class="formgrid" id="fields"></div><div class="actions"><button type="button" class="danger" id="deleteButton" data-action="delete">刪除項目</button><button class="primary" type="submit">儲存至本機</button></div></form></dialog>
 <div class="toast" id="toast" hidden role="status"></div>
-<dialog id="writer"><div class="dialogtop"><h2 id="writerHeading">編輯資料</h2><button data-action="closeWriter" aria-label="關閉編輯">✕</button></div><form id="writeForm"><div id="writerTypeWrap"><label for="writerType">新增項目類型</label><select id="writerType"></select></div><div id="writerCategoryWrap"><label for="writerCategory">所屬分類</label><select id="writerCategory"></select></div><section id="lookupPanel" class="lookup-panel" hidden><h3>自動檢索書目／影音資料</h3><p class="small">先查詢並預填，再由你核對及按「新增至資料庫」；查詢本身不會儲存。</p><div class="lookup-controls"><select id="lookupKind" aria-label="檢索方式"></select><input id="lookupValue" aria-label="ISBN、DOI 或作品網址" maxlength="1000"><button type="button" id="lookupButton" data-action="lookup">檢索並預填</button></div><p id="lookupStatus" role="status"></p><p class="small">書目來源：Google Books／Open Library／openBD／Crossref。影音來源：TMDB／Apple iTunes。This product uses the TMDB API but is not endorsed or certified by TMDB.</p></section><div id="writeFields"></div><p id="writeStatus" role="status"></p><div class="actions writer-actions"><button type="button" data-action="closeWriter">取消</button><button id="writeSave" type="submit" class="primary">儲存修改</button></div></form></dialog><!--APP_BOOT--><script>
+<dialog id="writer"><div class="dialogtop"><h2 id="writerHeading">編輯資料</h2><button data-action="closeWriter" aria-label="關閉編輯">✕</button></div><form id="writeForm"><div id="writerTypeWrap"><label for="writerType">新增項目類型</label><select id="writerType"></select></div><div id="writerCategoryWrap"><label for="writerCategory">所屬分類</label><select id="writerCategory"></select></div><section id="lookupPanel" class="lookup-panel" hidden><h3>從網址或識別碼擷取資料</h3><p class="small">先查詢並預填，再由你核對及按「新增至資料庫」；查詢本身不會儲存。</p><div class="lookup-controls"><select id="lookupKind" aria-label="檢索方式"></select><input id="lookupValue" aria-label="ISBN、DOI 或作品網址" maxlength="1000"><button type="button" id="lookupButton" data-action="lookup">擷取資料</button></div><p id="lookupStatus" role="status"></p><p class="small">書目來源：Google Books／Open Library／openBD／Crossref／NDL Search（國立國會圖書館）。影音來源：TMDB／Apple iTunes。This product uses the TMDB API but is not endorsed or certified by TMDB.</p></section><div id="lookupPreview"></div><div id="writeFields"></div><p id="writeStatus" role="status"></p><div class="actions writer-actions"><button type="button" data-action="closeWriter">取消</button><button id="writeSave" type="submit" class="primary">儲存修改</button></div></form></dialog><!--APP_BOOT--><script>
 'use strict';
 const $=id=>document.getElementById(id), E=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MODS={mono:{name:'Monoreader',short:'閱讀',icon:'▤',title:'閱讀，從這裏開始',desc:'即時評論、歷史文章與值得留存的線索。',tabs:['全部來源總覽','最新評論','文化快訊','分類存檔','我的收藏庫','未來典藏','搜尋中心']},bib:{name:'Biblioapp',short:'書庫',icon:'▥',title:'自己的知識書架',desc:'從出版探索，到文獻、書籍與研究資源。',tabs:['文獻探索','待讀期刊','個人書庫','參考書目','網址備存','可用資源','搜尋中心']},media:{name:'Mediavault',short:'影音',icon:'◉',title:'聲音與影像的收藏',desc:'留待下一次播放，也留住已經喜歡的作品。',tabs:['待播／待看','典藏／已完成','搜尋中心']},omni:{name:'萬物收藏庫',short:'收藏',icon:'▧',title:'好奇心的陳列室',desc:'分類由你定義，讓每一種喜愛各得其所。',tabs:['分類資料夾','搜尋中心']}};
@@ -105,7 +105,7 @@ function openEditor(id){
 }
 
 const BOOT=window.MONOREADER_BOOT||{expires:0,cacheKey:'unavailable'};
-const PREFIX='monoreader-pages-', CACHE=PREFIX+'v11-'+BOOT.cacheKey, DAY=86400000;
+const PREFIX='monoreader-pages-', CACHE=PREFIX+'v12-'+BOOT.cacheKey, DAY=86400000;
 let state={bsource:'',bkind:'',bissue:'',blabel:'',module:'mono',tab:'全部來源總覽',sub:'',folder:'',query:'',source:'全部',issue:'全部',sort:'added',asc:false,page:1,layout:'grid',manage:false};
 let db={items:[],folders:[],theme:'light'}, result={items:[],total:0,page:1,page_size:30,sources:[],issues:[]}, timer, editing=null;
 let generation=0, controller, searchTimer, busy=false, checked=0, entries={}, detailGeneration=0;
@@ -144,7 +144,7 @@ function render(){
  cats.innerHTML=cats.hidden?'':['全部',...sources].map(v=>`<button type="button" data-category="${E(v)}" class="${state.source===v?'active':''}">${E(v==='全部'?'總覽':v)}</button>`).join('');
  cats.onclick=e=>{const b=e.target.closest('[data-category]');if(b){state.source=b.dataset.category;state.page=1;load()}};
 
- $('importButton').hidden=!['bib','media'].includes(state.module);$('importButton').textContent=state.module==='bib'?'ISBN／DOI 檢索':'IMDb／音樂檢索';
+ $('importButton').hidden=!['mono','bib','media'].includes(state.module);$('importButton').textContent=state.module==='mono'?'從網址新增':state.module==='bib'?'ISBN／DOI 檢索':'IMDb／音樂檢索';
  let sorts=[['added',state.module==='mono'?'擷取／加入時間':'加入日期（缺漏時依出版日）'],['title','標題']];
  if(state.module==='bib')sorts.push(['published','出版日期'],['author','作者']);if(state.module==='media')sorts.push(['author','創作者']);if(state.module==='omni')sorts.push(['category','分類']);if(state.tab==='參考書目')sorts.push(['rating','評級']);
  if(!sorts.some(x=>x[0]===state.sort))state.sort='added';opts($('sort'),sorts,state.sort);$('sort').hidden=isFolderHome();$('reverse').hidden=isFolderHome();$('reverse').textContent=state.asc?'↑ 升冪':'↓ 降冪';
@@ -237,7 +237,7 @@ async function load(force=false){
   const body=await fetchPage(key,force);
   if(seq!==generation||epoch!==cacheEpoch)return;
   busy=false;apply(body);scheduleNext(key,body);
-  status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 期刊待讀版 v11');
+  status('已更新 · '+new Date().toLocaleTimeString()+' · 完整資料庫查詢 · 網址預填與封面補全版 v12');
  }catch(e){
   if(e.name==='AbortError'||seq!==generation||epoch!==cacheEpoch)return;
   busy=false;render();status((usable?'更新失敗，目前顯示快取，可能不是最新資料。':'讀取失敗。')+' '+e.message+' 可按「更新目前頁面」重試。');
@@ -350,24 +350,29 @@ window.addEventListener('beforeunload',e=>{if($('writer').open&&writerDirty()){e
 window.addEventListener('storage',e=>{if(e.key==='monoreader-data-updated'){clearCaches();if(!$('writer').open)load(true)}});
 let lookupGeneration=0,lookupBusy=false;
 function renderLookup(){
- const choices=writeKind==='book'?[['isbn','ISBN 書籍']]:writeKind==='journal'?[['doi','DOI 文獻']]:writeKind==='reference'?[['isbn','ISBN 書籍'],['doi','DOI 文獻']]:writeKind==='media'?[['imdb','IMDb 電影／影集'],['apple','Apple Music 專輯']]:[];
+ const choices=writeKind==='article'?[['url','文章網址']]:writeKind==='book'?[['isbn','ISBN 書籍']]:writeKind==='journal'?[['doi','DOI 文獻']]:writeKind==='reference'?[['isbn','ISBN 書籍'],['doi','DOI 文獻']]:writeKind==='media'?[['imdb','IMDb 電影／影集'],['apple','Apple Music 專輯']]:[];
  $('lookupPanel').hidden=!!writeOriginal||!choices.length;
  opts($('lookupKind'),choices,writeKind==='media'&&state.sub==='音樂與專輯'?'apple':choices[0]?.[0]);
- $('lookupValue').value='';$('lookupStatus').textContent='';$('lookupButton').disabled=false;lookupPlaceholder();
+ $('lookupPreview').innerHTML='';$('lookupValue').value='';$('lookupStatus').textContent='';$('lookupButton').disabled=false;lookupPlaceholder();
 }
-function lookupPlaceholder(){const examples={isbn:'例如 9780674040212',doi:'例如 10.1215/17432197-2347000',imdb:'https://www.imdb.com/title/tt0137523/',apple:'https://music.apple.com/hk/album/…/123456789'};$('lookupValue').placeholder=examples[$('lookupKind').value]||''}
+function lookupPlaceholder(){const examples={url:'https://…（貼上文章網址）',isbn:'例如 9780674040212',doi:'例如 10.1215/17432197-2347000',imdb:'https://www.imdb.com/title/tt0137523/',apple:'https://music.apple.com/hk/album/…/123456789'};$('lookupValue').placeholder=examples[$('lookupKind').value]||''}
 $('lookupKind').onchange=()=>{lookupGeneration++;lookupBusy=false;$('lookupButton').disabled=false;$('writeSave').disabled=false;$('lookupStatus').textContent='';lookupPlaceholder()};
 $('lookupValue').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runLookup()}});
 async function openImportWriter(){
  await openWriter(null);if(!$('writer').open)return;
- if($('lookupPanel').hidden){writeKind=state.module==='bib'?(state.tab==='參考書目'?'reference':'book'):'media';writeFields=capabilities.types[writeKind]||[];renderWriter()}
+ if($('lookupPanel').hidden){writeKind=state.module==='mono'?'article':state.module==='bib'?(state.tab==='參考書目'?'reference':'book'):'media';writeFields=capabilities.types[writeKind]||[];renderWriter()}
  $('lookupValue').focus();
 }
+function renderImagePreview(){
+ const url=externalUrl($('w_image')?.value);
+ $('lookupPreview').innerHTML=url?`<p class="small">圖片預覽（可在下方修改圖片網址）</p><img src="${E(url)}" alt="擷取圖片預覽" referrerpolicy="no-referrer" style="max-width:180px;max-height:220px;object-fit:contain" onerror="this.hidden=true;this.previousElementSibling.textContent='圖片暫時無法載入，可修改圖片網址。'">`:'';
+}
+document.addEventListener('input',e=>{if(e.target.id==='w_image')renderImagePreview()});
 async function runLookup(){
  if(lookupBusy||writeBusy||writeOriginal)return;
  const value=$('lookupValue').value.trim();if(!value){$('lookupStatus').textContent='請先輸入識別碼或網址。';return}
  const targets=['title','author','source','published','identifier','summary','image','url','issue'];
- if(targets.some(k=>$('w_'+k)&&writeFields.includes(k)&&$('w_'+k).value.trim())&&!confirm('查詢成功後會更新書目／影音欄位，個人筆記不變。繼續？'))return;
+ if(targets.some(k=>$('w_'+k)&&writeFields.includes(k)&&$('w_'+k).value.trim())&&!confirm('查詢成功後會更新標題、摘要及圖片等欄位，個人筆記不變。繼續？'))return;
  const seq=++lookupGeneration,snapshot=Object.fromEntries(writeFields.map(k=>[k,$('w_'+k).value]));
  lookupBusy=true;$('lookupButton').disabled=true;$('writeSave').disabled=true;$('lookupStatus').textContent='正在查詢外部資料來源…';
  try{
@@ -377,6 +382,7 @@ async function runLookup(){
   const skipped=[];for(const [k,v] of Object.entries(body.fields||{})){if(!v)continue;if(writeFields.includes(k))$('w_'+k).value=v;else skipped.push(LABELS[k]||k)}
   if(writeKind==='reference'&&writeFields.includes('pubtype'))$('w_pubtype').value=$('lookupKind').value==='doi'?'期刊論文':'專書';
   if(body.category)$('writerCategory').value=body.category;
+  renderImagePreview();
   $('lookupStatus').textContent='已取得資料（'+body.provider+'），請核對後按「新增至資料庫」。尚未儲存。'+(body.warnings?.length?'\n'+body.warnings.join('\n'):'')+(skipped.length?'\n原資料表沒有以下欄位，未套用：'+skipped.join('、'):'');
  }catch(e){if(seq===lookupGeneration)$('lookupStatus').textContent=e.message+' 你也可以直接手動填寫。'}
  finally{if(seq===lookupGeneration){lookupBusy=false;$('lookupButton').disabled=false;$('writeSave').disabled=false}}

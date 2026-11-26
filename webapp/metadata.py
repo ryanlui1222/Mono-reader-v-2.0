@@ -1,4 +1,4 @@
-"""On-demand metadata drafts. No database writes, arbitrary URLs or redirects."""
+"""Metadata drafts only: ISBN cover completion and guarded public URL previews."""
 import os
 import re
 from html import unescape
@@ -67,7 +67,7 @@ def draft(kind, fields, provider, category='', warnings=None):
     return {'type':kind,'fields':fields,'provider':provider,'category':category,'warnings':warnings or []}
 
 
-async def lookup_isbn(value):
+async def lookup_isbn_record(value):
     isbn=isbn_clean(value);canonical=isbn13(isbn);warnings=[];errors=[]
     if canonical.startswith(('9787','978957','978986','978626','978988','978962')):
         try:
@@ -81,10 +81,15 @@ async def lookup_isbn(value):
             data=await provider_json('https://api.openbd.jp/v1/get',{'isbn':isbn})
             info=data[0].get('summary',{}) if isinstance(data,list) and data and isinstance(data[0],dict) else {}
             if info.get('title'):
-                cover=info.get('cover') or await japanese_cover(canonical)
+                cover=info.get('cover')
                 if not cover:warnings.append('找到日文書目，但未取得封面；可手動填寫圖片網址。')
                 return draft('book',{'title':info['title'],'author':info.get('author'),'source':info.get('publisher'),'published':info.get('pubdate'),'identifier':isbn,'image':cover,'url':f'https://www.hanmoto.com/bd/isbn/{canonical}'},'openBD',warnings=warnings)
         except HTTPException as exc:errors.append(exc)
+    if canonical.startswith(('9784','9794')):
+        try:
+            found=await lookup_ndl(canonical)
+            if found:return found
+        except HTTPException:pass
     params={'q':'isbn:'+isbn,'maxResults':5,'printType':'books'}
     if os.getenv('GOOGLE_BOOKS_API_KEY'):params['key']=os.environ['GOOGLE_BOOKS_API_KEY'].strip()
     try:
@@ -174,7 +179,7 @@ async def lookup_apple(value):
 
 async def lookup_metadata(kind,value):
     if not isinstance(value,str) or not value.strip() or len(value)>1000:raise HTTPException(400,'請輸入 ISBN、DOI 或作品網址（最多1000字元）。')
-    routes={'isbn':lookup_isbn,'imdb':lookup_imdb,'doi':lookup_doi,'apple':lookup_apple}
+    routes={'isbn':lookup_isbn,'imdb':lookup_imdb,'doi':lookup_doi,'apple':lookup_apple,'url':lookup_article}
     if not isinstance(kind,str) or kind not in routes:raise HTTPException(400,'不支援的檢索方式。')
     try:return await routes[kind](value.strip())
     except HTTPException:raise
@@ -262,3 +267,163 @@ class BookHTML(HTMLParser,BookNode):
             if self.stack[i].tag==tag:self.stack=self.stack[:i];break
     def handle_data(self,data):
         self.stack[-1].children.append(data)
+
+
+async def public_target(url):
+    """Resolve once and pin a public address, including for each redirect."""
+    import asyncio, socket, ipaddress
+    if not safe_url(url):raise HTTPException(400,'請輸入公開的 http／https 網址。')
+    u=urlsplit(url)
+    if u.port not in (None,80,443):raise HTTPException(400,'不支援此連線埠。')
+    try:
+        rows=await asyncio.get_running_loop().getaddrinfo(u.hostname,u.port or (443 if u.scheme=='https' else 80),type=socket.SOCK_STREAM)
+    except OSError:raise HTTPException(502,'無法解析網站位址。') from None
+    ips=list(dict.fromkeys(row[4][0] for row in rows))
+    if not ips or any(not ipaddress.ip_address(ip).is_global for ip in ips):
+        raise HTTPException(400,'只可擷取公開網站，不能存取內部網路。')
+    return ips[0]
+
+
+async def public_bytes(url, limit=2000000):
+    import asyncio
+    try:
+        async with asyncio.timeout(10):
+            async with httpx.AsyncClient(timeout=7,follow_redirects=False,trust_env=False) as client:
+                for _ in range(5):
+                    ip=await public_target(url)
+                    original=httpx.URL(url)
+                    # Connect to the validated IP; keep the original Host and TLS SNI.
+                    target=original.copy_with(host=ip)
+                    async with client.stream('GET',target,headers={'Host':original.netloc.decode(),'User-Agent':'Monoreader/12 metadata preview','Accept':'*/*'},extensions={'sni_hostname':original.host}) as r:
+                        if r.status_code in (301,302,303,307,308):
+                            location=r.headers.get('location')
+                            if not location:raise HTTPException(502,'網站跳轉缺少目的地。')
+                            url=urljoin(url,location);continue
+                        if r.status_code!=200:raise HTTPException(502,'網站暫時無法讀取（HTTP '+str(r.status_code)+'）。')
+                        data=bytearray()
+                        async for chunk in r.aiter_bytes():
+                            data.extend(chunk)
+                            if len(data)>limit:raise HTTPException(502,'網站回應過大，請手動輸入。')
+                        return bytes(data),url,r.headers.get('content-type','')
+    except (httpx.HTTPError,TimeoutError):raise HTTPException(502,'網站連線逾時或失敗，請稍後重試。') from None
+    raise HTTPException(502,'網站跳轉次數過多。')
+
+
+class ArticleHTML(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True);self.meta={};self.title=[];self.in_title=False
+    def handle_starttag(self,tag,attrs):
+        a=dict(attrs)
+        if tag=='meta':self.meta.setdefault((a.get('property') or a.get('name') or '').lower(),a.get('content',''))
+        if tag=='title':self.in_title=True
+    def handle_endtag(self,tag):
+        if tag=='title':self.in_title=False
+    def handle_data(self,value):
+        if self.in_title:self.title.append(value)
+
+
+def article_draft(html,url):
+    p=ArticleHTML();p.feed(html);m=p.meta
+    title=m.get('og:title') or m.get('twitter:title') or ''.join(p.title)
+    summary=m.get('og:description') or m.get('twitter:description') or m.get('description') or ''
+    image=m.get('og:image:secure_url') or m.get('og:image') or m.get('twitter:image') or ''
+    return draft('article',{'title':title,'summary':summary,'image':urljoin(url,image) if image else '',
+        'url':url,'source':m.get('og:site_name') or urlsplit(url).hostname},'網頁 Open Graph／HTML',
+        warnings=[] if summary else ['網站沒有提供摘要，可自行填寫。'])
+
+
+async def lookup_article(value):
+    body,url,kind=await public_bytes(value)
+    if not any(t in kind.lower() for t in ('text/html','application/xhtml+xml')):
+        raise HTTPException(400,'此網址不是可解析的文章網頁。')
+    # HTML charset declarations are honored when present.
+    match=re.search(br'charset=["\' ]*([a-zA-Z0-9_-]+)',body[:4096])
+    encoding=match[1].decode('ascii') if match else 'utf-8'
+    try:html=body.decode(encoding,errors='replace')
+    except LookupError:html=body.decode('utf-8',errors='replace')
+    return article_draft(html,url)
+
+
+async def lookup_ndl(isbn):
+    from xml.etree import ElementTree as ET
+    url='https://ndlsearch.ndl.go.jp/api/opensearch?'+str(httpx.QueryParams({'isbn':isbn,'cnt':5,'dpid':'iss-ndl-opac'}))
+    body,_,_=await public_bytes(url)
+    if b'<!DOCTYPE' in body.upper() or b'<!ENTITY' in body.upper():raise HTTPException(502,'NDL 格式不支援。')
+    try:root=ET.fromstring(body)
+    except ET.ParseError:raise HTTPException(502,'NDL 回應格式不符。') from None
+    for item in root.findall('.//item'):
+        fields={}
+        for e in item:
+            name=e.tag.split('}')[-1];fields.setdefault(name,[]).append(''.join(e.itertext()).strip())
+        ids=[]
+        for v in fields.get('identifier',[]):
+            try:ids.append(isbn13(isbn_clean(v.removeprefix('urn:isbn:'))))
+            except HTTPException:pass
+        if isbn not in ids:continue
+        first=lambda k:next(iter(fields.get(k,[])),'')
+        return draft('book',{'title':first('title'),'author':', '.join(fields.get('creator',[])),
+            'source':first('publisher'),'published':first('date'),'identifier':isbn,'url':first('link')},'NDL Search（國立國會圖書館）')
+    return None
+
+
+async def cover_candidate(url):
+    if not url:return ''
+    try:
+        body,final,kind=await public_bytes(url)
+        if kind.lower().startswith(('image/jpeg','image/png','image/webp','image/gif')) and len(body)>128:return final
+    except HTTPException:pass
+    return ''
+
+
+async def cover_from_provider(name,isbn):
+    try:
+        if name=='openBD':
+            d=await provider_json('https://api.openbd.jp/v1/get',{'isbn':isbn})
+            return d[0].get('summary',{}).get('cover','') if isinstance(d,list) and d and isinstance(d[0],dict) else ''
+        if name=='Google Books':
+            d=await provider_json('https://www.googleapis.com/books/v1/volumes',{'q':'isbn:'+isbn,'maxResults':5})
+            for item in d.get('items',[]):
+                v=item.get('volumeInfo',{});ids=[]
+                for e in v.get('industryIdentifiers',[]):
+                    try:ids.append(isbn13(isbn_clean(e.get('identifier',''))))
+                    except HTTPException:pass
+                if isbn in ids:return v.get('imageLinks',{}).get('thumbnail','').replace('http://','https://',1)
+        if name=='Open Library':
+            return 'https://covers.openlibrary.org/b/isbn/'+isbn+'-L.jpg?default=false'
+    except (HTTPException,TypeError,KeyError,AttributeError):pass
+    return ''
+
+
+async def complete_cover(isbn):
+    import asyncio
+    async def candidate(name,url=''):
+        url=url or await cover_from_provider(name,isbn)
+        return await cover_candidate(url),name
+    tasks=[]
+    if isbn.startswith(('9784','9794')):
+        tasks.extend([asyncio.create_task(candidate('NDL Search',f'https://ndlsearch.ndl.go.jp/thumbnail/{isbn}.jpg')),
+                      asyncio.create_task(candidate('版元ドットコム',f'https://www.hanmoto.com/bd/img/{isbn}.jpg')),
+                      asyncio.create_task(candidate('openBD'))])
+    tasks.extend(asyncio.create_task(candidate(n)) for n in ('Google Books','Open Library'))
+    try:
+        async with asyncio.timeout(10):
+            for done in asyncio.as_completed(tasks):
+                url,name=await done
+                if url:return url,name
+    except TimeoutError:pass
+    finally:
+        for task in tasks:task.cancel()
+        await asyncio.gather(*tasks,return_exceptions=True)
+    return '',''
+
+
+async def lookup_isbn(value):
+    isbn=isbn13(isbn_clean(value))
+    result=await lookup_isbn_record(value)
+    if not result['fields'].get('image'):
+        image,provider=await complete_cover(isbn)
+        result['fields']['image']=image
+        result['warnings']=[w for w in result['warnings'] if '封面' not in w]
+        if image:result['warnings'].append('封面補全來源：'+provider+'；書目資料保持原來源。')
+        else:result['warnings'].append('已取得書目，但各圖片來源仍未提供可用封面，可手動填寫圖片網址。')
+    return result
